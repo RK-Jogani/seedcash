@@ -194,7 +194,7 @@ class MainMenuView(View):
         button_data = [self.SCAN, self.SEEDS, self.TOOLS, self.SETTINGS]
         selected_menu_num = self.run_screen(
             MainMenuScreen,
-            title=_("Home"),
+            title=_("SeedCash"),
             button_data=button_data,
         )
 
