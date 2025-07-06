@@ -29,7 +29,7 @@ class GUIConstants:
 
     BACKGROUND_COLOR = "#000000"
     INACTIVE_COLOR = "#414141"
-    ACCENT_COLOR = "#FF9F0A" # Active Color
+    ACCENT_COLOR = "#0ac18e" # Active Color
     WARNING_COLOR = "#FFD60A"
     DIRE_WARNING_COLOR = "#FF5700"
     ERROR_COLOR = "#FF1B0A"
@@ -1351,7 +1351,7 @@ class Button(BaseComponent):
     icon_name: str = None   # Optional icon to accompany the text
     icon_size: int = GUIConstants.ICON_INLINE_FONT_SIZE
     icon_color: str = GUIConstants.BUTTON_FONT_COLOR
-    selected_icon_color: str = "black"
+    selected_icon_color: str = GUIConstants.BUTTON_FONT_COLOR
     icon_y_offset: int = 0
     is_icon_inline: bool = True    # True = render next to text; False = render centered above text
     right_icon_name: str = None    # Optional icon rendered right-justified
@@ -1367,7 +1367,7 @@ class Button(BaseComponent):
     font_size: int = None
 
     font_color: str = GUIConstants.BUTTON_FONT_COLOR
-    selected_font_color: str = GUIConstants.BUTTON_SELECTED_FONT_COLOR
+    selected_font_color: str = GUIConstants.BUTTON_FONT_COLOR
     outline_color: str = None
     selected_outline_color: str = None
     is_text_centered: bool = True

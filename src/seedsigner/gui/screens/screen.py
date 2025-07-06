@@ -556,14 +556,10 @@ class ButtonListScreen(BaseTopNavScreen):
 
 
 @dataclass
-class LargeButtonScreen(BaseTopNavScreen):
+class LargeButtonScreen(BaseScreen):
     button_data: list = None
-
-    # Cannot define these class attrs w/the get_*_font_*() methods because the attrs will
-    # not be dynamically reinterpreted after initial class import.
     button_font_name: str = None
     button_font_size: int = None
-
     button_selected_color: str = GUIConstants.ACCENT_COLOR
     selected_button: int = 0
 
@@ -571,53 +567,42 @@ class LargeButtonScreen(BaseTopNavScreen):
         if not self.button_font_name:
             self.button_font_name = GUIConstants.get_button_font_name()
         if not self.button_font_size:
-            # TODO: Define the +2 with a constant or via a formula (e.g. int(x * 1.1))
             self.button_font_size = GUIConstants.get_button_font_size() + 2
 
         super().__post_init__()
 
-        if len(self.button_data) not in [2, 4]:
-            raise Exception("LargeButtonScreen only supports 2 or 4 buttons")
+        if not self.button_data:
+            raise Exception("button_data must be provided")
 
-        # Maximize 2-across width
-        button_width = int((self.canvas_width - (2 * GUIConstants.EDGE_PADDING) - GUIConstants.COMPONENT_PADDING) / 2)
+        # Calculate available height for main buttons (excluding bottom power button)
+        num_main_buttons = len(self.button_data)
+        total_padding = (num_main_buttons - 1) * GUIConstants.COMPONENT_PADDING
+        max_button_height = (self.canvas_height - total_padding - 2 * GUIConstants.EDGE_PADDING - GUIConstants.TOP_NAV_BUTTON_SIZE) // num_main_buttons
+        button_size = min(self.canvas_width - 2 * GUIConstants.EDGE_PADDING, max_button_height)
 
-        # Maximize 2-row height
-        button_height = int((self.canvas_height - self.top_nav.height - (2 * GUIConstants.COMPONENT_PADDING) - GUIConstants.EDGE_PADDING) / 2)
-
-        # Vertically center the buttons
-        if len(self.button_data) == 2:
-            button_start_y = self.top_nav.height + int((self.canvas_height - (self.top_nav.height + GUIConstants.COMPONENT_PADDING) - button_height) / 2)
-        else:
-            button_start_y = self.top_nav.height + int((self.canvas_height - (self.top_nav.height + GUIConstants.COMPONENT_PADDING) - (2 * button_height) - GUIConstants.COMPONENT_PADDING) / 2)
+        # Center the column of buttons
+        total_buttons_height = num_main_buttons * button_size + total_padding
+        button_start_y = (self.canvas_height - GUIConstants.TOP_NAV_BUTTON_SIZE - GUIConstants.EDGE_PADDING - total_buttons_height) // 2
+        button_start_x = (self.canvas_width - button_size) // 2
 
         self.buttons = []
         for i, button_option in enumerate(self.button_data):
-            if type(button_option) == ButtonOption:
+            # Support both ButtonOption and dict for button_data
+            if isinstance(button_option, ButtonOption):
                 button_label = button_option.button_label
                 icon_name = button_option.icon_name
+            elif isinstance(button_option, dict):
+                button_label = button_option.get("button_label", "")
+                icon_name = button_option.get("icon_name", None)
             else:
-                raise Exception("Refactor needed!")
-
-            # elif type(button_option) == str:
-            #     button_label = button_option
-            #     icon_name = None
-            # elif type(button_option) == tuple:
-            #     (button_label, icon_name) = button_option
-            # else:
-            #     print(type(button_option))
-
-            if i % 2 == 0:
-                button_start_x = GUIConstants.EDGE_PADDING
-            else:
-                button_start_x = GUIConstants.EDGE_PADDING + button_width + GUIConstants.COMPONENT_PADDING
+                raise Exception("button_data must be ButtonOption or dict")
 
             button_args = {
-                "text": _(button_label),  # Wrap here for just-in-time translations
+                "text": _(button_label),
                 "screen_x": button_start_x,
                 "screen_y": button_start_y,
-                "width": button_width,
-                "height": button_height,
+                "width": button_size,
+                "height": button_size,
                 "is_text_centered": True,
                 "font_name": self.button_font_name,
                 "font_size": self.button_font_size,
@@ -633,11 +618,21 @@ class LargeButtonScreen(BaseTopNavScreen):
             self.buttons.append(button)
             self.components.append(button)
 
-            if i == 1:
-                button_start_y += button_height + GUIConstants.COMPONENT_PADDING
+            button_start_y += button_size + GUIConstants.COMPONENT_PADDING
+
+        # Add the small power button at the bottom right as a selectable button
+        self.bottom_button = IconButton(
+            icon_name=SeedSignerIconConstants.POWER,
+            icon_size=GUIConstants.ICON_INLINE_FONT_SIZE,
+            screen_x=self.canvas_width - GUIConstants.TOP_NAV_BUTTON_SIZE - GUIConstants.EDGE_PADDING,
+            screen_y=self.canvas_height - GUIConstants.TOP_NAV_BUTTON_SIZE - GUIConstants.EDGE_PADDING,
+            width=GUIConstants.TOP_NAV_BUTTON_SIZE,
+            height=GUIConstants.TOP_NAV_BUTTON_SIZE,
+        )
+        self.buttons.append(self.bottom_button)  # Now selectable
+        self.components.append(self.bottom_button)
 
         self.buttons[self.selected_button].is_selected = True
-
 
     def _run(self):
         def swap_selected_button(new_selected_button: int):
@@ -663,63 +658,23 @@ class LargeButtonScreen(BaseTopNavScreen):
 
             with self.renderer.lock:
                 if user_input == HardwareButtonsConstants.KEY_UP:
-                    if self.selected_button in [0, 1]:
-                        # Move selection up to top_nav
-                        self.top_nav.is_selected = True
-                        self.top_nav.render_buttons()
-
-                        self.buttons[self.selected_button].is_selected = False
-                        self.buttons[self.selected_button].render()
-
-                    elif len(self.buttons) == 4:
-                        swap_selected_button(self.selected_button - 2)
+                    # Navigation wraps through all buttons, including the power button at the bottom.
+                    if self.selected_button == 0:
+                        pass  # Already at top button
+                    else:
+                        swap_selected_button(self.selected_button - 1)
 
                 elif user_input == HardwareButtonsConstants.KEY_DOWN:
-                    if self.top_nav.is_selected:
-                        self.top_nav.is_selected = False
-                        self.top_nav.render_buttons()
-
-                        self.buttons[self.selected_button].is_selected = True
-                        self.buttons[self.selected_button].render()
-
-                    elif self.selected_button in [2, 3]:
-                        pass
-                    elif len(self.buttons) == 4:
-                        swap_selected_button(self.selected_button + 2)
-
-                elif user_input == HardwareButtonsConstants.KEY_RIGHT and not self.top_nav.is_selected:
-                    if self.selected_button in [0, 2]:
+                    # After the last main button, next down selects the power button.
+                    if self.selected_button < len(self.buttons) - 1:
                         swap_selected_button(self.selected_button + 1)
-                
-                elif (user_input == HardwareButtonsConstants.KEY_RIGHT and
-                        self.top_nav.is_selected and not self.top_nav.show_power_button
-                    ):
-                    self.top_nav.is_selected = False
-                    self.top_nav.render_buttons()
-
-                    self.buttons[self.selected_button].is_selected = True
-                    self.buttons[self.selected_button].render()
-
-                elif user_input == HardwareButtonsConstants.KEY_LEFT and not self.top_nav.is_selected:
-                    if self.selected_button in [1, 3]:
-                        swap_selected_button(self.selected_button - 1)
-                    else:
-                        # Left from the far edge takes us up to the BACK arrow
-                        if self.top_nav.show_back_button:
-                            self.top_nav.is_selected = True
-                            self.top_nav.render_buttons()
-
-                            self.buttons[self.selected_button].is_selected = False
-                            self.buttons[self.selected_button].render()
 
                 elif user_input in HardwareButtonsConstants.KEYS__ANYCLICK:
-                    if self.top_nav.is_selected:
-                        return self.top_nav.selected_button
                     return self.selected_button
 
-                # Write the screen updates
                 self.renderer.show_image()
 
+                self.renderer.show_image()
 
 
 @dataclass
@@ -1319,6 +1274,6 @@ class KeyboardScreen(BaseTopNavScreen):
 @dataclass
 class MainMenuScreen(LargeButtonScreen):
     # Override LargeButtonScreen defaults
-    title_font_size: int = 26
     show_back_button: bool = False
     show_power_button: bool = True
+    button_font_size: int = 16

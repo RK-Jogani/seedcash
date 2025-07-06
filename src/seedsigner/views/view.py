@@ -10,6 +10,8 @@ from seedsigner.models.settings import Settings, SettingsConstants
 from seedsigner.models.settings_definition import SettingsDefinition
 from seedsigner.models.threads import BaseThread
 
+import logging
+logger = logging.getLogger(__name__)
 
 class BackStackView:
     """
@@ -184,23 +186,21 @@ class Destination:
 #
 #########################################################################################
 class MainMenuView(View):
-    SCAN = ButtonOption("Scan", SeedSignerIconConstants.SCAN)
-    SEEDS = ButtonOption("Seeds", SeedSignerIconConstants.SEEDS)
-    TOOLS = ButtonOption("Tools", SeedSignerIconConstants.TOOLS)
-    SETTINGS = ButtonOption("Settings", SeedSignerIconConstants.SETTINGS)
+    SEEDS = ButtonOption("Load seed", SeedSignerIconConstants.SEEDS)
+    SCAN = ButtonOption("Generate seed", SeedSignerIconConstants.SCAN)
 
     def run(self):
         from seedsigner.gui.screens.screen import MainMenuScreen
-        button_data = [self.SCAN, self.SEEDS, self.TOOLS, self.SETTINGS]
+        button_data = [self.SEEDS, self.SCAN]
         selected_menu_num = self.run_screen(
             MainMenuScreen,
-            title=_("SeedCash"),
             button_data=button_data,
         )
+        # debug the selected menu number
+        logger.info(f"MainMenuView selected_menu_num: {selected_menu_num}")
 
-        if selected_menu_num == RET_CODE__POWER_BUTTON:
-            return Destination(PowerOptionsView)
-
+        if selected_menu_num == 2:
+            return Destination(PowerOffView)
         if button_data[selected_menu_num] == self.SCAN:
             from seedsigner.views.scan_views import ScanView
             return Destination(ScanView)
@@ -208,66 +208,6 @@ class MainMenuView(View):
         elif button_data[selected_menu_num] == self.SEEDS:
             from seedsigner.views.seed_views import SeedsMenuView
             return Destination(SeedsMenuView)
-
-        elif button_data[selected_menu_num] == self.TOOLS:
-            from seedsigner.views.tools_views import ToolsMenuView
-            return Destination(ToolsMenuView)
-
-        elif button_data[selected_menu_num] == self.SETTINGS:
-            from seedsigner.views.settings_views import SettingsMenuView
-            return Destination(SettingsMenuView)
-
-
-
-class PowerOptionsView(View):
-    RESET = ButtonOption("Restart", SeedSignerIconConstants.RESTART)
-    POWER_OFF = ButtonOption("Power Off", SeedSignerIconConstants.POWER)
-
-    def run(self):
-        button_data = [self.RESET, self.POWER_OFF]
-        selected_menu_num = self.run_screen(
-            LargeButtonScreen,
-            title=_("Reset / Power"),
-            show_back_button=True,
-            button_data=button_data
-        )
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-        
-        elif button_data[selected_menu_num] == self.RESET:
-            return Destination(RestartView)
-        
-        elif button_data[selected_menu_num] == self.POWER_OFF:
-            return Destination(PowerOffView)
-
-
-
-class RestartView(View):
-    def run(self):
-        from seedsigner.gui.screens.screen import ResetScreen
-        thread = RestartView.DoResetThread()
-        thread.start()
-        self.run_screen(ResetScreen)
-
-
-    class DoResetThread(BaseThread):
-        def run(self):
-            import time
-            from subprocess import call
-
-            # Give the screen just enough time to display the reset message before
-            # exiting.
-            time.sleep(0.25)
-
-            # Kill the SeedSigner process; Running the process again.
-            # `.*` is a wildcard to detect either `python`` or `python3`.
-            if Settings.HOSTNAME == Settings.SEEDSIGNER_OS:
-                call("kill $(pidof python*) & python /opt/src/main.py", shell=True)
-            else:
-                call("kill $(ps aux | grep '[p]ython.*main.py' | awk '{print $2}')", shell=True)
-
-
 
 class PowerOffView(View):
     def run(self):
