@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 
-from seedsigner.controller import Controller
+from seedcash.controller import Controller
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,9 @@ def main(sys_argv=None):
     root_logger.setLevel(logging.getLevelName(args.loglevel))
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)8s [%(name)s %(funcName)s (%(lineno)d)]: %(message)s")
+        logging.Formatter(
+            "%(asctime)s %(levelname)8s [%(name)s %(funcName)s (%(lineno)d)]: %(message)s"
+        )
     )
     root_logger.addHandler(console_handler)
 
@@ -43,7 +45,7 @@ def main(sys_argv=None):
     for module, level in DEFAULT_MODULE_LOG_LEVELS.items():
         logging.getLogger(module).setLevel(level)
 
-    logger.info(f"Starting SeedSigner with: {args.__dict__}")
+    logger.info(f"Starting SeedCash with: {args.__dict__}")
 
     # Get the one and only Controller instance and start our main loop
     Controller.get_instance().start()
