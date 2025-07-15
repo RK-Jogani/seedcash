@@ -279,11 +279,11 @@ class ST7789:
 
         GPIO.setmode(GPIO.BOARD)
         GPIO.setwarnings(False)
-        GPIO.setup(dc,GPIO.OUT)
-        GPIO.setup(reset,GPIO.OUT)
-        GPIO.setup(backlight,GPIO.OUT)
+        GPIO.setup(dc, GPIO.OUT)
+        GPIO.setup(reset, GPIO.OUT)
+        GPIO.setup(backlight, GPIO.OUT)
 
-        #Initialize SPI
+        # Initialize SPI
         spi = spidev.SpiDev(0, 0)
         spi.max_speed_hz = 40000000
 
@@ -352,8 +352,12 @@ class ST7789:
 
         imwidth, imheight = image.size
         if imwidth != self.width or imheight != self.height:
-            raise ValueError('Image must be same dimensions as display \
-                ({0}x{1}).' .format(self.width, self.height))
+            raise ValueError(
+                "Image must be same dimensions as display \
+                ({0}x{1}).".format(
+                    self.width, self.height
+                )
+            )
 
         # convert 24-bit RGB-8:8:8 to gBRG-3:5:5:3; then per-pixel byteswap to 16-bit RGB-5:6:5
         arr = array.array("H", image.convert("BGR;16").tobytes())
@@ -361,7 +365,7 @@ class ST7789:
         pix = arr.tobytes()
 
         self._set_window(x_start, y_start, self.width, self.height)
-        GPIO.output(self.dc,GPIO.HIGH)
+        GPIO.output(self.dc, GPIO.HIGH)
         self._write(data=pix)
 
     def _write(self, command=None, data=None):
@@ -372,10 +376,10 @@ class ST7789:
             GPIO.output(self.dc, GPIO.LOW)
             self.spi.writebytes2(command)
         if data is not None:
-            GPIO.output(self.dc,GPIO.HIGH)
+            GPIO.output(self.dc, GPIO.HIGH)
             self.spi.writebytes2(data)
             if self.cs:
-                GPIO.output(self.cs,GPIO.HIGH)
+                GPIO.output(self.cs, GPIO.HIGH)
 
     def hard_reset(self):
         """
@@ -567,7 +571,7 @@ class ST7789:
         pixel = struct.pack(
             _ENCODE_PIXEL_SWAPPED if self.needs_swap else _ENCODE_PIXEL, color
         )
-        GPIO.output(self.dc,GPIO.HIGH)
+        GPIO.output(self.dc, GPIO.HIGH)
         if chunks:
             data = pixel * _BUFFER_SIZE
             for _ in range(chunks):
