@@ -3,22 +3,22 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools", "wheel"]
 
 [project]
-authors = [{name = "SeedSigner", email = "author@example.com"}]
+authors = [{name = "seedcash", email = "author@example.com"}]
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent"
 ]
 description = "Build an offline, airgapped Bitcoin signing device for less than $50!"
-name = "seedsigner"
+name = "seedcash"
 readme = "README.md"
 requires-python = ">=3.10"
 version = "0.8.6"
 
 [project.urls]
-"Bug Tracker" = "https://github.com/SeedSigner/seedsigner/issues"
-Homepage = "https://seedsigner.com/"
-Repository = "https://github.com/SeedSigner/seedsigner"
+"Bug Tracker" = "https://github.com/seedcash/seedcash/issues"
+Homepage = "https://seekeywordsdcash.com/"
+Repository = "https://github.com/seedcash/seedcash"
 
 [tool.coverage.html]
 directory = "coverage_html_report"
@@ -64,7 +64,7 @@ log_level = "DEBUG"
 include-package-data = true
 
 [tool.setuptools.package-data]
-"seedsigner.resources" = ["**"]
+"seedcash.resources" = ["**"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

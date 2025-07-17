@@ -1,9 +1,9 @@
 .DS_Store
 __pycache__/
-src/seedsigner.egg-info/
+src/seedcash.egg-info/
 .nova
 .vscode
-src/seedsigner/models/settings_definition.json
+src/seedcash/models/settings_definition.json
 .idea
 .coverage*
 

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODULE_LOG_LEVELS = {
     "PIL": logging.WARNING,
-    # "seedsigner.gui.toast": logging.DEBUG,  # example of more specific submodule logging config
+    "seedcash.gui.toast": logging.DEBUG,
 }
 
 
