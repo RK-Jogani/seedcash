@@ -43,7 +43,7 @@ class Settings(Singleton):
             path = os.path.join(
                 pathlib.Path(__file__).parent.resolve().parent.resolve(),
                 "resources",
-                "seedsigner-translations",
+                "seedcash-translations",
                 "l10n",
             )
             gettext.bindtextdomain("messages", localedir=path)
@@ -138,7 +138,7 @@ class Settings(Singleton):
         ):
             with open(Settings.SETTINGS_FILENAME, "w") as settings_file:
                 json.dump(self._data, settings_file, indent=4)
-                # SeedSignerOS makes removing the microsd possible, flush and then fsync forces persistent settings to disk
+                # seedcashOS makes removing the microsd possible, flush and then fsync forces persistent settings to disk
                 # without this, recent settings changes could be missing after the microsd card was removed
                 settings_file.flush()
                 os.fsync(settings_file.fileno())

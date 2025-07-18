@@ -9,3 +9,7 @@ src/seedcash/models/settings_definition.json
 
 *.po
 *.mo
+
+# env
+.env
+venv/*

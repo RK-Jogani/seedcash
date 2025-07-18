@@ -7,6 +7,7 @@ from PIL.Image import Image
 from seedcash.gui.toast import BaseToastOverlayManagerThread
 from seedcash.models.seed import Seed
 from seedcash.models.seed_storage import SeedStorage
+from seedcash.models.settings import Settings
 from seedcash.models.singleton import Singleton
 from seedcash.models.threads import BaseThread
 from seedcash.views.screensaver import ScreensaverScreen
@@ -49,13 +50,15 @@ class BackgroundImportThread(BaseThread):
     def run(self):
         from importlib import import_module
 
-        # import seedsigner.hardware.buttons # slowly imports GPIO along the way
+        # import seedcash.hardware.buttons # slowly imports GPIO along the way
 
         def time_import(module_name):
+            last = time.time()
             import_module(module_name)
+            # print(time.time() - last, module_name)
 
-        # time_import("embit")
-        # time_import("seedcash.helpers.embit_utils")
+        time_import("embit")
+        time_import("seedcash.helpers.embit_utils")
 
         # Do costly initializations
         time_import("seedcash.models.seed_storage")
@@ -63,12 +66,14 @@ class BackgroundImportThread(BaseThread):
 
         Controller.get_instance()._storage = SeedStorage()
 
+        # Get MainMenuView ready to respond quickly
         time_import("seedcash.views.load_seed_views")
+        time_import("seedcash.views.generate_seed_views")
 
 
 class Controller(Singleton):
     """
-    The Controller is a globally available singleton that maintains SeedSigner state.
+    The Controller is a globally available singleton that maintains seedcash state.
 
     It only makes sense to ever have a single Controller instance so it is
     implemented here as a singleton. One departure from the typical singleton pattern
@@ -77,7 +82,7 @@ class Controller(Singleton):
 
     Any code that needs to interact with the one and only Controller can just run:
     ```
-    from seedsigner.controller import Controller
+    from seedcash.controller import Controller
     controller = Controller.get_instance()
     ```
     Note: In many/most cases you'll need to do the Controller import within a method
@@ -91,6 +96,7 @@ class Controller(Singleton):
     _storage: SeedStorage = (
         None  # TODO: Rename "storage" to something more indicative of its temp, in-memory state
     )
+    settings: Settings = None
 
     image_entropy_preview_frames: list[Image] = None
     image_entropy_final_image: Image = None
@@ -145,6 +151,9 @@ class Controller(Singleton):
         controller = cls.__new__(cls)
         cls._instance = controller
 
+        # models
+        controller.settings = Settings.get_instance()
+
         controller.microsd = MicroSD.get_instance()
         controller.microsd.start_detection()
 
@@ -179,13 +188,11 @@ class Controller(Singleton):
             time.sleep(0.001)
         return self._storage
 
-    def get_seed(self, seed_num: int) -> Seed:
-        if seed_num < len(self.storage.seeds):
-            return self.storage.seeds[seed_num]
+    def get_seed(self) -> Seed:
+        if self.storage.seed:
+            return self.storage.seed
         else:
-            raise Exception(
-                f"There is no seed_num {seed_num}; only {len(self.storage.seeds)} in memory."
-            )
+            raise Exception(f"There is no current seed in memory.")
 
     def discard_seed(self):
         if self.storage.seed:
