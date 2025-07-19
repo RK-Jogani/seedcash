@@ -1,7 +1,7 @@
 import logging
 import unicodedata
 import hashlib
-from seedcash.models import btc_functions as bf
+from seedcash.models.btc_functions import BitcoinFunctions as bf
 from typing import List
 from seedcash.gui.components import load_txt
 
