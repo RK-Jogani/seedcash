@@ -7,8 +7,8 @@ from embit.psbt import PSBT
 from io import BytesIO
 from typing import List
 
-from seedsigner.models.seed import Seed
-from seedsigner.models.settings import SettingsConstants
+from seedcash.models.seed import Seed
+from seedcash.models.settings_definition import SettingsConstants
 
 logger = logging.getLogger(__name__)
 
