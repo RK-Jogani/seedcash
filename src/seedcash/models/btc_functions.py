@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import logging
 import os
 
 from base58 import b58decode, b58encode
@@ -194,6 +195,12 @@ class BitcoinFunctions:
         private_master_key = hmac_hash[:32]
         private_master_code = hmac_hash[32:]
 
+        return private_master_key, private_master_code
+
+    def get_wallet_data(private_master_key, private_master_code):
+
+        wallet_finderprint = BitcoinFunctions.fingerprint_hex(private_master_key)
+
         # Derivem amb index 44'   m/ a m/44' de forma endurida i optenim una child_key i un child_chain_code,
         purpose_index = 44
         purpose_key, purpose_chain_code = BitcoinFunctions.child_key_hardened(
@@ -230,14 +237,23 @@ class BitcoinFunctions:
         child_index = 0 | 0x80000000
         child_index = child_index.to_bytes(4, byteorder="big")
 
-        return (
+        xpriv = BitcoinFunctions.xpriv_encode(
             depth,
             father_fingerprint,
             child_index,
             account_chain_code,
             account_key,
+        )
+
+        xpub = BitcoinFunctions.xpub_encode(
+            depth,
+            father_fingerprint,
+            child_index,
+            account_chain_code,
             account_public_key,
         )
+
+        return xpriv, xpub, wallet_finderprint
 
     @staticmethod
     def xpriv_encode(
@@ -516,55 +532,14 @@ class BitcoinFunctions:
     @staticmethod
     def slip39_protocol(master_secret: str):
         # getting private master key and chain code using the master secret
-
-        hmac_hash = hmac.new(
-            b"Bitcoin seed", bytes.fromhex(master_secret), hashlib.sha512
-        ).digest()
+        # convert master_secret to bytes to hash
+        data_bytes = int(master_secret, 2).to_bytes(
+            len(master_secret) // 8, byteorder="big"
+        )
+        logging.debug(f"Master secret bytes: {data_bytes.hex()}")
+        hmac_hash = hmac.new(b"Bitcoin seed", data_bytes, hashlib.sha512).digest()
 
         private_master_key = hmac_hash[:32]
         private_master_code = hmac_hash[32:]
 
-        # Derivem amb index 44'   m/ a m/44' de forma endurida i optenim una child_key i un child_chain_code,
-        purpose_index = 44
-        purpose_key, purpose_chain_code = BitcoinFunctions.child_key_hardened(
-            private_master_key, private_master_code, purpose_index, hardened=True
-        )
-
-        # Derivem amb index 0'   m/ a m/44'/145' de forma endurida i optenim una child_key i un child_chain_code,
-        coin_type_index = 145
-        coin_type_key, coin_type_chain_code = BitcoinFunctions.child_key_hardened(
-            purpose_key, purpose_chain_code, coin_type_index, hardened=True
-        )
-
-        # Derivem amb index 0'   m/ a m/44/145'/0' de forma endurida i optenim una child_key i un child_chain_code,
-        account_index = 0
-        account_key, account_chain_code = BitcoinFunctions.child_key_hardened(
-            coin_type_key, coin_type_chain_code, account_index, hardened=True
-        )
-        account_public_key = BitcoinFunctions.public_master_key_compressed_generaitor(
-            account_key
-        )
-
-        # Retornem tambe variables comunes i nessesaries en xpriv i xpub:
-        # Depth
-        depth = 3
-        depth = depth.to_bytes(1, byteorder="big")
-
-        # finerprint del pare
-        father_acount_publickey = (
-            BitcoinFunctions.public_master_key_compressed_generaitor(coin_type_key)
-        )
-        father_fingerprint = BitcoinFunctions.fingerprint_bytes(father_acount_publickey)
-
-        # child_index
-        child_index = 0 | 0x80000000
-        child_index = child_index.to_bytes(4, byteorder="big")
-
-        return (
-            depth,
-            father_fingerprint,
-            child_index,
-            account_chain_code,
-            account_key,
-            account_public_key,
-        )
+        return private_master_key, private_master_code

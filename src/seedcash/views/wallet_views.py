@@ -1,15 +1,15 @@
 import logging
 import time
 from gettext import gettext as _
-from seedcash.models import wallet
 from seedcash.models.btc_functions import BitcoinFunctions as bf
+from seedcash.gui.components import SeedCashIconsConstants
 from seedcash.gui.screens import (
     RET_CODE__BACK_BUTTON,
     WarningScreen,
     load_seed_screens,
+    SeedCashButtonListWithNav,
 )
 from seedcash.gui.screens.screen import ButtonOption
-from seedcash.models.seed import Seed
 from seedcash.models.wallet import Wallet
 from seedcash.views.view import (
     View,
@@ -325,13 +325,96 @@ class SeedCashAddressView(View):
 
 
 class SeedSignTransactionView(View):
+    SCAN_TX = ButtonOption("Scan TX", icon_name=SeedCashIconsConstants.SCAN_TX)
+    READ_TX = ButtonOption("Read TX", icon_name=SeedCashIconsConstants.ATTACH_FILE)
+
     def __init__(self):
         super().__init__()
         self.seed = self.controller.storage.seed
 
     def run(self):
-        # Implement the logic for signing a transaction
-        pass
+        button_data = [self.SCAN_TX, self.READ_TX]
+        selected_menu_num = self.run_screen(
+            SeedCashButtonListWithNav,
+            title="Sign Transaction",
+            button_data=button_data,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if button_data[selected_menu_num] == self.SCAN_TX:
+            return Destination(SeedSignTransactionScanView)
+        elif button_data[selected_menu_num] == self.READ_TX:
+            return Destination(SeedSignTransactionReadView)
+
+
+class SeedSignTransactionScanView(View):
+    """
+    Camera preview View that displays the live camera feed.
+
+    This view simply shows the camera output without any QR code processing.
+    """
+
+    instructions_text = _("Transaction Scan")
+
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        from seedcash.gui.screens.scan_screens import ScanScreen
+
+        # Start the live camera preview
+        self.run_screen(
+            ScanScreen,
+            instructions_text=self.instructions_text,
+        )
+
+        return Destination(BackStackView)
+
+
+class SeedSignTransactionReadView(View):
+    def __init__(self):
+        super().__init__()
+        self.seed = self.controller.storage.seed
+
+    def run(self):
+        button_data = [
+            ButtonOption("12:49 04/11/2025", icon_name=SeedCashIconsConstants.VIEW_TX),
+            ButtonOption("12:48 04/11/2025", icon_name=SeedCashIconsConstants.VIEW_TX),
+        ]
+
+        selected_menu_num = self.run_screen(
+            SeedCashButtonListWithNav,
+            button_data=button_data,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+        elif selected_menu_num in [0, 1]:
+            return Destination(LoadingPSBTView)
+
+
+class LoadingPSBTView(View):
+    def __init__(self):
+        super().__init__()
+
+        from seedcash.gui.screens.screen import LoadingScreenThread
+
+        self.loading_screen = LoadingScreenThread(text=_("Parsing PSBT..."))
+        self.loading_screen.start()
+        try:
+            # Simulate PSBT parsing delay
+            time.sleep(10)  # Replace with actual PSBT parsing logic
+        finally:
+            self.loading_screen.stop()
+
+    def run(self):
+        btn_data = [ButtonOption("Done")]
+        self.run_screen(
+            SeedCashButtonListWithNav,
+            button_data=btn_data,
+        )
 
 
 class SeedDiscardView(View):

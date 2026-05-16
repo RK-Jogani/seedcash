@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple
 
-from seedcash.helper.shamir_mnemonic.share import Share, ShareCommonParameters
-from seedcash.helper.shamir_mnemonic.shamir import (
+from seedcash.helpers.shamir_mnemonic.share import Share, ShareCommonParameters
+from seedcash.helpers.shamir_mnemonic.shamir import (
     EncryptedMasterSecret,
     ShareGroup,
     _random_identifier,
@@ -381,23 +381,9 @@ class Scheme:
         if not self.master_secret:
             raise InvalidSchemeException("Master secret is not set.")
 
-        (
-            depth,
-            father_fingerprint,
-            child_index,
-            account_chain_code,
-            account_key,
-            account_public_key,
-        ) = bf.slip39_protocol(self.master_secret)
+        private_master_key, private_master_code = bf.slip39_protocol(self.master_secret)
 
-        self.wallet = Wallet(
-            depth=depth,
-            father_fingerprint=father_fingerprint,
-            child_index=child_index,
-            account_chain_code=account_chain_code,
-            account_key=account_key,
-            account_public_key=account_public_key,
-        )
+        self.wallet = Wallet(private_master_key, private_master_code)
 
         return self.wallet
 

@@ -134,76 +134,130 @@ class BaseScreen(BaseComponent):
 
 
 class LoadingScreenThread(BaseThread):
-    def __init__(self, text: str = None):
+    def __init__(self, text: str = None, animation_speed: float = 0.45):
         super().__init__()
         self.text = text
+        self.animation_speed = animation_speed  # Control rotation speed
+        self.position = 0
+        self.arc_sweep = 90
 
     def run(self):
         from seedcash.gui.renderer import Renderer
+        import time  # For consistent animation timing
 
         renderer: Renderer = Renderer.get_instance()
 
-        center_image = load_image("img/btc_logo_60x60.png")
-        orbit_gap = 2 * GUIConstants.COMPONENT_PADDING
+        # Setup loading screen elements
+        center_image, bounding_box = self._setup_loading_elements(renderer)
+
+        # Initial render
+        self._render_frame(renderer, center_image, bounding_box, is_initial=True)
+
+        # Animation loop
+        while self.keep_running:
+            start_time = time.time()
+
+            self._render_frame(renderer, center_image, bounding_box)
+            self.position += self.arc_sweep * self.animation_speed
+
+            # Consistent frame rate (adjust as needed)
+            elapsed = time.time() - start_time
+            time.sleep(max(0.03 - elapsed, 0))  # Target ~30 FPS
+
+    def _setup_loading_elements(self, renderer):
+        """Setup loading screen static elements"""
+        center_image = load_image("bch.png", "img")
+
+        # Responsive scaling
+        scale_factor = (
+            min(
+                renderer.canvas_width / center_image.width,
+                renderer.canvas_height / center_image.height,
+            )
+            * 0.2  # 20% of screen size
+        )
+        center_image = center_image.resize(
+            (
+                int(center_image.width * scale_factor),
+                int(center_image.height * scale_factor),
+            )
+        )
+
+        # Calculate bounding box for orbit
+        orbit_gap = GUIConstants.COMPONENT_PADDING
         bounding_box = (
             int((renderer.canvas_width - center_image.width) / 2 - orbit_gap),
             int((renderer.canvas_height - center_image.height) / 2 - orbit_gap),
             int((renderer.canvas_width + center_image.width) / 2 + orbit_gap),
             int((renderer.canvas_height + center_image.height) / 2 + orbit_gap),
         )
-        position = 0
-        arc_sweep = 45
-        arc_color = "#ff9416"
-        arc_trailing_color = "#80490b"
 
-        # Need to flush the screen
+        return center_image, bounding_box
+
+    def _render_frame(self, renderer, center_image, bounding_box, is_initial=False):
+        """Render a single frame of the loading animation"""
         with renderer.lock:
-            renderer.draw.rectangle(
-                (0, 0, renderer.canvas_width, renderer.canvas_height),
-                fill=GUIConstants.BACKGROUND_COLOR,
-            )
-            renderer.canvas.paste(
-                center_image, (bounding_box[0] + orbit_gap, bounding_box[1] + orbit_gap)
-            )
-
-            if self.text:
-                TextArea(
-                    text=self.text,
-                    font_size=GUIConstants.TOP_NAV_TITLE_FONT_SIZE,
-                    screen_y=int((renderer.canvas_height - bounding_box[3]) / 2),
-                ).render()
-
-        while self.keep_running:
-            with renderer.lock:
-                # Render leading arc
-                renderer.draw.arc(
-                    bounding_box,
-                    start=position,
-                    end=position + arc_sweep,
-                    fill=arc_color,
-                    width=GUIConstants.COMPONENT_PADDING,
-                )
-
-                # Render trailing arc
-                renderer.draw.arc(
-                    bounding_box,
-                    start=position - arc_sweep,
-                    end=position,
-                    fill=arc_trailing_color,
-                    width=GUIConstants.COMPONENT_PADDING,
-                )
-
-                # Erase previous trailing arc leading arc
-                renderer.draw.arc(
-                    bounding_box,
-                    start=position - 2 * arc_sweep,
-                    end=position - arc_sweep,
+            if is_initial:
+                # Clear screen only on first render
+                renderer.draw.rectangle(
+                    (0, 0, renderer.canvas_width, renderer.canvas_height),
                     fill=GUIConstants.BACKGROUND_COLOR,
-                    width=GUIConstants.COMPONENT_PADDING,
+                )
+                # Draw static elements
+                renderer.canvas.paste(
+                    center_image,
+                    (
+                        bounding_box[0] + GUIConstants.COMPONENT_PADDING,
+                        bounding_box[1] + GUIConstants.COMPONENT_PADDING,
+                    ),
                 )
 
-                renderer.show_image()
-            position += arc_sweep
+                if self.text:
+                    TextArea(
+                        text=self.text,
+                        font_size=GUIConstants.TOP_NAV_TITLE_FONT_SIZE,
+                        screen_y=int((renderer.canvas_height - bounding_box[3]) / 2),
+                    ).render()
+
+            # Animation arcs
+            self._draw_arcs(renderer, bounding_box)
+            renderer.show_image()
+
+    def _draw_arcs(self, renderer, bounding_box):
+        """Draw the rotating arc elements - simplified version"""
+        arc_color = GUIConstants.ACCENT_COLOR
+        arc_trailing_color = GUIConstants.DARK_ACCENT_COLOR
+
+        # Clear the entire arc area and redraw everything each frame
+        renderer.draw.arc(
+            bounding_box,
+            start=0,
+            end=360,
+            fill=GUIConstants.BACKGROUND_COLOR,
+            width=GUIConstants.COMPONENT_PADDING,
+        )
+
+        # Draw trailing arc (behind the leading arc)
+        trailing_start = (self.position - self.arc_sweep) % 360
+        trailing_end = self.position % 360
+        renderer.draw.arc(
+            bounding_box,
+            start=trailing_start,
+            end=trailing_end,
+            fill=arc_trailing_color,
+            width=GUIConstants.COMPONENT_PADDING,
+        )
+
+        # Draw leading arc (on top)
+        leading_start = self.position % 360
+        leading_end = (self.position + self.arc_sweep) % 360
+        renderer.draw.arc(
+            bounding_box,
+            start=leading_start,
+            end=leading_end,
+            fill=arc_color,
+            width=GUIConstants.COMPONENT_PADDING,
+        )
 
 
 @dataclass

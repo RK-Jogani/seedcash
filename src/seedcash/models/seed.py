@@ -116,19 +116,7 @@ class Seed:
 
     def generate_wallet(self):
 
-        (
-            depth,
-            father_fingerprint,
-            child_index,
-            account_chain_code,
-            account_key,
-            account_public_key,
-        ) = bf.bip39_protocol(self._mnemonic, self.passphrase)
-        self.wallet = Wallet(
-            depth=depth,
-            father_fingerprint=father_fingerprint,
-            child_index=child_index,
-            account_chain_code=account_chain_code,
-            account_key=account_key,
-            account_public_key=account_public_key,
+        (master_private_key, master_private_code) = bf.bip39_protocol(
+            self._mnemonic, self.passphrase
         )
+        self.wallet = Wallet(master_private_key, master_private_code)

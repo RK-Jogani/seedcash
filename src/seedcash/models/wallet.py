@@ -1,30 +1,13 @@
+import logging
 from seedcash.models.btc_functions import BitcoinFunctions as bf
 
 
 class Wallet:
-    def __init__(
-        self,
-        depth,
-        father_fingerprint,
-        child_index,
-        account_chain_code,
-        account_key,
-        account_public_key,
-    ) -> None:
+    def __init__(self, private_master_key, private_master_code) -> None:
 
-        self.xpriv = bf.xpriv_encode(
-            depth, father_fingerprint, child_index, account_chain_code, account_key
+        self.xpriv, self.xpub, self.fingerprint = bf.get_wallet_data(
+            private_master_key, private_master_code
         )
-
-        self.xpub = bf.xpub_encode(
-            depth,
-            father_fingerprint,
-            child_index,
-            account_chain_code,
-            account_public_key,
-        )
-
-        self.fingerprint = bf.fingerprint_hex(account_key)
 
     @property
     def _xpriv(self) -> str:
