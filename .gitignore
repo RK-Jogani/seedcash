@@ -7,3 +7,8 @@ __pycache__/
 
 *.po
 *.mo
+*.log
+*.codex
+*.venv
+
+src/tests/*

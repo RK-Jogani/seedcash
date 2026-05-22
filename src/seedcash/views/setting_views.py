@@ -1,4 +1,4 @@
-from seedcash.gui.components import GUIConstants
+from seedcash.views.scan_view import TestCamera
 from seedcash.views.view import (
     MainMenuView,
     View,
@@ -58,9 +58,7 @@ class SettingOptionsView(View):
         elif button_data[selected_menu_num] == self.TEST_BUTTONS:
             return Destination(SettingTestButtons)
         elif button_data[selected_menu_num] == self.TEST_CAMERA:
-            from seedcash.views.scan_view import ScanView
-
-            return Destination(ScanView)
+            return Destination(TestCamera)
         elif button_data[selected_menu_num] == self.CAMERA_ROTATION:
             return Destination(CameraRotationOptionsView)
 

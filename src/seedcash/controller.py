@@ -15,7 +15,6 @@ from seedcash.views.screensaver import ScreensaverScreen
 from seedcash.hardware.buttons import HardwareButtons
 from seedcash.views.view import Destination
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +62,11 @@ class BackgroundImportThread(BaseThread):
         time_import("base58")
 
         # # Do costly initializations
-        time_import("seedcash.models.btc_functions")
+        time_import("seedcash.models.bip44")
+        time_import("seedcash.models.bip39")
+        time_import("seedcash.models.slip39")
+        time_import("seedcash.models.wallet")
+        time_import("seedcash.models.seed")
         time_import("seedcash.models.storage")
         from seedcash.models.storage import SeedStorage
 

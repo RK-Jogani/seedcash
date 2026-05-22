@@ -4,6 +4,7 @@ from seedcash.models.seed import Seed, InvalidSeedException
 from seedcash.models.scheme import Scheme, SchemeParameters
 from seedcash.models.settings import Settings
 from seedcash.models.settings_definition import SettingsConstants
+from seedcash.models.psbt_parser import PSBTParser
 import logging
 from seedcash.gui.components import load_txt
 
@@ -17,7 +18,6 @@ class SeedStorage:
         self.passphrase: str = ""
         self.scheme: Scheme = None
         self.seed: Seed = None
-
         self.wallet: Wallet = None
 
     @property

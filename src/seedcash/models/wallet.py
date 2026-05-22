@@ -1,11 +1,14 @@
-import logging
-from seedcash.models.btc_functions import BitcoinFunctions as bf
+from typing import List
+from seedcash.models.bip44 import Bip44
+from ecdsa.util import string_to_number, number_to_string
+
+from seedcash.models.psbt_parser import PSBTParser
 
 
 class Wallet:
     def __init__(self, private_master_key, private_master_code) -> None:
-
-        self.xpriv, self.xpub, self.fingerprint = bf.get_wallet_data(
+        self.transaction: List[PSBTParser] = None
+        self.xpriv, self.xpub, self.fingerprint = Bip44.get_wallet_data(
             private_master_key, private_master_code
         )
 

@@ -271,9 +271,9 @@ class SeedCashChooseWordsView(View):
         if self.is_slip39:
             if self.is_random_seed:
                 from seedcash.views.generate_slip_views import SeedSlipSchemeView
-                from seedcash.models.btc_functions import BitcoinFunctions as bf
+                from seedcash.models.slip39 import Slip39 as sp
 
-                self.bits = bf.get_random_bits_for_slip(
+                self.bits = sp.get_random_bits_for_slip(
                     self.controller.storage.mnemonic_length
                 )
 

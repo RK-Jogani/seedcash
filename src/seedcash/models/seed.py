@@ -1,7 +1,7 @@
 import logging
 import hashlib
 
-from seedcash.models.btc_functions import BitcoinFunctions as bf
+from seedcash.models.bip39 import Bip39
 from typing import List
 from seedcash.gui.components import load_txt
 from seedcash.models.wallet import Wallet
@@ -116,7 +116,7 @@ class Seed:
 
     def generate_wallet(self):
 
-        (master_private_key, master_private_code) = bf.bip39_protocol(
+        master_private_key, master_private_code = Bip39.bip39_protocol(
             self._mnemonic, self.passphrase
         )
         self.wallet = Wallet(master_private_key, master_private_code)

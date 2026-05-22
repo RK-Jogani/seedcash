@@ -9,7 +9,7 @@ from seedcash.helpers.shamir_mnemonic.shamir import (
     split_ems,
 )
 from seedcash.models.wallet import Wallet
-from seedcash.models.btc_functions import BitcoinFunctions as bf
+from seedcash.models.slip39 import Slip39 as sp
 
 import logging
 
@@ -342,7 +342,6 @@ class Scheme:
         if not group_threshold:
             raise InvalidSchemeException("Group threshold is not set.")
 
-        logger.info("Passphrase in generate scheme:", self.passphrase)
         if not all(32 <= c <= 126 for c in self.passphrase):
             raise ValueError(
                 "The passphrase must contain only printable ASCII characters (code points 32-126)."
@@ -381,7 +380,7 @@ class Scheme:
         if not self.master_secret:
             raise InvalidSchemeException("Master secret is not set.")
 
-        private_master_key, private_master_code = bf.slip39_protocol(self.master_secret)
+        private_master_key, private_master_code = sp.slip39_protocol(self.master_secret)
 
         self.wallet = Wallet(private_master_key, private_master_code)
 

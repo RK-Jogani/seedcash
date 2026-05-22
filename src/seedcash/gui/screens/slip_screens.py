@@ -10,7 +10,7 @@ from seedcash.gui.components import (
     TextArea,
 )
 
-from seedcash.models.btc_functions import BitcoinFunctions as bf
+from seedcash.models.slip39 import Slip39 as sp
 from seedcash.gui.keyboard import TextEntryDisplay
 from seedcash.gui.screens.screen import (
     RET_CODE__BACK_BUTTON,
@@ -290,7 +290,7 @@ class SlipEntryScreen(BaseTopNavScreen):
                                 self.cursor_position += 1
                         elif self.selected_button == 3:  # Dice button
                             # random bits
-                            self.current_bits = bf.get_random_bits_for_slip(
+                            self.current_bits = sp.get_random_bits_for_slip(
                                 self.num_words
                             )
                             pass

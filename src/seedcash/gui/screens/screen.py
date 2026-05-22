@@ -21,6 +21,7 @@ from seedcash.gui.components import (
 )
 from seedcash.gui.keyboard import Keyboard, TextEntryDisplay
 from seedcash.hardware.buttons import HardwareButtonsConstants, HardwareButtons
+from seedcash.models.encode_qr import BaseQrEncoder
 from seedcash.models.threads import BaseThread
 
 logger = logging.getLogger(__name__)
@@ -680,6 +681,179 @@ class ButtonListScreen(BaseScreen):
 
                 # Update display
                 self.renderer.show_image()
+
+
+@dataclass
+class QRDisplayScreen(BaseScreen):
+    qr_encoder: BaseQrEncoder = None
+
+    class QRDisplayThread(BaseThread):
+        def __init__(self, qr_encoder: BaseQrEncoder):
+            from seedcash.gui.renderer import Renderer
+
+            super().__init__()
+            self.qr_encoder = qr_encoder
+            self.renderer = Renderer.get_instance()
+
+        def render_brightness_tip(self, image: Image.Image) -> None:
+            # TODO: Refactor ToastOverlay to support two lines of icon + text and use
+            # that instead of this more manual approach.
+
+            # Instantiate a temp Image and ImageDraw object to draw on
+            rectangle_width = image.width
+            rectangle_height = (
+                GUIConstants.COMPONENT_PADDING * 2
+                + GUIConstants.get_body_font_size() * 2
+                + GUIConstants.BODY_LINE_SPACING
+            )
+            rectangle = Image.new(
+                "RGBA", (rectangle_width, rectangle_height), (0, 0, 0, 0)
+            )
+            img_draw = ImageDraw.Draw(rectangle)
+
+            overlay_opacity = 224
+
+            # Create a semi-transparent background for the overlay, rounded edges, w/a 1-pixel gap from the edges
+            img_draw.rounded_rectangle(
+                (1, 0, rectangle_width - 2, rectangle_height - 1),
+                radius=8,
+                fill=(0, 0, 0, overlay_opacity),
+            )
+
+            chevron_up_icon = Icon(
+                image_draw=img_draw,
+                canvas=rectangle,
+                screen_x=GUIConstants.EDGE_PADDING * 2 + 1,
+                screen_y=GUIConstants.COMPONENT_PADDING
+                + 4,  # +4 fudge factor to account for where the chevron is drawn relative to baseline
+                icon_name=SeedCashIconsConstants.CHEVRON_UP,
+                icon_size=GUIConstants.get_body_font_size(),
+            )
+            chevron_up_icon.render()
+
+            chevron_down_icon = Icon(
+                image_draw=img_draw,
+                canvas=rectangle,
+                screen_x=chevron_up_icon.screen_x,
+                screen_y=chevron_up_icon.screen_y
+                + chevron_up_icon.icon_size
+                + GUIConstants.BODY_LINE_SPACING,
+                icon_name=SeedCashIconsConstants.CHEVRON_DOWN,
+                icon_size=chevron_up_icon.icon_size,
+            )
+            chevron_down_icon.render()
+
+            # TRANSLATOR_NOTE: Increase QR code screen brightness
+            text = _("Brighter")
+            TextArea(
+                image_draw=img_draw,
+                canvas=rectangle,
+                text=text,
+                font_size=GUIConstants.get_body_font_size(),
+                font_name=GUIConstants.get_button_font_name(),
+                background_color=(0, 0, 0, overlay_opacity),
+                edge_padding=0,
+                is_text_centered=False,
+                auto_line_break=False,
+                width=int(rectangle_width / 2),
+                screen_x=chevron_up_icon.screen_x + GUIConstants.ICON_INLINE_FONT_SIZE,
+                screen_y=chevron_up_icon.screen_y
+                - 2,  # -2 to account for Icon's positioning
+                allow_text_overflow=False,
+            ).render()
+
+            # TRANSLATOR_NOTE: Decrease QR code screen brightness
+            text = _("Darker")
+            TextArea(
+                image_draw=img_draw,
+                canvas=rectangle,
+                text=text,
+                font_size=GUIConstants.get_body_font_size(),
+                font_name=GUIConstants.get_button_font_name(),
+                background_color=(0, 0, 0, overlay_opacity),
+                edge_padding=0,
+                is_text_centered=False,
+                auto_line_break=False,
+                width=int(rectangle_width / 2),
+                screen_x=chevron_down_icon.screen_x
+                + GUIConstants.ICON_INLINE_FONT_SIZE,
+                screen_y=chevron_down_icon.screen_y
+                - 2,  # -2 to account for Icon's positioning
+                allow_text_overflow=False,
+            ).render()
+
+            # Write our temp Image onto the main image
+            image.paste(rectangle, (0, image.height - rectangle_height - 1), rectangle)
+
+        def run(self):
+            pending_encoder_restart = False
+
+            # Loop whether the QR is a single frame or animated; each loop might adjust
+            # brightness setting.
+            while self.keep_running:
+                # convert the self.qr_brightness integer (31-255) into hex triplets
+                hex_color = (hex(self.qr_brightness.cur_count).split("x")[1]) * 3
+
+                # Display the brightness tips toast
+                duration = 10**9 * 1.2  # 1.2 seconds
+
+                # Only advance the QR animation when the brightness tip is not displayed
+                if pending_encoder_restart:
+                    # Animated QRs should restart their frame sequence after the
+                    # brightness tip is stowed.
+                    self.qr_encoder.restart()
+                    pending_encoder_restart = False
+                image = self.qr_encoder.next_part_image(
+                    240, 240, border=2, background_color=hex_color
+                )
+
+                with self.renderer.lock:
+                    self.renderer.show_image(image)
+
+                # Target n held frames per second before rendering next QR image
+                time.sleep(5 / 30.0)
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Shared coordination var so the display thread can detect success
+        self.threads.append(
+            QRDisplayScreen.QRDisplayThread(
+                qr_encoder=self.qr_encoder,
+                qr_brightness=self.qr_brightness,
+                tips_start_time=self.tips_start_time,
+            )
+        )
+
+    def _run(self):
+        while True:
+            user_input = self.hw_inputs.wait_for(
+                [
+                    HardwareButtonsConstants.KEY_UP,
+                    HardwareButtonsConstants.KEY_DOWN,
+                    HardwareButtonsConstants.KEY_LEFT,
+                    HardwareButtonsConstants.KEY_RIGHT,
+                ]
+                + HardwareButtonsConstants.KEYS__ANYCLICK
+            )
+            if user_input == HardwareButtonsConstants.KEY_DOWN:
+                # Reduce QR code background brightness
+                self.qr_brightness.set_value(max(31, self.qr_brightness.cur_count - 31))
+                self.tips_start_time.set_value(time.time_ns())
+
+            elif user_input == HardwareButtonsConstants.KEY_UP:
+                # Increase QR code background brightness
+                self.qr_brightness.set_value(
+                    min(self.qr_brightness.cur_count + 31, 255)
+                )
+                self.tips_start_time.set_value(time.time_ns())
+
+            else:
+                # Any other input exits the screen
+                self.threads[-1].stop()
+                while self.threads[-1].is_alive():
+                    time.sleep(0.01)
+                break
 
 
 @dataclass

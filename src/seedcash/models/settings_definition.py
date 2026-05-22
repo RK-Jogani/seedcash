@@ -15,6 +15,10 @@ class SettingsConstants:
     OPTION__PROMPT = "prompt"
     OPTIONS__ENABLED_DISABLED = [OPTION__ENABLED, OPTION__DISABLED]
 
+    # Sign Transaction / PSBT Constants
+    MAINNET = "main"
+    TESTNET = "test"
+
     # User-facing selection options
     COORDINATOR__BLUE_WALLET = "bw"
     COORDINATOR__NUNCHUK = "nun"
@@ -374,7 +378,7 @@ class SettingsDefinition:
             attr_name=SettingsConstants.SETTING__CAMERA_ROTATION,
             type=SettingsConstants.TYPE__SELECT_1,
             selection_options=SettingsConstants.ALL_CAMERA_ROTATIONS,
-            default_value=SettingsConstants.CAMERA_ROTATION__180,
+            default_value=SettingsConstants.CAMERA_ROTATION__270,
         ),
         # Seed Protocol Settings
         SettingsEntry(

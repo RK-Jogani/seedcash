@@ -1,7 +1,7 @@
 import logging
 
 from gettext import gettext as _
-from seedcash.models.btc_functions import BitcoinFunctions as bf
+from seedcash.models.bip39 import Bip39
 from seedcash.gui.screens import RET_CODE__BACK_BUTTON
 from seedcash.gui.screens.screen import ButtonOption
 from seedcash.models.settings import Settings
@@ -12,7 +12,6 @@ from seedcash.views.view import (
     BackStackView,
     SeedCashChooseWordsView,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +73,7 @@ class SeedCashGenerateSeedRandomView(View):
     def run(self):
         # Generate a random mnemonic
         num_words = self.controller.storage.mnemonic_length
-        mnemonic = bf.generate_random_seed(num_words=num_words)
+        mnemonic = Bip39.generate_random_seed(num_words=num_words)
         from seedcash.views.generate_seed_views import ShowWordsView
 
         return Destination(ShowWordsView, view_args={"mnemonic": mnemonic})
@@ -141,7 +140,7 @@ class ToolsCalcFinalWordShowFinalWordView(View):
 
         self.selected_final_bits = last_bits
 
-        final_mnemonic = bf.get_mnemonic(
+        final_mnemonic = Bip39.get_mnemonic(
             self.controller.storage._mnemonic[:-1], last_bits
         )
 

@@ -1,8 +1,8 @@
 import logging
 import time
 from gettext import gettext as _
-from seedcash.models.btc_functions import BitcoinFunctions as bf
 from seedcash.gui.components import SeedCashIconsConstants
+from seedcash.models.bip44 import Bip44
 from seedcash.gui.screens import (
     RET_CODE__BACK_BUTTON,
     WarningScreen,
@@ -17,6 +17,8 @@ from seedcash.views.view import (
     BackStackView,
     MainMenuView,
 )
+from seedcash.models.decode_qr import DecodeQR, DecodeQRStatus
+from seedcash.models.psbt_parser import PSBTParser
 
 logger = logging.getLogger(__name__)
 
@@ -267,10 +269,10 @@ class SeedGenerateAddressView(View):
         addr_type, addr_index = menu
 
         if addr_type == "legacy":
-            address = bf.xpub_to_legacy_address(self.xpub, addr_index)
+            address = Bip44.xpub_to_legacy_address(self.xpub, addr_index)
             return Destination(SeedCashQRView, view_args=dict(address=address))
         elif addr_type == "cashaddr":
-            address = bf.xpub_to_cashaddr_address(self.xpub, addr_index)
+            address = Bip44.xpub_to_cashaddr_address(self.xpub, addr_index)
             return Destination(SeedCashQRView, view_args=dict(address=address))
 
 
@@ -344,33 +346,11 @@ class SeedSignTransactionView(View):
             return Destination(BackStackView)
 
         if button_data[selected_menu_num] == self.SCAN_TX:
-            return Destination(SeedSignTransactionScanView)
+            from seedcash.views.scan_view import ScanPSBTView
+
+            return Destination(ScanPSBTView)
         elif button_data[selected_menu_num] == self.READ_TX:
             return Destination(SeedSignTransactionReadView)
-
-
-class SeedSignTransactionScanView(View):
-    """
-    Camera preview View that displays the live camera feed.
-
-    This view simply shows the camera output without any QR code processing.
-    """
-
-    instructions_text = _("Transaction Scan")
-
-    def __init__(self):
-        super().__init__()
-
-    def run(self):
-        from seedcash.gui.screens.scan_screens import ScanScreen
-
-        # Start the live camera preview
-        self.run_screen(
-            ScanScreen,
-            instructions_text=self.instructions_text,
-        )
-
-        return Destination(BackStackView)
 
 
 class SeedSignTransactionReadView(View):

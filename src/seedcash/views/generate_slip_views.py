@@ -17,8 +17,6 @@ from seedcash.views.view import (
     MainMenuView,
 )
 
-
-from seedcash.models.btc_functions import BitcoinFunctions as bf
 from seedcash.gui.screens.slip_screens import (
     GroupShareListScreen,
 )
