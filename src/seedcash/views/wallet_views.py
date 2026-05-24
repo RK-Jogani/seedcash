@@ -357,22 +357,39 @@ class SeedSignTransactionView(View):
 class SeedSignTransactionReadView(View):
     def __init__(self):
         super().__init__()
-        self.seed = self.controller.storage.seed
 
     def run(self):
-        button_data = [
-            ButtonOption("12:49 04/11/2025", icon_name=SeedCashIconsConstants.VIEW_TX),
-            ButtonOption("12:48 04/11/2025", icon_name=SeedCashIconsConstants.VIEW_TX),
-        ]
+
+        if not self.controller._storage._wallet._transaction:
+            # TRANSLATOR_NOTE: Displayed when the user tries to sign a transaction but no transactions have been added to the wallet yet.
+            self.run_screen(
+                WarningScreen,
+                title=_("No Transactions Found"),
+                status_headline=None,
+                text=_("No transactions have been added to the wallet yet."),
+                show_back_button=True,
+                button_data=[],
+            )
+            return Destination(BackStackView)
+
+        for tx_time, tx_data in self.controller._storage._wallet._transaction.items():
+            button_data = [tx_time]
+            button = [
+                ButtonOption(f"{tx_time}", icon_name=SeedCashIconsConstants.VIEW_TX),
+            ]
 
         selected_menu_num = self.run_screen(
             SeedCashButtonListWithNav,
-            button_data=button_data,
+            button_data=button,
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
-        elif selected_menu_num in [0, 1]:
+        elif selected_menu_num in range(len(button_data)):
+            tx_data = self.controller._storage._wallet._transaction.get(
+                button_data[selected_menu_num]
+            )
+            self.controller.psbt_bytes = tx_data
             return Destination(LoadingPSBTView)
 
 

@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 class PSBTParser:
     def __init__(
         self,
-        raw_psbt_bytes: bytes,
+        raw_psbt_bytes: bytearray,
     ):
-        self.psbt_bytes: bytes = raw_psbt_bytes
+        self.psbt_bytes: bytearray = raw_psbt_bytes
 
         self.spend_amount = 0
         self.change_amount = 0

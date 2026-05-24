@@ -22,11 +22,11 @@ from seedcash.gui.components import (
 from seedcash.gui.renderer import Renderer
 from seedcash.models.threads import BaseThread
 
-from .screen import SeedCashButtonListWithNav, ButtonOption
+from .screen import ButtonListScreen, BaseTopNavScreen, ButtonOption
 
 
 @dataclass
-class PSBTOverviewScreen(SeedCashButtonListWithNav):
+class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
     spend_amount: int = 0
     change_amount: int = 0
     fee_amount: int = 0
@@ -37,23 +37,23 @@ class PSBTOverviewScreen(SeedCashButtonListWithNav):
     has_op_return: bool = False
 
     def __post_init__(self):
+
         # Customize defaults
         self.title = _("Review PSBT")
         self.is_bottom_list = True
-        self.is_button_text_centered = True
         self.button_data = [ButtonOption("Sign")]
+        self.is_button_text_centered = True
+
+        super().__post_init__()
 
         # This screen can take a while to load while parsing the PSBT
         self.show_loading_screen = True
-
-        super().__post_init__()
 
         # Prep the headline amount being spent in large callout
         # icon_text_lines_y = self.components[-1].screen_y + self.components[-1].height
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
         if not self.destination_addresses:
-            # This is a self-transfer
             spend_amount = self.change_amount
         else:
             spend_amount = self.spend_amount
@@ -529,7 +529,7 @@ class PSBTOverviewScreen(SeedCashButtonListWithNav):
 
 
 @dataclass
-class PSBTMathScreen(SeedCashButtonListWithNav):
+class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
     input_amount: int = 0
     num_inputs: int = 0
     spend_amount: int = 0
@@ -540,7 +540,7 @@ class PSBTMathScreen(SeedCashButtonListWithNav):
     def __post_init__(self):
         # Customize defaults
         self.title = _("PSBT Math")
-        self.is_text_centered = True
+        self.is_button_text_centered = True
         self.button_data = [ButtonOption("Review Recipients")]
         self.is_bottom_list = True
 
@@ -723,7 +723,7 @@ class PSBTMathScreen(SeedCashButtonListWithNav):
 
 
 @dataclass
-class PSBTAddressDetailsScreen(SeedCashButtonListWithNav):
+class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
     address: str = None
     amount: int = 0
 
@@ -780,7 +780,7 @@ class PSBTAddressDetailsScreen(SeedCashButtonListWithNav):
 
 
 @dataclass
-class PSBTChangeDetailsScreen(SeedCashButtonListWithNav):
+class PSBTChangeDetailsScreen(ButtonListScreen, BaseTopNavScreen):
     amount: int = 0
     address: str = None
     is_multisig: bool = False
@@ -854,7 +854,7 @@ class PSBTChangeDetailsScreen(SeedCashButtonListWithNav):
 
 
 @dataclass
-class PSBTOpReturnScreen(SeedCashButtonListWithNav):
+class PSBTOpReturnScreen(ButtonListScreen, BaseTopNavScreen):
     op_return_data: bytes = None
 
     def __post_init__(self):
@@ -923,7 +923,7 @@ class PSBTOpReturnScreen(SeedCashButtonListWithNav):
 
 
 @dataclass
-class PSBTFinalizeScreen(SeedCashButtonListWithNav):
+class PSBTFinalizeScreen(ButtonListScreen, BaseTopNavScreen):
     def __post_init__(self):
         # Customize defaults
         self.title = _("Sign PSBT")

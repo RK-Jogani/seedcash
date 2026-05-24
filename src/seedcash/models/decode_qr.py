@@ -50,65 +50,6 @@ def _scan_psbt_map_end(buf: bytes, pos: int) -> int:
     raise ValueError("unexpected end while scanning PSBT map")
 
 
-def _normalize_ur2_psbt_bytes(raw_psbt: bytes) -> bytes:
-    if not raw_psbt.startswith(b"psbt\xff"):
-        return raw_psbt
-
-    pos = 5
-    global_pairs = []
-    while True:
-        key_len, pos = _read_varint(raw_psbt, pos)
-        if key_len == 0:
-            break
-        key = raw_psbt[pos : pos + key_len]
-        pos += key_len
-        value_len, pos = _read_varint(raw_psbt, pos)
-        value = raw_psbt[pos : pos + value_len]
-        pos += value_len
-        global_pairs.append((key, value))
-
-    input_count = 0
-    output_count = 0
-    for key, value in global_pairs:
-        if key[:1] == b"\x04":
-            input_count, _ = _read_varint(value, 0)
-        elif key[:1] == b"\x05":
-            output_count, _ = _read_varint(value, 0)
-
-    end_pos = 5
-    end_pos = _scan_psbt_map_end(raw_psbt, end_pos)
-    for _ in range(input_count):
-        end_pos = _scan_psbt_map_end(raw_psbt, end_pos)
-    for _ in range(output_count):
-        end_pos = _scan_psbt_map_end(raw_psbt, end_pos)
-
-    cleaned = [
-        (key, value)
-        for key, value in global_pairs
-        if key[:1] not in {b"\x04", b"\x05", b"\xfb"}
-    ]
-    normalized = bytearray(b"psbt\xff")
-    for key, value in cleaned:
-        normalized += (
-            _serialize_varint(len(key)) + key + _serialize_varint(len(value)) + value
-        )
-    normalized += b"\x00" + raw_psbt[pos:end_pos]
-    return bytes(normalized)
-
-
-def _coerce_to_bytes(value, source: str) -> bytes:
-    """Convert common byte-like values into bytes with a clear error on mismatch."""
-    if isinstance(value, bytes):
-        return value
-    if isinstance(value, (bytearray, memoryview)):
-        return bytes(value)
-    if isinstance(value, (list, tuple)) and all(
-        isinstance(b, int) and 0 <= b <= 255 for b in value
-    ):
-        return bytes(value)
-    raise TypeError(f"{source} must be bytes-like, got {type(value).__name__}")
-
-
 class DecodeQRStatus(IntEnum):
     """
     Used in DecodeQR to communicate status of adding qr frame/segment

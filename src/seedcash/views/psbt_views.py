@@ -453,7 +453,8 @@ class PSBTOpReturnView(View):
 class PSBTFinalizeView(View):
     """ """
 
-    APPROVE_PSBT = ButtonOption("Approve PSBT")
+    SHOW_SIGNED_TX_QR = ButtonOption("Show Signed TX QR")
+    SAVE_SIGNED_TX_FILE = ButtonOption("Save Signed Tx File")
 
     def run(self):
         from embit.psbt import PSBT
@@ -467,24 +468,27 @@ class PSBTFinalizeView(View):
             return Destination(MainMenuView)
 
         selected_menu_num = self.run_screen(
-            PSBTFinalizeScreen, button_data=[self.APPROVE_PSBT]
+            PSBTFinalizeScreen,
+            button_data=[self.SHOW_SIGNED_TX_QR, self.SAVE_SIGNED_TX_FILE],
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
+        sig_cnt = psbt_parser.sign_with_wallet_xpriv(
+            self.controller._storage._wallet._xpriv
+        )
+        if sig_cnt is None:
+            return Destination(PSBTSigningErrorView)
         else:
-            # Sign PSBT
-            sig_cnt = psbt_parser.sign_with_wallet_xpriv(
-                self.controller._storage._wallet._xpriv
-            )
-
-            if sig_cnt is None:
-                return Destination(PSBTSigningErrorView)
-
-            else:
+            if selected_menu_num == 0:
+                # Show signed PSBT QR code
                 self.controller.psbt_bytes = sig_cnt
                 return Destination(PSBTSignedQRDisplayView)
+            elif selected_menu_num == 1:
+                # Save signed PSBT to file
+                self.controller._storage._wallet.add_transaction(sig_cnt)
+                return Destination(MainMenuView, clear_history=True)
 
 
 class PSBTSignedQRDisplayView(View):

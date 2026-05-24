@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple, Optional
 from ecdsa.rfc6979 import generate_k
 from ecdsa.util import sigencode_der_canonize
 
+
 def read_varint(buf, pos):
     """Read Bitcoin-style varint (compact size uint)"""
     if pos >= len(buf):
@@ -22,8 +23,10 @@ def read_varint(buf, pos):
     v = int.from_bytes(buf[pos + 1 : pos + 9], "little")
     return v, pos + 9
 
+
 def double_sha256(data: bytes) -> bytes:
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()
+
 
 def serialize_varint(n: int) -> bytes:
     if n < 0xFD:
@@ -33,6 +36,7 @@ def serialize_varint(n: int) -> bytes:
     if n <= 0xFFFFFFFF:
         return b"\xfe" + n.to_bytes(4, "little")
     return b"\xff" + n.to_bytes(8, "little")
+
 
 def parse_derivation_path(path: str) -> List[int]:
     if not path:
@@ -56,6 +60,7 @@ def parse_derivation_path(path: str) -> List[int]:
         components.append(index)
     return components
 
+
 def parse_keypairs(buf, pos):
     """Parse a PSBT key-value section"""
     pairs = []
@@ -71,6 +76,7 @@ def parse_keypairs(buf, pos):
         pos += vlen
         pairs.append((key, value))
     raise ValueError("unexpected end while parsing keypairs")
+
 
 def parse_psbt(buf):
     """Parse a PSBT binary into global/inputs/outputs sections"""
@@ -113,12 +119,14 @@ def parse_psbt(buf):
         "output_count": output_count,
     }
 
+
 def extract_tx_from_psbt(parsed):
     """Extract the unsigned transaction from PSBT global"""
     for k, v in parsed["global"]:
         if k[0] == 0x00:  # PSBT_GLOBAL_UNSIGNED_TX
             return v
     raise ValueError("No unsigned transaction found in PSBT")
+
 
 def parse_unsigned_tx(tx_bytes: bytes) -> Dict[str, object]:
     """Parse a raw Bitcoin transaction into the fields used for BCH signing."""
@@ -165,6 +173,7 @@ def parse_unsigned_tx(tx_bytes: bytes) -> Dict[str, object]:
         "locktime": locktime,
     }
 
+
 def parse_bip32_derivation_value(value: bytes) -> Tuple[bytes, List[int]]:
     """Parse a PSBT BIP32 derivation value into fingerprint and path."""
     if len(value) < 4:
@@ -175,6 +184,7 @@ def parse_bip32_derivation_value(value: bytes) -> Tuple[bytes, List[int]]:
     for offset in range(4, len(value), 4):
         derivation_path.append(int.from_bytes(value[offset : offset + 4], "little"))
     return fingerprint, derivation_path
+
 
 def _scan_psbt_map_end(buf: bytes, pos: int) -> int:
     """Return the byte offset just after a PSBT key-value map terminator."""
@@ -187,6 +197,7 @@ def _scan_psbt_map_end(buf: bytes, pos: int) -> int:
         pos += vlen
     raise ValueError("unexpected end while scanning PSBT map")
 
+
 def _serialize_keypairs(pairs: List[Tuple[bytes, bytes]]) -> bytes:
     out = b""
     for key, value in pairs:
@@ -194,9 +205,10 @@ def _serialize_keypairs(pairs: List[Tuple[bytes, bytes]]) -> bytes:
     out += b"\x00"
     return out
 
+
 def _replace_psbt_input_map(
-    psbt_bytes: bytes, input_index: int, updated_pairs: List[Tuple[bytes, bytes]]
-) -> bytes:
+    psbt_bytes: bytearray, input_index: int, updated_pairs: List[Tuple[bytes, bytes]]
+) -> bytearray:
     """Replace one input map in a PSBT without rewriting the rest of the file."""
     parsed = parse_psbt(psbt_bytes)
     if input_index >= parsed["input_count"]:
@@ -217,25 +229,26 @@ def _replace_psbt_input_map(
     end = input_ends[input_index]
     return psbt_bytes[:start] + replacement + psbt_bytes[end:]
 
+
 def compute_fee(parsed_psbt: dict, tx_bytes: bytes) -> int:
     """Compute transaction fee in satoshis from parsed PSBT."""
     # Parse the unsigned transaction
     tx = parse_unsigned_tx(tx_bytes)
-    
+
     # Total outputs
     total_output = sum(int.from_bytes(out["value"], "little") for out in tx["outputs"])
-    
+
     total_input = 0
     # Iterate over inputs using their index
     for idx, inp_pairs in enumerate(parsed_psbt["inputs"]):
         utxo_value = None
-        
+
         # Look for PSBT_IN_WITNESS_UTXO (0x01) first
         for k, v in inp_pairs:
             if k[0] == 0x01:
                 utxo_value = int.from_bytes(v[:8], "little")
                 break
-        
+
         # If not found, look for PSBT_IN_NON_WITNESS_UTXO (0x00)
         if utxo_value is None:
             for k, v in inp_pairs:
@@ -243,23 +256,30 @@ def compute_fee(parsed_psbt: dict, tx_bytes: bytes) -> int:
                     # Parse the previous transaction
                     prev_tx = parse_unsigned_tx(v)
                     # Get the output index being spent from the unsigned tx input
-                    prev_index = int.from_bytes(tx["inputs"][idx]["prev_index"], "little")
+                    prev_index = int.from_bytes(
+                        tx["inputs"][idx]["prev_index"], "little"
+                    )
                     if prev_index >= len(prev_tx["outputs"]):
-                        raise ValueError(f"Invalid prev_index {prev_index} for input {idx}")
-                    utxo_value = int.from_bytes(prev_tx["outputs"][prev_index]["value"], "little")
+                        raise ValueError(
+                            f"Invalid prev_index {prev_index} for input {idx}"
+                        )
+                    utxo_value = int.from_bytes(
+                        prev_tx["outputs"][prev_index]["value"], "little"
+                    )
                     break
-        
+
         if utxo_value is None:
             raise ValueError(f"Cannot determine input amount for input {idx}")
-        
+
         total_input += utxo_value
-    
+
     return total_input - total_output
-    
+
+
 # ============ Bitcoin Cash Signing ============
 class BitcoinCashSigner:
     def __init__(self, xpriv: str, account_path: str = "m/44'/145'/0'"):
-        
+
         self.account_path = parse_derivation_path(account_path)
         self.is_extended_key = False
         self.account_private_key = None
@@ -467,9 +487,12 @@ class BitcoinCashSigner:
             raise ValueError("invalid nonce: r is zero")
 
         r_bytes = r_int.to_bytes(32, "big")
-        e = int.from_bytes(
-            hashlib.sha256(r_bytes + public_key + msg_hash).digest(), "big"
-        ) % order
+        e = (
+            int.from_bytes(
+                hashlib.sha256(r_bytes + public_key + msg_hash).digest(), "big"
+            )
+            % order
+        )
 
         s = (k + e * d) % order
         if s == 0:
@@ -500,10 +523,9 @@ class BitcoinCashSigner:
         sighash = self._create_sighash(tx, input_index, script_code, amount_sats)
 
         if use_schnorr:
-            signature = (
-                self.sign_schnorr_bch(signing_key, sighash, signing_pubkey)
-                + bytes([0x41])
-            )
+            signature = self.sign_schnorr_bch(
+                signing_key, sighash, signing_pubkey
+            ) + bytes([0x41])
         else:
             sk = ecdsa.SigningKey.from_string(signing_key, curve=ecdsa.SECP256k1)
             signature = sk.sign_digest_deterministic(
@@ -514,14 +536,14 @@ class BitcoinCashSigner:
 
 
 def add_signature_to_psbt(
-    psbt_bytes: bytes,
+    psbt_bytes: bytearray,
     xpriv: str,
     input_index: int = 0,
     account_path: str = "m/44'/145'/0'",
 ):
     parsed = parse_psbt(psbt_bytes)
     tx_bytes = extract_tx_from_psbt(parsed)
-    
+
     # Compute fee
     fee = compute_fee(parsed, tx_bytes)
     print(f"Computed fee: {fee} satoshis")
@@ -591,22 +613,22 @@ def add_signature_to_psbt(
     print(f"Public key: {public_key.hex()}")
     print(f"Signature: {signature.hex()[:64]}...")
 
-    return updated_psbt
+    return bytearray(updated_psbt)
 
 
 # ============ Main Execution ============
 def sign_psbt_with_xpriv(
-    psbt_bytes: bytes,
+    psbt_bytes: bytearray,
     xpriv: str,
     input_index: int = 0,
     account_path: str = "m/44'/145'/0'",
 ):
-    
+
     signed_psbt = add_signature_to_psbt(
         psbt_bytes,
         xpriv,
         input_index=input_index,
         account_path=account_path,
     )
-    
+
     return signed_psbt

@@ -404,11 +404,9 @@ class UrXpubQrEncoder(BaseFountainQrEncoder, BaseXpubQrEncoder):
 
 @dataclass
 class UrPsbtQrEncoder(BaseFountainQrEncoder):
-    psbt: bytes = None
+    psbt: bytearray = None
 
     def __post_init__(self):
         super().__post_init__()
-        # convert bytes to bytes array
-        psbt_bytes = bytearray(self.psbt)
-        ur = UR("crypto-psbt", psbt_bytes)
+        ur = UR("crypto-psbt", self.psbt)
         self.ur2_encode = UREncoder(ur=ur, max_fragment_len=self.qr_max_fragment_size)

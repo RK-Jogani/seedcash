@@ -102,7 +102,7 @@ class Controller(Singleton):
     # Declare class member vars with type hints to enable richer IDE support throughout
     # the code.
     _storage: SeedStorage = None
-    psbt_bytes: bytes = b""
+    psbt_bytes: bytearray = b""
     psbt_parser: PSBTParser = None
     settings: Settings = None
 
@@ -257,7 +257,7 @@ class Controller(Singleton):
                     # TODO: IMPORTANT Home always wipes the back_stack/state of temp vars
                     self.psbt_bytes = b""
                     self.psbt_parser = None
-                    
+
                 logger.info(f"\nback_stack: {self.back_stack}")
 
                 try:
