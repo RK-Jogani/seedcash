@@ -275,10 +275,10 @@ class BaseFountainQrEncoder(BaseQrEncoder):
         return self.ur2_encode.fountain_encoder.seq_len()
 
     def next_part(self) -> str:
-        return self.ur2_encode.next_part().upper()
+        return self.ur2_encode.next_part()
 
     def cur_part(self) -> str:
-        return self.ur2_encode.current_part().upper()
+        return self.ur2_encode.current_part()
 
     def restart(self):
         self.ur2_encode.fountain_encoder.restart()

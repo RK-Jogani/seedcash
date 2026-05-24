@@ -483,7 +483,7 @@ class PSBTFinalizeView(View):
                 return Destination(PSBTSigningErrorView)
 
             else:
-                self.controller.psbt = sig_cnt
+                self.controller.psbt_bytes = sig_cnt
                 return Destination(PSBTSignedQRDisplayView)
 
 
