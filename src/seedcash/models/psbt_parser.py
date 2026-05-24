@@ -11,6 +11,7 @@ from seedcash.models.bch_signer import (
 
 logger = logging.getLogger(__name__)
 
+
 class PSBTParser:
     def __init__(
         self,
@@ -55,22 +56,26 @@ class PSBTParser:
         try:
             parsed_psbt = parse_psbt(self.psbt_bytes)
         except Exception as e:
-            logger.error(f"CRASHING PSBT BYTES HEX: {self.psbt_bytes.hex()}")
+            logger.error(f"CRASHING PSBT BYTES HEX: {self.psbt_bytes}")
             raise
-    
+
         tx_bytes = extract_tx_from_psbt(parsed_psbt)
         unsigned_tx = parse_unsigned_tx(tx_bytes)
 
         self.num_inputs = parsed_psbt["input_count"]
-        
+
         self.input_amount = 0
         for i, input_map in enumerate(parsed_psbt["inputs"]):
             for k, v in input_map:
                 if k[0] == 0x00:  # PSBT_IN_NON_WITNESS_UTXO
                     prev_tx = parse_unsigned_tx(v)
-                    prev_index = int.from_bytes(unsigned_tx["inputs"][i]["prev_index"], "little")
+                    prev_index = int.from_bytes(
+                        unsigned_tx["inputs"][i]["prev_index"], "little"
+                    )
                     if prev_index < len(prev_tx["outputs"]):
-                        self.input_amount += int.from_bytes(prev_tx["outputs"][prev_index]["value"], "little")
+                        self.input_amount += int.from_bytes(
+                            prev_tx["outputs"][prev_index]["value"], "little"
+                        )
                 elif k[0] == 0x01:  # PSBT_IN_WITNESS_UTXO
                     utxo_value = int.from_bytes(v[:8], "little")
                     self.input_amount += utxo_value
@@ -79,23 +84,33 @@ class PSBTParser:
             tx_output = unsigned_tx["outputs"][i]
             value = int.from_bytes(tx_output["value"], "little")
             script_pubkey = tx_output["script_pubkey"]
-            
+
             is_change = False
             fingerprints = []
             derivation_paths = []
-            
+
             for k, v in out_map:
-                if k[0] == 0x02: # PSBT_OUT_BIP32_DERIVATION
+                if k[0] == 0x02:  # PSBT_OUT_BIP32_DERIVATION
                     fingerprint, path = parse_bip32_derivation_value(v)
                     fingerprint_hex = fingerprint.hex()
                     fingerprints.append(fingerprint_hex)
-                    derivation_paths.append("m/" + "/".join(str(p & 0x7FFFFFFF) + ("'" if p & 0x80000000 else "") for p in path))
+                    derivation_paths.append(
+                        "m/"
+                        + "/".join(
+                            str(p & 0x7FFFFFFF) + ("'" if p & 0x80000000 else "")
+                            for p in path
+                        )
+                    )
 
             addr = "Unknown"
-            if script_pubkey.startswith(b"\x76\xa9\x14") and script_pubkey.endswith(b"\x88\xac"):
+            if script_pubkey.startswith(b"\x76\xa9\x14") and script_pubkey.endswith(
+                b"\x88\xac"
+            ):
                 hash160 = script_pubkey[3:23]
                 addr = Bip44.hash160_to_cashaddr(hash160)
-            elif script_pubkey.startswith(b"\xa9\x14") and script_pubkey.endswith(b"\x87"):
+            elif script_pubkey.startswith(b"\xa9\x14") and script_pubkey.endswith(
+                b"\x87"
+            ):
                 hash160 = script_pubkey[2:22]
                 addr = Bip44.hash160_to_cashaddr(hash160)
             elif script_pubkey.startswith(b"\x6a"):
@@ -103,13 +118,15 @@ class PSBTParser:
 
             if is_change:
                 self.change_amount += value
-                self.change_data.append({
-                    "output_index": i,
-                    "address": addr,
-                    "amount": value,
-                    "fingerprint": fingerprints,
-                    "derivation_path": derivation_paths,
-                })
+                self.change_data.append(
+                    {
+                        "output_index": i,
+                        "address": addr,
+                        "amount": value,
+                        "fingerprint": fingerprints,
+                        "derivation_path": derivation_paths,
+                    }
+                )
             elif not script_pubkey.startswith(b"\x6a"):
                 self.spend_amount += value
                 self.destination_amounts.append(value)

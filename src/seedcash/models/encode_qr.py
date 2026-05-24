@@ -1,3 +1,4 @@
+from json import encoder
 import math
 from dataclasses import dataclass
 from typing import List
@@ -407,8 +408,7 @@ class UrPsbtQrEncoder(BaseFountainQrEncoder):
 
     def __post_init__(self):
         super().__post_init__()
-
-        ur = UR("crypto-psbt", CBOREncoder().encodeBytes(self.psbt))
+        # convert bytes to bytes array
+        psbt_bytes = bytearray(self.psbt)
+        ur = UR("crypto-psbt", psbt_bytes)
         self.ur2_encode = UREncoder(ur=ur, max_fragment_len=self.qr_max_fragment_size)
-
-        from seedcash.models.bch_signer import trim_psbt
