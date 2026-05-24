@@ -22,7 +22,7 @@ from seedcash.gui.components import (
 from seedcash.gui.keyboard import Keyboard, TextEntryDisplay
 from seedcash.hardware.buttons import HardwareButtonsConstants, HardwareButtons
 from seedcash.models.encode_qr import BaseQrEncoder
-from seedcash.models.threads import BaseThread
+from seedcash.models.threads import BaseThread, ThreadsafeCounter
 
 logger = logging.getLogger(__name__)
 
@@ -686,13 +686,17 @@ class ButtonListScreen(BaseScreen):
 @dataclass
 class QRDisplayScreen(BaseScreen):
     qr_encoder: BaseQrEncoder = None
+    qr_brightness: ThreadsafeCounter = field(default_factory=lambda: ThreadsafeCounter(initial_value=255))
+    tips_start_time: ThreadsafeCounter = field(default_factory=lambda: ThreadsafeCounter(initial_value=0))
 
     class QRDisplayThread(BaseThread):
-        def __init__(self, qr_encoder: BaseQrEncoder):
+        def __init__(self, qr_encoder: BaseQrEncoder, qr_brightness: ThreadsafeCounter, tips_start_time: ThreadsafeCounter):
             from seedcash.gui.renderer import Renderer
 
             super().__init__()
             self.qr_encoder = qr_encoder
+            self.qr_brightness = qr_brightness
+            self.tips_start_time = tips_start_time
             self.renderer = Renderer.get_instance()
 
         def render_brightness_tip(self, image: Image.Image) -> None:
@@ -703,7 +707,7 @@ class QRDisplayScreen(BaseScreen):
             rectangle_width = image.width
             rectangle_height = (
                 GUIConstants.COMPONENT_PADDING * 2
-                + GUIConstants.get_body_font_size() * 2
+                + GUIConstants.BODY_FONT_SIZE * 2
                 + GUIConstants.BODY_LINE_SPACING
             )
             rectangle = Image.new(
@@ -727,7 +731,7 @@ class QRDisplayScreen(BaseScreen):
                 screen_y=GUIConstants.COMPONENT_PADDING
                 + 4,  # +4 fudge factor to account for where the chevron is drawn relative to baseline
                 icon_name=SeedCashIconsConstants.CHEVRON_UP,
-                icon_size=GUIConstants.get_body_font_size(),
+                icon_size=GUIConstants.BODY_FONT_SIZE,
             )
             chevron_up_icon.render()
 
@@ -749,8 +753,8 @@ class QRDisplayScreen(BaseScreen):
                 image_draw=img_draw,
                 canvas=rectangle,
                 text=text,
-                font_size=GUIConstants.get_body_font_size(),
-                font_name=GUIConstants.get_button_font_name(),
+                font_size=GUIConstants.BODY_FONT_SIZE,
+                font_name=GUIConstants.BUTTON_FONT_NAME,
                 background_color=(0, 0, 0, overlay_opacity),
                 edge_padding=0,
                 is_text_centered=False,
@@ -768,8 +772,8 @@ class QRDisplayScreen(BaseScreen):
                 image_draw=img_draw,
                 canvas=rectangle,
                 text=text,
-                font_size=GUIConstants.get_body_font_size(),
-                font_name=GUIConstants.get_button_font_name(),
+                font_size=GUIConstants.BODY_FONT_SIZE,
+                font_name=GUIConstants.BUTTON_FONT_NAME,
                 background_color=(0, 0, 0, overlay_opacity),
                 edge_padding=0,
                 is_text_centered=False,
@@ -792,20 +796,27 @@ class QRDisplayScreen(BaseScreen):
             # brightness setting.
             while self.keep_running:
                 # convert the self.qr_brightness integer (31-255) into hex triplets
-                hex_color = (hex(self.qr_brightness.cur_count).split("x")[1]) * 3
+                hex_color = f"{self.qr_brightness.cur_count:02x}{self.qr_brightness.cur_count:02x}{self.qr_brightness.cur_count:02x}"
 
                 # Display the brightness tips toast
                 duration = 10**9 * 1.2  # 1.2 seconds
+                display_tip = time.time_ns() - self.tips_start_time.cur_count < duration
 
                 # Only advance the QR animation when the brightness tip is not displayed
-                if pending_encoder_restart:
+                if display_tip:
+                    pending_encoder_restart = True
+                elif pending_encoder_restart:
                     # Animated QRs should restart their frame sequence after the
                     # brightness tip is stowed.
                     self.qr_encoder.restart()
                     pending_encoder_restart = False
+                
                 image = self.qr_encoder.next_part_image(
                     240, 240, border=2, background_color=hex_color
                 )
+
+                if display_tip:
+                    self.render_brightness_tip(image)
 
                 with self.renderer.lock:
                     self.renderer.show_image(image)
@@ -817,13 +828,11 @@ class QRDisplayScreen(BaseScreen):
         super().__post_init__()
 
         # Shared coordination var so the display thread can detect success
-        self.threads.append(
-            QRDisplayScreen.QRDisplayThread(
-                qr_encoder=self.qr_encoder,
-                qr_brightness=self.qr_brightness,
-                tips_start_time=self.tips_start_time,
-            )
-        )
+        self.threads.append(QRDisplayScreen.QRDisplayThread(
+            qr_encoder=self.qr_encoder,
+            qr_brightness=self.qr_brightness,
+            tips_start_time=self.tips_start_time
+        ))
 
     def _run(self):
         while True:

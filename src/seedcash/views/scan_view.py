@@ -125,13 +125,10 @@ class ScanView(View):
                 )
 
             elif self.decoder.is_psbt:
-                # from seedcash.views.psbt_views import PSBTSelectSeedView
+                from seedcash.views.wallet_views import LoadingPSBTView
 
-                psbt = self.decoder.get_psbt()
-                print(f"Decoded PSBT: {psbt}")
-                self.controller.psbt = psbt
-                self.controller.psbt_parser = None
-                # return Destination(PSBTSelectSeedView, skip_current_view=True)
+                self.controller.psbt_bytes = self.decoder.get_psbt()
+                return Destination(LoadingPSBTView, skip_current_view=True)
 
             else:
                 return Destination(NotYetImplementedView)
@@ -139,7 +136,6 @@ class ScanView(View):
         elif self.decoder.is_invalid:
             # For now, don't even try to re-do the attempted operation, just reset and
             # start everything over.
-            self.controller.resume_main_flow = None
             return Destination(ScanInvalidQRTypeView)
 
 

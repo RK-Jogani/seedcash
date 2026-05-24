@@ -1,8 +1,7 @@
+from seedcash.models.psbt_parser import PSBTParser
 import logging
 import time
 import traceback
-
-from PIL.Image import Image
 
 from seedcash.gui.toast import BaseToastOverlayManagerThread
 from seedcash.models.seed import Seed
@@ -102,30 +101,10 @@ class Controller(Singleton):
 
     # Declare class member vars with type hints to enable richer IDE support throughout
     # the code.
-    _storage: SeedStorage = (
-        None  # TODO: Rename "storage" to something more indicative of its temp, in-memory state
-    )
+    _storage: SeedStorage = None
+    psbt_bytes: bytes = b""
+    psbt_parser: PSBTParser = None
     settings: Settings = None
-
-    unverified_address = None
-
-    image_entropy_preview_frames: list[Image] = None
-    image_entropy_final_image: Image = None
-
-    address_explorer_data: dict = None
-
-    sign_message_data: dict = None
-    # TODO: end refactor section
-
-    # Destination placeholder for when we need to jump out to a side flow but intend to
-    # return navigation to the main flow (e.g. PSBT flow, load multisig descriptor,
-    # then resume PSBT flow).
-    FLOW__PSBT = "psbt"
-    FLOW__VERIFY_MULTISIG_ADDR = "multisig_addr"
-    FLOW__VERIFY_SINGLESIG_ADDR = "singlesig_addr"
-    FLOW__ADDRESS_EXPLORER = "address_explorer"
-    FLOW__SIGN_MESSAGE = "sign_message"
-    resume_main_flow: str = None
 
     back_stack: BackStack = None
     screensaver: ScreensaverScreen = None
@@ -167,10 +146,6 @@ class Controller(Singleton):
 
         controller.microsd = MicroSD.get_instance()
         controller.microsd.start_detection()
-
-        # Store one working psbt in memory
-        controller.psbt = None
-        controller.psbt_parser = None
 
         # Configure the Renderer
         Renderer.configure_instance()
@@ -279,15 +254,10 @@ class Controller(Singleton):
                     # Home always wipes the back_stack
                     self.clear_back_stack()
 
-                    # Home always wipes the back_stack/state of temp vars
-                    self.resume_main_flow = None
-                    self.multisig_wallet_descriptor = None
-                    self.unverified_address = None
-                    self.address_explorer_data = None
-                    self.psbt = None
+                    # TODO: IMPORTANT Home always wipes the back_stack/state of temp vars
+                    self.psbt_bytes = b""
                     self.psbt_parser = None
-                    self.psbt_seed = None
-
+                    
                 logger.info(f"\nback_stack: {self.back_stack}")
 
                 try:

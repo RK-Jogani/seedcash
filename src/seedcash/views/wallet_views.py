@@ -19,6 +19,7 @@ from seedcash.views.view import (
 )
 from seedcash.models.decode_qr import DecodeQR, DecodeQRStatus
 from seedcash.models.psbt_parser import PSBTParser
+from seedcash.models.settings_definition import SettingsConstants
 
 logger = logging.getLogger(__name__)
 
@@ -380,21 +381,19 @@ class LoadingPSBTView(View):
         super().__init__()
 
         from seedcash.gui.screens.screen import LoadingScreenThread
+        from seedcash.models.psbt_parser import PSBTParser
 
         self.loading_screen = LoadingScreenThread(text=_("Parsing PSBT..."))
         self.loading_screen.start()
         try:
-            # Simulate PSBT parsing delay
-            time.sleep(10)  # Replace with actual PSBT parsing logic
+            self.controller.psbt_parser = PSBTParser(self.controller.psbt_bytes)
         finally:
             self.loading_screen.stop()
 
     def run(self):
-        btn_data = [ButtonOption("Done")]
-        self.run_screen(
-            SeedCashButtonListWithNav,
-            button_data=btn_data,
-        )
+        from seedcash.views.psbt_views import PSBTOverviewView
+
+        return Destination(PSBTOverviewView, skip_current_view=True)
 
 
 class SeedDiscardView(View):

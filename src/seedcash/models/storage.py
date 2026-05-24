@@ -191,15 +191,10 @@ class SeedStorage:
 
         if not self.scheme:
             try:
-                self.scheme = Scheme(
-                    mnemonics=self._mnemonic,
-                )
+                self.scheme = Scheme(mnemonics=self._mnemonic)
             except Exception as e:
                 logger.info("Scheme Invalid:", e, self.scheme)
-                raise InvalidSeedException(
-                    "Invalid mnemonic provided for scheme creation"
-                ) from e
-                l
+                raise InvalidSeedException("Invalid mnemonic provided for scheme creation")
 
             self.discard_slip_mnemonic()
             logger.info("New scheme created with the current mnemonic.")

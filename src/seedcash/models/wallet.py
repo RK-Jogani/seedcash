@@ -1,6 +1,5 @@
 from typing import List
 from seedcash.models.bip44 import Bip44
-from ecdsa.util import string_to_number, number_to_string
 
 from seedcash.models.psbt_parser import PSBTParser
 

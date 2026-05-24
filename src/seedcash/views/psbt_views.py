@@ -8,7 +8,6 @@ from seedcash.gui.screens.screen import (
     QRDisplayScreen,
     WarningScreen,
 )
-from seedcash.models import psbt_parser
 from seedcash.models.psbt_parser import PSBTParser
 from seedcash.models.settings_definition import SettingsConstants
 from seedcash.views.view import (
@@ -42,25 +41,12 @@ class PSBTOverviewView(View):
             raise e
 
     def run(self):
+        psbt_parser = self.controller.psbt_parser
+        if not psbt_parser:
+            return Destination(MainMenuView)
 
-        change_data = [
-            {
-                "address": "bc1q............",
-                "amount": 397621401,
-                "fingerprint": ["22bde1a9", "73c5da0a"],
-                "derivation_path": ["m/48h/1h/0h/2h/1/0", "m/48h/1h/0h/2h/1/0"],
-            },
-            {},
-        ]
-
-        num_change_outputs = 0
+        num_change_outputs = psbt_parser.num_change_outputs
         num_self_transfer_outputs = 0
-        for change_output in change_data:
-            # print(f"""{change_output["derivation_path"][0]}""")
-            if change_output["derivation_path"][0].split("/")[-2] == "1":
-                num_change_outputs += 1
-            else:
-                num_self_transfer_outputs += 1
 
         # Everything is set. Stop the loading screen
         if self.loading_screen:
@@ -80,13 +66,7 @@ class PSBTOverviewView(View):
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
-            self.controller.psbt_seed = None
             return Destination(BackStackView)
-
-        # expecting p2sh (legacy multisig) and p2pkh to have no policy set
-        # skip change warning and psbt math view
-        if psbt_parser.policy == None:
-            return Destination(PSBTUnsupportedScriptTypeWarningView)
 
         elif psbt_parser.change_amount == 0:
             return Destination(PSBTNoChangeWarningView)
@@ -273,9 +253,9 @@ class PSBTChangeDetailsView(View):
         # and derivation path.
         seed_fingerprint = self.controller._storage._wallet._fingerprint
 
-        if seed_fingerprint not in change_data.get("fingerprint"):
-            # TODO: Something is wrong with this psbt(?). Reroute to warning?
-            return Destination(NotYetImplementedView)
+        # if seed_fingerprint not in change_data.get("fingerprint"):
+        #     # TODO: Something is wrong with this psbt(?). Reroute to warning?
+        #     return Destination(NotYetImplementedView)
 
         i = change_data.get("fingerprint").index(seed_fingerprint)
         derivation_path = change_data.get("derivation_path")[i]
@@ -334,7 +314,7 @@ class PSBTChangeDetailsView(View):
 
                 # take script type and call script method to generate address from seed / derivation
                 xpub_key = xpub.derive(change_path).key
-                network = self.settings.get_value(SettingsConstants.SETTING__NETWORK)
+                network = SettingsConstants.MAINNET
                 scriptcall = getattr(script, script_type)
                 if script_type == "p2sh":
                     # single sig only so p2sh is always p2sh-p2wpkh
@@ -406,11 +386,7 @@ class PSBTChangeDetailsView(View):
                 return Destination(PSBTFinalizeView)
 
         elif button_data[selected_menu_num] == self.VERIFY_MULTISIG:
-            from seedcash.controller import Controller
-            from seedcash.views.seed_views import LoadMultisigWalletDescriptorView
-
-            self.controller.resume_main_flow = Controller.FLOW__PSBT
-            return Destination(LoadMultisigWalletDescriptorView)
+            return Destination(BackStackView)
 
 
 class PSBTAddressVerificationFailedView(View):
@@ -484,7 +460,7 @@ class PSBTFinalizeView(View):
         from seedcash.gui.screens.psbt_screens import PSBTFinalizeScreen
 
         psbt_parser: PSBTParser = self.controller.psbt_parser
-        psbt: PSBT = self.controller.psbt
+        # psbt: PSBT = self.controller.psbt
 
         if not psbt_parser:
             # Should not be able to get here
@@ -499,30 +475,42 @@ class PSBTFinalizeView(View):
 
         else:
             # Sign PSBT
-            sig_cnt = PSBTParser.sig_count(psbt)
-            psbt.sign_with(psbt_parser.root)
-            trimmed_psbt = PSBTParser.trim(psbt)
+            sig_cnt = psbt_parser.sign_with_wallet_xpriv(
+                self.controller._storage._wallet._xpriv
+            )
 
-            if sig_cnt == PSBTParser.sig_count(trimmed_psbt):
-                # Signing failed / didn't do anything
-                # TODO: Reserved for Nick. Are there different failure scenarios that we can detect?
-                # Would be nice to alter the message on the next screen w/more detail.
+            if sig_cnt is None:
                 return Destination(PSBTSigningErrorView)
 
             else:
-                self.controller.psbt = trimmed_psbt
+                self.controller.psbt = sig_cnt
                 return Destination(PSBTSignedQRDisplayView)
 
 
 class PSBTSignedQRDisplayView(View):
     def run(self):
         from seedcash.models.encode_qr import UrPsbtQrEncoder
+        from seedcash.models.threads import ThreadsafeCounter
+        from seedcash.models.settings_definition import SettingsConstants
 
-        qr_encoder = UrPsbtQrEncoder(
-            psbt=self.controller.psbt,
-            qr_density=self.settings.get_value(SettingsConstants.SETTING__QR_DENSITY),
+        qr_encoder = UrPsbtQrEncoder(psbt=self.controller.psbt_bytes)
+
+        current_brightness = self.controller.settings.get_value(
+            SettingsConstants.SETTING__QR_BRIGHTNESS
         )
-        self.run_screen(QRDisplayScreen, qr_encoder=qr_encoder)
+        if current_brightness is None:
+            current_brightness = 255
+
+        brightness_counter = ThreadsafeCounter(initial_value=int(current_brightness))
+
+        self.run_screen(
+            QRDisplayScreen, qr_encoder=qr_encoder, qr_brightness=brightness_counter
+        )
+
+        # Save any brightness adjustments made by the user
+        self.controller.settings.set_value(
+            SettingsConstants.SETTING__QR_BRIGHTNESS, brightness_counter.cur_count
+        )
 
         # We're done with this PSBT. Route back to MainMenuView which always
         #   clears all ephemeral data (except in-memory seeds).

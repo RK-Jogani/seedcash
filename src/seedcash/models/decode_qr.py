@@ -5,11 +5,9 @@ import zlib
 
 from binascii import a2b_base64, b2a_base64
 from enum import IntEnum
-from embit import psbt
 from pyzbar import pyzbar
 from pyzbar.pyzbar import ZBarSymbol
 from urtypes.crypto import PSBT as UR_PSBT
-from urtypes.crypto import Account, Output
 from urtypes.bytes import Bytes
 from base64 import b32decode
 
@@ -18,6 +16,97 @@ from seedcash.models.qr_type import QRType
 from seedcash.models.seed import Seed
 
 logger = logging.getLogger(__name__)
+
+
+def _read_varint(buf: bytes, pos: int) -> tuple[int, int]:
+    value = buf[pos]
+    if value < 0xFD:
+        return value, pos + 1
+    if value == 0xFD:
+        return int.from_bytes(buf[pos + 1 : pos + 3], "little"), pos + 3
+    if value == 0xFE:
+        return int.from_bytes(buf[pos + 1 : pos + 5], "little"), pos + 5
+    return int.from_bytes(buf[pos + 1 : pos + 9], "little"), pos + 9
+
+
+def _serialize_varint(value: int) -> bytes:
+    if value < 0xFD:
+        return bytes([value])
+    if value <= 0xFFFF:
+        return b"\xfd" + value.to_bytes(2, "little")
+    if value <= 0xFFFFFFFF:
+        return b"\xfe" + value.to_bytes(4, "little")
+    return b"\xff" + value.to_bytes(8, "little")
+
+
+def _scan_psbt_map_end(buf: bytes, pos: int) -> int:
+    while pos < len(buf):
+        key_len, pos = _read_varint(buf, pos)
+        if key_len == 0:
+            return pos
+        pos += key_len
+        value_len, pos = _read_varint(buf, pos)
+        pos += value_len
+    raise ValueError("unexpected end while scanning PSBT map")
+
+
+def _normalize_ur2_psbt_bytes(raw_psbt: bytes) -> bytes:
+    if not raw_psbt.startswith(b"psbt\xff"):
+        return raw_psbt
+
+    pos = 5
+    global_pairs = []
+    while True:
+        key_len, pos = _read_varint(raw_psbt, pos)
+        if key_len == 0:
+            break
+        key = raw_psbt[pos : pos + key_len]
+        pos += key_len
+        value_len, pos = _read_varint(raw_psbt, pos)
+        value = raw_psbt[pos : pos + value_len]
+        pos += value_len
+        global_pairs.append((key, value))
+
+    input_count = 0
+    output_count = 0
+    for key, value in global_pairs:
+        if key[:1] == b"\x04":
+            input_count, _ = _read_varint(value, 0)
+        elif key[:1] == b"\x05":
+            output_count, _ = _read_varint(value, 0)
+
+    end_pos = 5
+    end_pos = _scan_psbt_map_end(raw_psbt, end_pos)
+    for _ in range(input_count):
+        end_pos = _scan_psbt_map_end(raw_psbt, end_pos)
+    for _ in range(output_count):
+        end_pos = _scan_psbt_map_end(raw_psbt, end_pos)
+
+    cleaned = [
+        (key, value)
+        for key, value in global_pairs
+        if key[:1] not in {b"\x04", b"\x05", b"\xfb"}
+    ]
+    normalized = bytearray(b"psbt\xff")
+    for key, value in cleaned:
+        normalized += (
+            _serialize_varint(len(key)) + key + _serialize_varint(len(value)) + value
+        )
+    normalized += b"\x00" + raw_psbt[pos:end_pos]
+    return bytes(normalized)
+
+
+def _coerce_to_bytes(value, source: str) -> bytes:
+    """Convert common byte-like values into bytes with a clear error on mismatch."""
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, (bytearray, memoryview)):
+        return bytes(value)
+    if isinstance(value, (list, tuple)) and all(
+        isinstance(b, int) and 0 <= b <= 255 for b in value
+    ):
+        return bytes(value)
+    raise TypeError(f"{source} must be bytes-like, got {type(value).__name__}")
 
 
 class DecodeQRStatus(IntEnum):
@@ -106,31 +195,15 @@ class DecodeQR:
                 self.complete = True
             return rt
 
-    # TODO: Refactor all of these specific `get_` to just something generic like
-    #   `get_data` and let each QRDecoder class return whatever it needs to as a
-    #   str, tuple, dict, etc?
     def get_psbt(self):
         if self.complete:
-            data = self.get_data_psbt()
-            print(f"Raw PSBT data: {data}")
-            if data != None:
-                try:
-                    p_data_x = psbt.PSBT.parse(data)
-                    print(f"Parsed PSBT data: {p_data_x}")
-                    return p_data_x
-                except Exception as e:
-                    print(f"ERROR parsing PSBT: {e}")
-                    return None
+            return self.get_data_psbt()
         return None
 
     def get_data_psbt(self):
         if self.complete:
             if self.qr_type == QRType.PSBT__UR2:
-                cbor = self.decoder.result_message().cbor
-                return cbor
-            else:
-                # All the other psbt decoder types use the same method signature
-                return self.decoder.get_data()
+                return self.decoder.result_message().cbor
 
         return None
 
@@ -406,9 +479,11 @@ class DecodeQR:
 
     @staticmethod
     def is_base64_psbt(s):
+        from seedcash.models.bch_signer import parse_psbt
+
         try:
             if DecodeQR.is_base64(s):
-                psbt.PSBT.parse(a2b_base64(s))
+                parse_psbt(a2b_base64(s))
                 return True
         except Exception:
             return False
@@ -416,8 +491,10 @@ class DecodeQR:
 
     @staticmethod
     def is_base43_psbt(s):
+        from seedcash.models.bch_signer import parse_psbt
+
         try:
-            psbt.PSBT.parse(DecodeQR.base43_decode(s))
+            parse_psbt(DecodeQR.base43_decode(s))
             return True
         except Exception:
             return False

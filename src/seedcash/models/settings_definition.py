@@ -15,9 +15,21 @@ class SettingsConstants:
     OPTION__PROMPT = "prompt"
     OPTIONS__ENABLED_DISABLED = [OPTION__ENABLED, OPTION__DISABLED]
 
-    # Sign Transaction / PSBT Constants
-    MAINNET = "main"
-    TESTNET = "test"
+    # Bitcoin Denomination
+    BTC_DENOMINATION__BTC = "btc"
+    BTC_DENOMINATION__SATS = "sats"
+    BTC_DENOMINATION__THRESHOLD = "threshold"
+    BTC_DENOMINATION__BTCSATSHYBRID = "btcsatshybrid"
+
+    @classmethod
+    def map_network_to_embit(cls, network: str) -> str:
+        if network in {cls.MAINNET, cls.TESTNET}:
+            return network
+        if network in {"mainnet", "bitcoin"}:
+            return cls.MAINNET
+        if network in {"testnet", "testnet4", "signet"}:
+            return cls.TESTNET
+        return network
 
     # User-facing selection options
     COORDINATOR__BLUE_WALLET = "bw"
@@ -413,6 +425,12 @@ class SettingsDefinition:
             attr_name=SettingsConstants.SETTING__DISPLAY_COLOR_INVERTED,
             abbreviated_name="color_inverted",
             type=SettingsConstants.TYPE__ENABLED_DISABLED,
+        ),
+        SettingsEntry(
+            attr_name=SettingsConstants.SETTING__QR_BRIGHTNESS,
+            type=SettingsConstants.TYPE__FREE_ENTRY,
+            default_value=255,
+            visibility=SettingsConstants.VISIBILITY__GENERAL,
         ),
     ]
 

@@ -27,6 +27,7 @@ class SettingOptionsView(View):
     TEST_BUTTONS = ButtonOption("Test Buttons")
     TEST_CAMERA = ButtonOption("Test Camera")
     CAMERA_ROTATION = ButtonOption("Camera Rotation")
+    QR_BRIGHTNESS = ButtonOption("QR Brightness")
 
     def __init__(self):
         super().__init__()
@@ -40,6 +41,7 @@ class SettingOptionsView(View):
             self.TEST_BUTTONS,
             self.TEST_CAMERA,
             self.CAMERA_ROTATION,
+            self.QR_BRIGHTNESS,
         ]
 
         selected_menu_num = self.run_screen(
@@ -61,6 +63,8 @@ class SettingOptionsView(View):
             return Destination(TestCamera)
         elif button_data[selected_menu_num] == self.CAMERA_ROTATION:
             return Destination(CameraRotationOptionsView)
+        elif button_data[selected_menu_num] == self.QR_BRIGHTNESS:
+            return Destination(SettingQRBrightnessView)
 
 
 class SettingLanguageView(View):
@@ -221,3 +225,28 @@ class CameraRotationOptionsView(View):
                 SettingsConstants.SETTING__CAMERA_ROTATION, selected_rotation
             )
             return Destination(BackStackView)
+
+
+class SettingQRBrightnessView(View):
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        from seedcash.gui.screens.screen import QRDisplayScreen
+        from seedcash.models.encode_qr import GenericStaticQrEncoder
+        from seedcash.models.threads import ThreadsafeCounter
+
+        qr_encoder = GenericStaticQrEncoder(data="seedcash brightness test")
+        
+        current_brightness = self.controller.settings.get_value(SettingsConstants.SETTING__QR_BRIGHTNESS)
+        if current_brightness is None:
+            current_brightness = 255
+            
+        brightness_counter = ThreadsafeCounter(initial_value=int(current_brightness))
+        
+        self.run_screen(QRDisplayScreen, qr_encoder=qr_encoder, qr_brightness=brightness_counter)
+        
+        # Save any brightness adjustments made by the user
+        self.controller.settings.set_value(SettingsConstants.SETTING__QR_BRIGHTNESS, brightness_counter.cur_count)
+        
+        return Destination(BackStackView)
