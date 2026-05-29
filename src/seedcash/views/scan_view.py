@@ -1,4 +1,5 @@
 from gettext import gettext as _
+from seedcash.gui.screens import RET_CODE__BACK_BUTTON
 from seedcash.views.view import (
     BackStackView,
     ErrorView,
@@ -49,7 +50,6 @@ class ScanInvalidQRTypeView(View):
         super().__init__()
 
     def run(self):
-        from seedcash.views.setting_views import SettingOptionsView
 
         return Destination(
             ErrorView,
@@ -94,13 +94,16 @@ class ScanView(View):
         from seedcash.gui.screens.scan_screens import ScanScreen
 
         # Start the live preview and background QR reading
-        self.run_screen(
+        scan_result = self.run_screen(
             ScanScreen, instructions_text=self.instructions_text, decoder=self.decoder
         )
 
         # A long scan might have exceeded the screensaver timeout; ensure screensaver
         # doesn't immediately engage when we leave here.
         self.controller.reset_screensaver_timeout()
+
+        if scan_result in (False, RET_CODE__BACK_BUTTON):
+            return Destination(BackStackView)
 
         # Handle the results
         if self.decoder.is_complete:

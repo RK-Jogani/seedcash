@@ -21,16 +21,6 @@ class SettingsConstants:
     BTC_DENOMINATION__THRESHOLD = "threshold"
     BTC_DENOMINATION__BTCSATSHYBRID = "btcsatshybrid"
 
-    @classmethod
-    def map_network_to_embit(cls, network: str) -> str:
-        if network in {cls.MAINNET, cls.TESTNET}:
-            return network
-        if network in {"mainnet", "bitcoin"}:
-            return cls.MAINNET
-        if network in {"testnet", "testnet4", "signet"}:
-            return cls.TESTNET
-        return network
-
     # User-facing selection options
     COORDINATOR__BLUE_WALLET = "bw"
     COORDINATOR__NUNCHUK = "nun"

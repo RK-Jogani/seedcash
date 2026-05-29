@@ -8,10 +8,7 @@ from seedcash.controller import Controller
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODULE_LOG_LEVELS = {
-    "PIL": logging.WARNING,
-    # "seedcash.gui.toast": logging.DEBUG,  # example of more specific submodule logging config
-}
+DEFAULT_MODULE_LOG_LEVELS = {"PIL": logging.WARNING}
 
 
 def main(sys_argv=None):

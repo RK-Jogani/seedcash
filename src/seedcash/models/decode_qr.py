@@ -7,13 +7,10 @@ from binascii import a2b_base64, b2a_base64
 from enum import IntEnum
 from pyzbar import pyzbar
 from pyzbar.pyzbar import ZBarSymbol
-from urtypes.crypto import PSBT as UR_PSBT
-from urtypes.bytes import Bytes
 from base64 import b32decode
 
 from seedcash.helpers.ur2.ur_decoder import URDecoder
 from seedcash.models.qr_type import QRType
-from seedcash.models.seed import Seed
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +81,6 @@ class DecodeQR:
             return DecodeQRStatus.FALSE
 
         qr_type = DecodeQR.detect_segment_type(data)
-        print(f"detected qr type: {qr_type}")
 
         if self.qr_type == None:
             self.qr_type = qr_type
@@ -94,13 +90,11 @@ class DecodeQR:
             elif self.qr_type == QRType.PSBT__SPECTER:
                 self.decoder = SpecterPsbtQrDecoder()
             elif self.qr_type == QRType.PSBT__BASE64:
-                self.decoder = Base64PsbtQrDecoder()  # Single Segments Base64
-
+                self.decoder = Base64PsbtQrDecoder()
             elif self.qr_type == QRType.PSBT__BASE43:
-                self.decoder = Base43PsbtQrDecoder()  # Single Segment Base43
-
+                self.decoder = Base43PsbtQrDecoder()
             elif self.qr_type == QRType.PSBT__BBQR:
-                self.decoder = BBQRPsbtQrDecoder()  # BBQr Decoder
+                self.decoder = BBQRPsbtQrDecoder()
 
         elif self.qr_type != qr_type:
             raise Exception("QR Fragment Unexpected Type Change")
@@ -159,22 +153,6 @@ class DecodeQR:
             return b64_psbt.decode("utf-8")
         return None
 
-    def get_seed_phrase(self):
-        if self.is_seed:
-            return self.decoder.get_seed_phrase()
-
-    def get_settings_data(self):
-        if self.is_settings:
-            return self.decoder.data
-
-    def get_address(self):
-        if self.is_address:
-            return self.decoder.get_address()
-
-    def get_address_type(self):
-        if self.is_address:
-            return self.decoder.get_address_type()
-
     def get_qr_data(self) -> dict:
         """
         This provides a single access point for external code to retrieve the QR data,
@@ -230,50 +208,6 @@ class DecodeQR:
             QRType.PSBT__BBQR,
         ]
 
-    @property
-    def is_seed(self):
-        return self.qr_type in [
-            QRType.SEED__SEEDQR,
-            QRType.SEED__COMPACTSEEDQR,
-            QRType.SEED__UR2,
-            QRType.SEED__MNEMONIC,
-            QRType.SEED__FOUR_LETTER_MNEMONIC,
-        ]
-
-    @property
-    def is_json(self):
-        return self.qr_type in [QRType.SETTINGS, QRType.JSON]
-
-    @property
-    def is_address(self):
-        return self.qr_type == QRType.BITCOIN_ADDRESS
-
-    @property
-    def is_sign_message(self):
-        return self.qr_type == QRType.SIGN_MESSAGE
-
-    @property
-    def is_wallet_descriptor(self):
-        check = self.qr_type in [
-            QRType.WALLET__SPECTER,
-            QRType.WALLET__UR,
-            QRType.WALLET__CONFIGFILE,
-            QRType.WALLET__GENERIC,
-            QRType.OUTPUT__UR,
-        ]
-
-        if self.qr_type in [QRType.BYTES__UR]:
-            cbor = self.decoder.result_message().cbor
-            raw = Bytes.from_cbor(cbor).data
-            data = raw.decode("utf-8").lower()
-            check = "policy:" in data and "format:" in data and "derivation:" in data
-
-        return check
-
-    @property
-    def is_settings(self):
-        return self.qr_type == QRType.SETTINGS
-
     @staticmethod
     def extract_qr_data(image, is_binary: bool = False) -> str | None:
         if image is None:
@@ -310,9 +244,6 @@ class DecodeQR:
             elif re.search("^UR:CRYPTO-OUTPUT/", s, re.IGNORECASE):
                 return QRType.OUTPUT__UR
 
-            elif re.search("^UR:CRYPTO-ACCOUNT/", s, re.IGNORECASE):
-                return QRType.ACCOUNT__UR
-
             elif re.search(
                 r"^p(\d+)of(\d+) ([A-Za-z0-9+\/=]+$)", s, re.IGNORECASE
             ):  # must be base64 characters only in segment
@@ -328,56 +259,6 @@ class DecodeQR:
                 r"^B\$[2HZ]P[0-9A-Z]{4}", s
             ):  # https://github.com/coinkite/BBQr/blob/master/BBQr.md#spliting-the-data
                 return QRType.PSBT__BBQR
-
-            # Wallet Descriptor
-            desc_str = s.replace("\n", "").replace(" ", "")
-            if re.search(r"^p(\d+)of(\d+) ", s, re.IGNORECASE):
-                # when not a SPECTER Base64 PSBT from above, assume it's json
-                return QRType.WALLET__SPECTER
-
-            elif re.search(
-                r"^\{\"label\".*\"descriptor\"\:.*", desc_str, re.IGNORECASE
-            ):
-                # if json starting with label and contains descriptor, assume specter wallet json
-                return QRType.WALLET__SPECTER
-
-            elif "multisig setup file" in s.lower():
-                return QRType.WALLET__CONFIGFILE
-
-            elif "sortedmulti" in s:
-                return QRType.WALLET__GENERIC
-
-            # Seed
-            if re.search(r"\d{48,96}", s):
-                return QRType.SEED__SEEDQR
-
-            # Bitcoin Address
-            elif DecodeQR.is_bitcoin_address(s):
-                return QRType.BITCOIN_ADDRESS
-
-            # message signing
-            elif s.startswith("signmessage"):
-                return QRType.SIGN_MESSAGE
-
-            # config data
-            if s.startswith("settings::"):
-                return QRType.SETTINGS
-
-            # Seed
-            # create 4 letter wordlist only if not PSBT (performance gain)
-            wordlist = Seed.get_wordlist()
-            try:
-                _4LETTER_WORDLIST = [word[:4].strip() for word in wordlist]
-            except:
-                _4LETTER_WORDLIST = []
-
-            if all(x in wordlist for x in s.strip().split(" ")):
-                # checks if all words in list are in bip39 word list
-                return QRType.SEED__MNEMONIC
-
-            elif all(x in _4LETTER_WORDLIST for x in s.strip().split(" ")):
-                # checks if all 4 letter words are in list are in 4 letter bip39 word list
-                return QRType.SEED__FOUR_LETTER_MNEMONIC
 
             elif DecodeQR.is_base43_psbt(s):
                 return QRType.PSBT__BASE43
@@ -395,19 +276,6 @@ class DecodeQR:
             except UnicodeError:
                 # Couldn't convert back to bytes; shouldn't happen
                 raise Exception("Conversion to bytes failed")
-
-        # 32 bytes for 24-word CompactSeedQR; 16 bytes for 12-word CompactSeedQR
-        if len(s) == 32 or len(s) == 16:
-            try:
-                bitstream = ""
-                for b in s:
-                    bitstream += bin(b).lstrip("0b").zfill(8)
-                # print(bitstream)
-
-                return QRType.SEED__COMPACTSEEDQR
-            except Exception as e:
-                # Couldn't extract byte data; assume it's not a byte format
-                pass
 
         return QRType.INVALID
 
@@ -475,112 +343,6 @@ class DecodeQR:
         result.extend(b"\x00" * nPad)
         result.reverse()
         return bytes(result)
-
-    @staticmethod
-    def is_bitcoin_address(s):
-        if re.search(r"^bitcoin\:.*", s, re.IGNORECASE):
-            return True
-        elif re.search(
-            r"^((bc1|tb1|bcr|[123]|[mn])[a-zA-HJ-NP-Z0-9]{25,62})$", s, re.IGNORECASE
-        ):
-            return True
-        else:
-            return False
-
-    @staticmethod
-    def multisig_setup_file_to_descriptor(text) -> str:
-        # sample text file, parse the contents and create descriptor
-        """
-        Name: SeedCash Dev Funds
-        Policy: 4 of 6
-        Derivation: m/48'/0'/0'/2'
-        Format: P2WSH
-
-        E0811B6B: xpub6E8v7uy63pCeJvHe5W8ea8zTnCtKMFgMRb5bueWWcUFMw6sWmUwTqxM8cFiKQRWkA2Fxth9HJZufJwjWTTvU1UGZNpTrh9khrswYMgeHiCt
-        852B308F: xpub6ErhgAWfnEqW7xDBm1iLq5JjNyUS65YUFnjHLrRv9zmdDEtuE75bpWQ8o6bSBnpT6AkrrsA8eA5SmEFArZn11KEPaZJzx9mHTXPWZCsxLyh
-        7EDF9C59: xpub6DaFfKoe7WpofrbYeNo3Wv2AiLUMeyrPwotXfukFxUHbK4JxaLHTd5394QtH5wnjFzBgr2YnJpHhXv25Zsqv2APmMFvH1DsKHj5LCr3pmXs
-        B433E095: xpub6EF51itHko2YhGTjVeuYbBgJjVbTzzpYzn2a3JwZHpDrMePRVgXGBHMx2Yv1KwgLsUn9i7ExcAo8uqMx4pDjVRY9J7qnceFAwRRj16dd5AS
-        184D07EB: xpub6EEoTpcQu7N4R8D84pJjZ69j3minevnYLDDoo2HBzYBXTQ4rGVf4XGTyCYFwJuZdsF9MyFYJNzYEjg5LGMA1ubTGWuDnjHAZz6ficVRDTSy
-        3E451EFE: xpub6ExQPvQxGBMaPxr8Fv7Vq91ztJFFX3VWvtpvex6UPZ1AptTeuAiJGCtKkgwJkrwpMZMagh9ex6rL4sM8axfFcdQbERoFCRUKTJxrBkJh56g
-        """
-
-        lines = text.split("\n")
-
-        m = 0
-        n = 0
-        xpubs = []
-        x = 0
-        derivation = ""
-        descriptor = ""
-
-        lines = text.split("\n")
-
-        for l in lines:
-            if l.find("#") == 0:
-                # skip comments
-                continue
-
-            l = l.strip()
-
-            if ":" not in l:
-                # when label/value divider not found, skip line
-                continue
-
-            label, value = l.split(":", 1)
-            label = label.strip().lower()
-            value = value.strip()
-
-            if label == "policy":
-                try:
-                    match = re.search(r"(\d+)\D*(\d+)", value)
-                    m = int(match.group(1))
-                    n = int(match.group(2))
-                except:
-                    raise Exception(f"Policy line not supported")
-            elif label == "derivation":
-                derivation = value
-            elif label == "format":
-                if value.lower() in ["p2wsh", "p2sh-p2wsh", "p2wsh-p2sh"]:
-                    script_type = value.lower()
-            elif len(label) == 8:
-                if len(xpubs) == 0:
-                    xpubs = [None] * n
-
-                xpubs[x] = {"xfp": label, "key": value}
-                x += 1
-
-        if None in xpubs or len(xpubs) != n:
-            raise Exception(f"bad or missing xpub")
-
-        if m <= 0 or m > 9 or n <= 0 or n > 9:
-            raise Exception(f"bad or missing policy")
-
-        if len(derivation) == 0:
-            raise Exception(f"bad or missing derivation path")
-
-        if script_type not in ["p2wsh", "p2sh-p2wsh", "p2wsh-p2sh"]:
-            raise Exception(f"bad or missing script format")
-
-        # create descriptor string
-
-        if script_type == "p2wsh":
-            script_open = "wsh(sortedmulti(" + str(m)
-            script_close = "))"
-        elif script_type in ["p2sh-p2wsh", "p2wsh-p2sh"]:
-            script_open = "sh(wsh(sortedmulti(" + str(m)
-            script_close = ")))"
-
-        descriptor = script_open
-
-        for x in xpubs:
-            if derivation[0] == "m":
-                derivation = derivation[1:]
-            derivation = derivation.replace("'", "h")
-            descriptor += ",[" + x["xfp"] + derivation + "]" + x["key"] + "/{0,1}/*"
-
-        descriptor += script_close
-
-        return descriptor
 
 
 class BaseQrDecoder:

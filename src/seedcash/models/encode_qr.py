@@ -1,24 +1,11 @@
-from json import encoder
 import math
 from dataclasses import dataclass
 from typing import List
-from embit.networks import NETWORKS
-from binascii import hexlify
 from seedcash.helpers.ur2.ur_encoder import UREncoder
 from seedcash.helpers.ur2.ur import UR
 from seedcash.helpers.qr import QR
 from seedcash.models.seed import Seed
 from seedcash.models.settings import SettingsConstants
-from seedcash.helpers.ur2.cbor_lite import CBOREncoder
-from urtypes.crypto import (
-    Account,
-    HDKey,
-    Output,
-    Keypath,
-    PathComponent,
-    SCRIPT_EXPRESSION_TAG_MAP,
-    CoinInfo,
-)
 
 
 @dataclass
@@ -282,124 +269,6 @@ class BaseFountainQrEncoder(BaseQrEncoder):
 
     def restart(self):
         self.ur2_encode.fountain_encoder.restart()
-
-
-@dataclass
-class UrXpubQrEncoder(BaseFountainQrEncoder, BaseXpubQrEncoder):
-    def __post_init__(self):
-        super().__post_init__()
-        self.prep_xpub()
-
-        def derivation_to_keypath(path: str) -> list:
-            arr = path.split("/")
-            if arr[0] == "m":
-                arr = arr[1:]
-            if len(arr) == 0:
-                return Keypath([], self.root.my_fingerprint, None)
-            if arr[-1] == "":
-                # trailing slash
-                arr = arr[:-1]
-
-            for i, e in enumerate(arr):
-                if e[-1] == "h" or e[-1] == "'":
-                    arr[i] = PathComponent(int(e[:-1]), True)
-                else:
-                    arr[i] = PathComponent(int(e), False)
-
-            return Keypath(arr, self.root.my_fingerprint, len(arr))
-
-        origin = derivation_to_keypath(self.derivation)
-
-        # Implemts "use_info" member on HDKey class (urtypes/crypto packages-libs folder) construct,
-        # so if working on TESTNET, Xpub can be exported accordingly. Default case, MAINNET: None value.
-        self.use_info = (
-            None
-            if self.network == SettingsConstants.MAINNET
-            else CoinInfo(type=None, network=1)
-        )
-
-        self.ur_hdkey = HDKey(
-            {
-                "key": self.xpub.key.serialize(),
-                "chain_code": self.xpub.chain_code,
-                "origin": origin,
-                "parent_fingerprint": self.xpub.fingerprint,
-                "use_info": self.use_info,
-            }
-        )
-
-        ur_outputs = []
-
-        if len(origin.components) > 0:
-            if origin.components[0].index == 84:  # Native Single Sig
-                ur_outputs.append(
-                    Output([SCRIPT_EXPRESSION_TAG_MAP[404]], self.ur_hdkey)
-                )
-            elif origin.components[0].index == 49:  # Nested Single Sig
-                ur_outputs.append(
-                    Output(
-                        [
-                            SCRIPT_EXPRESSION_TAG_MAP[400],
-                            SCRIPT_EXPRESSION_TAG_MAP[404],
-                        ],
-                        self.ur_hdkey,
-                    )
-                )
-            elif origin.components[0].index == 48:  # Multisig
-                if len(origin.components) >= 4:
-                    if origin.components[3].index == 2:  # Native Multisig
-                        ur_outputs.append(
-                            Output([SCRIPT_EXPRESSION_TAG_MAP[401]], self.ur_hdkey)
-                        )
-                    elif origin.components[3].index == 1:  # Nested Multisig
-                        ur_outputs.append(
-                            Output(
-                                [
-                                    SCRIPT_EXPRESSION_TAG_MAP[400],
-                                    SCRIPT_EXPRESSION_TAG_MAP[401],
-                                ],
-                                self.ur_hdkey,
-                            )
-                        )
-            elif origin.components[0].index == 86:  # P2TR
-                ur_outputs.append(
-                    Output([SCRIPT_EXPRESSION_TAG_MAP[409]], self.ur_hdkey)
-                )
-            elif origin.components[0].index == 44:  # P2PKH
-                ur_outputs.append(
-                    Output([SCRIPT_EXPRESSION_TAG_MAP[403]], self.ur_hdkey)
-                )
-            elif origin.components[0].index == 45:  # P2SH
-                ur_outputs.append(
-                    Output([SCRIPT_EXPRESSION_TAG_MAP[400]], self.ur_hdkey)
-                )
-
-        # If empty, add all script types
-        if len(ur_outputs) == 0:
-            ur_outputs.append(Output([SCRIPT_EXPRESSION_TAG_MAP[404]], self.ur_hdkey))
-            ur_outputs.append(
-                Output(
-                    [SCRIPT_EXPRESSION_TAG_MAP[400], SCRIPT_EXPRESSION_TAG_MAP[404]],
-                    self.ur_hdkey,
-                )
-            )
-            ur_outputs.append(Output([SCRIPT_EXPRESSION_TAG_MAP[401]], self.ur_hdkey))
-            ur_outputs.append(
-                Output(
-                    [SCRIPT_EXPRESSION_TAG_MAP[400], SCRIPT_EXPRESSION_TAG_MAP[401]],
-                    self.ur_hdkey,
-                )
-            )
-            ur_outputs.append(Output([SCRIPT_EXPRESSION_TAG_MAP[403]], self.ur_hdkey))
-            ur_outputs.append(Output([SCRIPT_EXPRESSION_TAG_MAP[400]], self.ur_hdkey))
-
-        ur_account = Account(self.root.my_fingerprint, ur_outputs)
-
-        qr_ur_bytes = UR("crypto-account", ur_account.to_cbor())
-
-        self.ur2_encode = UREncoder(
-            ur=qr_ur_bytes, max_fragment_len=self.qr_max_fragment_size
-        )
 
 
 @dataclass

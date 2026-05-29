@@ -9,4 +9,7 @@ class QRType:
     PSBT__UR2 = "psbt__ur2"
     PSBT__BBQR = "psbt__bbqr"
 
+    BYTES__UR = "bytes__ur"
+    OUTPUT__UR = "output__ur"
+
     INVALID = "invalid"
