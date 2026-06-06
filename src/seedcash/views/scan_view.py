@@ -19,7 +19,13 @@ class TestCamera(View):
     instructions_text = _("Camera Preview")
 
     def __init__(self):
+        from seedcash.models.decode_qr import DecodeQR
+
         super().__init__()
+        # Define the decoder here to make it available to child classes' is_valid_qr_type
+        # checks and so we can inject data into it in the test suite's `before_run()`.
+        self.decoder: DecodeQR = DecodeQR()
+
 
     def run(self):
         from seedcash.gui.screens.scan_screens import ScanScreen
@@ -28,6 +34,7 @@ class TestCamera(View):
         self.run_screen(
             ScanScreen,
             instructions_text=self.instructions_text,
+            decoder=self.decoder
         )
 
         # A long preview might have exceeded the screensaver timeout; ensure screensaver
