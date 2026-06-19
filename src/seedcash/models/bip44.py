@@ -147,53 +147,6 @@ class Bip44:
         return address
 
     @staticmethod
-    def generate_random_seed(num_words: int = 12) -> list:
-        """
-        Generate a random num_words BIP39 mnemonic seed using OS random bits.
-
-        Args:
-            num_words: Number of words in the mnemonic (12, 15, 18, 21, or 24)
-
-        Returns:
-            list: List of num_words mnemonic words
-        """
-        # Validate num_words
-        if num_words not in [12, 15, 18, 21, 24]:
-            raise ValueError("Number of words must be 12, 15, 18, 21, or 24")
-
-        # Calculate entropy bits needed (ENT)
-        # For BIP39: ENT = (num_words * 11) - checksum_bits
-        # Checksum bits = ENT / 32
-        entropy_bits = (num_words * 11 * 32) // 33
-        checksum_bits = entropy_bits // 32
-
-        # Calculate entropy bytes needed
-        entropy_bytes_count = entropy_bits // 8
-
-        # Generate random entropy using os.urandom (cryptographically secure)
-        entropy_bytes = os.urandom(entropy_bytes_count)
-
-        # Convert bytes to binary string
-        entropy_binary = "".join(format(byte, "08b") for byte in entropy_bytes)
-
-        # Calculate SHA256 hash for checksum
-        hash_object = hashlib.sha256()
-        hash_object.update(entropy_bytes)
-        hash_hex = hash_object.hexdigest()
-        hash_binary = bin(int(hash_hex, 16))[2:].zfill(256)
-
-        # Get first checksum_bits as checksum
-        checksum = hash_binary[:checksum_bits]
-
-        # Combine entropy and checksum
-        full_binary = entropy_binary + checksum
-
-        # Convert to mnemonic words using existing function
-        mnemonic = Bip44.binmnemonic_to_mnemonic(full_binary)
-
-        return mnemonic
-
-    @staticmethod
     def hmac_sha512(key, data):
         return hmac.new(key, data, hashlib.sha512).digest()
 
