@@ -85,19 +85,32 @@ def parse_psbt(buf):
     if not isinstance(buf, bytes):
         raise TypeError(f"PSBT buffer must be bytes-like, got {type(buf).__name__}")
 
-    assert buf[:5] == b"psbt\xff", "not a PSBT binary"
+    if len(buf) < 5 or buf[:5] != b"psbt\xff":
+        raise ValueError("invalid PSBT magic")
     pos = 5
 
     global_pairs, pos = parse_keypairs(buf, pos)
 
-    # Get input/output counts from global
+    # Try to get input/output counts from global map
     input_count = 0
     output_count = 0
+    unsigned_tx = None
+    psbt_version = 0
     for k, v in global_pairs:
-        if k[0] == 0x04:  # PSBT_GLOBAL_INPUT_COUNT
+        if k[0] == 0x00:  # PSBT_GLOBAL_UNSIGNED_TX
+            unsigned_tx = v
+        elif k[0] == 0x04:  # PSBT_GLOBAL_INPUT_COUNT
             input_count, _ = read_varint(v, 0)
-        if k[0] == 0x05:  # PSBT_GLOBAL_OUTPUT_COUNT
+        elif k[0] == 0x05:  # PSBT_GLOBAL_OUTPUT_COUNT
             output_count, _ = read_varint(v, 0)
+        elif k[0] == 0xFB:  # read PSBT version
+            psbt_version, _ = read_varint(v, 0)
+
+    # Fallback for PSBT v0: Determine counts from the unsigned transaction
+    if (input_count == 0 or output_count == 0) and unsigned_tx is not None:
+        tx = parse_unsigned_tx(unsigned_tx)
+        input_count = len(tx["inputs"])
+        output_count = len(tx["outputs"])
 
     # Parse inputs
     inputs = []
@@ -117,6 +130,7 @@ def parse_psbt(buf):
         "outputs": outputs,
         "input_count": input_count,
         "output_count": output_count,
+        "psbt_version": psbt_version,
     }
 
 
@@ -566,9 +580,16 @@ def add_signature_to_psbt(
     for k, v in input_pairs:
         if k[0] == 0x00:  # PSBT_IN_NON_WITNESS_UTXO
             prev_tx = parse_unsigned_tx(v)
-            prevout_index = int.from_bytes(
-                unsigned_tx["inputs"][input_index]["prev_index"], "little"
-            )
+            if input_index >= len(unsigned_tx["inputs"]):
+                raise ValueError(
+                    f"input_index {input_index} out of range for unsigned transaction inputs (len: {len(unsigned_tx['inputs'])})"
+                )
+            tx_input = unsigned_tx["inputs"][input_index]
+            prevout_index = int.from_bytes(tx_input["prev_index"], "little")
+            if prevout_index >= len(prev_tx["outputs"]):
+                raise ValueError(
+                    f"prev_index {prevout_index} out of range for input {input_index}"
+                )
             prev_output = prev_tx["outputs"][prevout_index]
             utxo_value = int.from_bytes(prev_output["value"], "little")
             utxo_script = prev_output["script_pubkey"]

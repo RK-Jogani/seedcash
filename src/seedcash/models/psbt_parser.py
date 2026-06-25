@@ -135,14 +135,21 @@ class PSBTParser:
         self.fee_amount = self.input_amount - self.spend_amount - self.change_amount
         return True
 
-    def sign_with_wallet_xpriv(self, xpriv) -> int:
+    def sign_with_wallet_xpriv(self, xpriv):
         """
         Signs the PSBT with the wallet's xpriv
         """
         from seedcash.models.bch_signer import sign_psbt_with_xpriv
 
         try:
-            signed_psbt = sign_psbt_with_xpriv(self.psbt_bytes, xpriv)
+            signed_psbt = self.psbt_bytes
+            for i in range(self.num_inputs):
+                signed_psbt = sign_psbt_with_xpriv(
+                    signed_psbt,
+                    xpriv,
+                    input_index=i,
+                )
+            self.psbt_bytes = signed_psbt
             return signed_psbt
         except Exception as e:
             logger.error(f"Error signing PSBT: {e}")
