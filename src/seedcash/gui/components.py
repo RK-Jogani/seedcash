@@ -1608,13 +1608,13 @@ class TopNav(BaseComponent):
 
 
 @dataclass
-class BtcAmount(BaseComponent):
+class BchAmount(BaseComponent):
     """
-    Display btc value based on the SETTING__BTC_DENOMINATION Setting:
-    * btc: "B" icon + 8-decimal amount + "btc" (can truncate zero decimals to .0 or .09)
+    Display bch value based on the SETTING__BCH_DENOMINATION Setting:
+    * bch: "B" icon + 8-decimal amount + "bch" (can truncate zero decimals to .0 or .09)
     * sats: "B" icon + comma-separated amount + "sats"
-    * threshold: btc display at or above 0.01 btc; otherwise sats
-    * btcsatshybrd: "B" icon + 2-decimal amount + "|" + up to 6-digit, comma-separated sats + "sats"
+    * threshold: bch display at or above 0.01 bch; otherwise sats
+    * bchsatshybrd: "B" icon + 2-decimal amount + "|" + up to 6-digit, comma-separated sats + "sats"
     """
 
     total_sats: int = None
@@ -1630,9 +1630,9 @@ class BtcAmount(BaseComponent):
         self.paste_image: Image.Image = None
         self.paste_coords = None
         # TRANSLATOR_NOTE: Testnet bitcoin
-        btc_unit = _("tBtc")
+        bch_unit = _("tBch")
         sats_unit = _("sats")
-        btc_color = GUIConstants.BITCOIN_GREEN
+        bch_color = GUIConstants.BITCOIN_GREEN
         denomination = self.denomination
 
         digit_font = Fonts.get_font(
@@ -1652,7 +1652,7 @@ class BtcAmount(BaseComponent):
         draw = ImageDraw.Draw(self.paste_image)
 
         # Render the circular Bitcoin icon
-        btc_icon = Icon(
+        bch_icon = Icon(
             image_draw=draw,
             canvas=self.paste_image,
             icon_name=SeedCashIconsConstants.BITCOIN_ALT,
@@ -1661,45 +1661,45 @@ class BtcAmount(BaseComponent):
             screen_x=0,
             screen_y=0,
         )
-        btc_icon.render()
-        cur_x = btc_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
+        bch_icon.render()
+        cur_x = bch_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
 
         if (
-            denomination == SettingsConstants.BTC_DENOMINATION__BTC
+            denomination == SettingsConstants.BCH_DENOMINATION__BCH
             or (
-                denomination == SettingsConstants.BTC_DENOMINATION__THRESHOLD
+                denomination == SettingsConstants.BCH_DENOMINATION__THRESHOLD
                 and self.total_sats >= 1e6
             )
             or (
-                denomination == SettingsConstants.BTC_DENOMINATION__BTCSATSHYBRID
+                denomination == SettingsConstants.BCH_DENOMINATION__BCHSATSHYBRID
                 and self.total_sats >= 1e6
                 and str(self.total_sats)[-6:] == "0" * 6
             )
             or self.total_sats > 1e10
         ):
-            decimal_btc = Decimal(self.total_sats / 1e8).quantize(Decimal("0.12345678"))
+            decimal_bch = Decimal(self.total_sats / 1e8).quantize(Decimal("0.12345678"))
             if str(self.total_sats)[-8:] == "0" * 8:
-                # Only whole btc units being displayed; truncate to a single decimal place
-                decimal_btc = decimal_btc.quantize(Decimal("0.1"))
+                # Only whole bch units being displayed; truncate to a single decimal place
+                decimal_bch = decimal_bch.quantize(Decimal("0.1"))
 
             elif str(self.total_sats)[-6:] == "0" * 6:
                 # Bottom six digits are all zeroes; trucate to two decimal places
-                decimal_btc = decimal_btc.quantize(Decimal("0.12"))
+                decimal_bch = decimal_bch.quantize(Decimal("0.12"))
 
-            btc_text = f"{decimal_btc:,}"
+            bch_text = f"{decimal_bch:,}"
 
-            if len(btc_text) >= 12:
-                # This is a large btc value that won't fit; omit sats
-                btc_text = (
-                    btc_text.split(".")[0] + "." + btc_text.split(".")[-1][:2] + "..."
+            if len(bch_text) >= 12:
+                # This is a large bch value that won't fit; omit sats
+                bch_text = (
+                    bch_text.split(".")[0] + "." + bch_text.split(".")[-1][:2] + "..."
                 )
 
-            # Draw the btc side
+            # Draw the bch side
             font = digit_font
             # if self.total_sats > 1e9:
             #     font = smaller_digit_font
 
-            left, top, text_width, bottom = font.getbbox(btc_text, anchor="ls")
+            left, top, text_width, bottom = font.getbbox(bch_text, anchor="ls")
             text_height = -1 * top + bottom
             text_y = self.paste_image.height - int(
                 (self.paste_image.height - text_height) / 2
@@ -1708,22 +1708,22 @@ class BtcAmount(BaseComponent):
             draw.text(
                 xy=(cur_x, text_y),
                 font=font,
-                text=btc_text,
+                text=bch_text,
                 fill=GUIConstants.BODY_FONT_COLOR,
                 anchor="ls",
             )
             cur_x += text_width
 
-            unit_text = btc_unit
+            unit_text = bch_unit
 
         elif (
-            denomination == SettingsConstants.BTC_DENOMINATION__SATS
+            denomination == SettingsConstants.BCH_DENOMINATION__SATS
             or (
-                denomination == SettingsConstants.BTC_DENOMINATION__THRESHOLD
+                denomination == SettingsConstants.BCH_DENOMINATION__THRESHOLD
                 and self.total_sats < 1e6
             )
             or (
-                denomination == SettingsConstants.BTC_DENOMINATION__BTCSATSHYBRID
+                denomination == SettingsConstants.BCH_DENOMINATION__BCHSATSHYBRID
                 and self.total_sats < 1e6
             )
         ):
@@ -1749,28 +1749,28 @@ class BtcAmount(BaseComponent):
 
             unit_text = sats_unit
 
-        elif denomination == SettingsConstants.BTC_DENOMINATION__BTCSATSHYBRID:
-            decimal_btc = Decimal(self.total_sats / 1e8).quantize(Decimal("0.12345678"))
-            decimal_btc = Decimal(str(decimal_btc)[:-6])
-            btc_text = f"{decimal_btc:,}"
+        elif denomination == SettingsConstants.BCH_DENOMINATION__BCHSATSHYBRID:
+            decimal_bch = Decimal(self.total_sats / 1e8).quantize(Decimal("0.12345678"))
+            decimal_bch = Decimal(str(decimal_bch)[:-6])
+            bch_text = f"{decimal_bch:,}"
             sats_text = f"{self.total_sats:,}"[-7:]
             while sats_text[0] == "0":
                 sats_text = sats_text[1:]
 
-            btc_icon = Icon(
+            bch_icon = Icon(
                 image_draw=draw,
                 canvas=self.paste_image,
                 icon_name=SeedCashIconsConstants.BITCOIN_ALT,
-                icon_color=btc_color,
+                icon_color=bch_color,
                 icon_size=self.icon_size,
                 screen_x=0,
                 screen_y=0,
             )
-            btc_icon.render()
-            cur_x = btc_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
+            bch_icon.render()
+            cur_x = bch_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
 
             left, top, text_width, bottom = smaller_digit_font.getbbox(
-                btc_text, anchor="ls"
+                bch_text, anchor="ls"
             )
             text_height = -1 * top + bottom
             text_y = self.paste_image.height - int(
@@ -1780,7 +1780,7 @@ class BtcAmount(BaseComponent):
             draw.text(
                 xy=(cur_x, text_y),
                 font=smaller_digit_font,
-                text=btc_text,
+                text=bch_text,
                 fill=GUIConstants.BODY_FONT_COLOR,
                 anchor="ls",
             )
@@ -1795,7 +1795,7 @@ class BtcAmount(BaseComponent):
                 xy=(cur_x, text_y),
                 font=pipe_font,
                 text="|",
-                fill=btc_color,
+                fill=bch_color,
                 anchor="ls",
             )
             cur_x += text_width - int(GUIConstants.COMPONENT_PADDING / 2)

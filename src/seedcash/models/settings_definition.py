@@ -16,10 +16,10 @@ class SettingsConstants:
     OPTIONS__ENABLED_DISABLED = [OPTION__ENABLED, OPTION__DISABLED]
 
     # Bitcoin Denomination
-    BTC_DENOMINATION__BTC = "btc"
-    BTC_DENOMINATION__SATS = "sats"
-    BTC_DENOMINATION__THRESHOLD = "threshold"
-    BTC_DENOMINATION__BTCSATSHYBRID = "btcsatshybrid"
+    BCH_DENOMINATION__BCH = "bch"
+    BCH_DENOMINATION__SATS = "sats"
+    BCH_DENOMINATION__THRESHOLD = "threshold"
+    BCH_DENOMINATION__BCHSATSHYBRID = "bchsatshybrid"
 
     # User-facing selection options
     COORDINATOR__BLUE_WALLET = "bw"

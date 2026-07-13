@@ -8,9 +8,8 @@ from gettext import ngettext
 from PIL import Image, ImageDraw, ImageFilter
 
 from seedcash.gui.components import (
-    BtcAmount,
+    BchAmount,
     Icon,
-    IconTextLine,
     FormattedAddress,
     GUIConstants,
     Fonts,
@@ -52,7 +51,7 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
         self.components.append(
-            BtcAmount(
+            BchAmount(
                 total_sats=self.spend_amount,
                 screen_y=icon_text_lines_y,
             )
@@ -534,7 +533,7 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
         super().__post_init__()
 
         if self.input_amount > 1e6:
-            denomination = _("btc")
+            denomination = _("bch")
             self.input_amount /= 1e8
             self.spend_amount /= 1e8
             self.input_amount = f"{self.input_amount:,.8f}"
@@ -603,7 +602,7 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
             # secondary_digit_color = GUIConstants.BODY_FONT_COLOR
             # tertiary_digit_color = GUIConstants.BODY_FONT_COLOR
             # digit_group_spacing = 0
-            if denomination == _("btc"):
+            if denomination == _("bch"):
                 display_str = amount_str
                 main_zone = display_str[:-6]
                 mid_zone = display_str[-6:-3]
@@ -711,7 +710,7 @@ class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
         )
         draw = ImageDraw.Draw(center_img)
 
-        btc_amount = BtcAmount(
+        bch_amount = BchAmount(
             image_draw=draw,
             canvas=center_img,
             total_sats=self.amount,
@@ -723,13 +722,13 @@ class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
             canvas=center_img,
             width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
             screen_x=GUIConstants.EDGE_PADDING,
-            screen_y=btc_amount.height + GUIConstants.COMPONENT_PADDING,
+            screen_y=bch_amount.height + GUIConstants.COMPONENT_PADDING,
             font_size=24,
             address=self.address,
         )
 
         # Render each to the temp img we passed in
-        btc_amount.render()
+        bch_amount.render()
         formatted_address.render()
 
         self.body_img = center_img.crop(
