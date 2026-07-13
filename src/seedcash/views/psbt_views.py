@@ -4,7 +4,6 @@ from seedcash.gui.components import SeedCashIconsConstants
 from seedcash.gui.screens import RET_CODE__BACK_BUTTON
 from seedcash.gui.screens.screen import (
     ButtonOption,
-    DireWarningScreen,
     QRDisplayScreen,
     WarningScreen,
 )
@@ -18,7 +17,7 @@ from seedcash.views.view import (
 from seedcash.gui.screens.psbt_screens import PSBTOverviewScreen
 from seedcash.views.wallet_views import WalletOptionsView
 
-
+ 
 class PSBTOverviewView(View):
     def __init__(self):
         super().__init__()
@@ -43,7 +42,6 @@ class PSBTOverviewView(View):
         if not psbt_parser:
             return Destination(MainMenuView)
 
-        num_change_outputs = psbt_parser.num_change_outputs
         num_self_transfer_outputs = 0
 
         # Everything is set. Stop the loading screen
@@ -54,11 +52,9 @@ class PSBTOverviewView(View):
         selected_menu_num = self.run_screen(
             PSBTOverviewScreen,
             spend_amount=psbt_parser.spend_amount,
-            change_amount=psbt_parser.change_amount,
             fee_amount=psbt_parser.fee_amount,
             num_inputs=psbt_parser.num_inputs,
             num_self_transfer_outputs=num_self_transfer_outputs,
-            num_change_outputs=num_change_outputs,
             destination_addresses=psbt_parser.destination_addresses,
             has_op_return=psbt_parser.op_return_data is not None,
         )
@@ -66,54 +62,7 @@ class PSBTOverviewView(View):
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        elif psbt_parser.change_amount == 0:
-            return Destination(PSBTNoChangeWarningView)
-
-        else:
-            return Destination(PSBTMathView)
-
-
-class PSBTUnsupportedScriptTypeWarningView(View):
-    def run(self):
-        selected_menu_num = WarningScreen(
-            status_headline=_("Unsupported Script Type!"),
-            text=_(
-                "PSBT has unsupported input script type, please verify your change addresses."
-            ),
-            button_data=[ButtonOption("Continue")],
-        ).display()
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-
-        # Only one exit point
-        # skip PSBTMathView
-        return Destination(
-            PSBTAddressDetailsView,
-            view_args={"address_num": 0},
-            skip_current_view=True,  # Prevent going BACK to WarningViews
-        )
-
-
-class PSBTNoChangeWarningView(View):
-    def run(self):
-        selected_menu_num = WarningScreen(
-            # TRANSLATOR_NOTE: User will receive no change back; the inputs to this transaction are fully spent
-            status_headline=_("Full Spend!"),
-            text=_(
-                "This PSBT spends its entire input value. No change is coming back to your wallet."
-            ),
-            button_data=[ButtonOption("Continue")],
-        ).display()
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-
-        # Only one exit point
-        return Destination(
-            PSBTMathView,
-            skip_current_view=True,  # Prevent going BACK to WarningViews
-        )
+        return Destination(PSBTMathView)
 
 
 class PSBTMathView(View):
@@ -122,8 +71,6 @@ class PSBTMathView(View):
     + total input value
     - recipients' value
     - fees
-    -------------------
-    + change value
     """
 
     def run(self):
@@ -141,7 +88,6 @@ class PSBTMathView(View):
             spend_amount=psbt_parser.spend_amount,
             num_recipients=psbt_parser.num_destinations,
             fee_amount=psbt_parser.fee_amount,
-            change_amount=psbt_parser.change_amount,
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
@@ -202,41 +148,8 @@ class PSBTAddressDetailsView(View):
             return Destination(PSBTOpReturnView)
 
         else:
-            # There's no change output to verify. Move on to sign the PSBT.
+            # Move on to sign the PSBT.
             return Destination(PSBTFinalizeView)
-
-
-class PSBTAddressVerificationFailedView(View):
-    def __init__(self, is_change: bool = True, is_multisig: bool = False):
-        super().__init__()
-        self.is_change = is_change
-        self.is_multisig = is_multisig
-
-    def run(self):
-        if self.is_multisig:
-            # TRANSLATOR_NOTE: Variable is either "change" or "self-transfer".
-            text = _(
-                "PSBT's {} address could not be verified from wallet descriptor."
-            ).format(_("change") if self.is_change else _("self-transfer"))
-        else:
-            # TRANSLATOR_NOTE: Variable is either "change" or "self-transfer".
-            text = _("PSBT's {} address could not be generated from your seed.").format(
-                _("change") if self.is_change else _("self-transfer")
-            )
-
-        DireWarningScreen(
-            title=_("Suspicious PSBT"),
-            status_headline=_("Address Verification Failed"),
-            text=text,
-            button_data=[ButtonOption("Discard PSBT")],
-            show_back_button=False,
-        ).display()
-
-        # We're done with this PSBT. Route back to MainMenuView which always
-        #   clears all ephemeral data (except in-memory seeds).
-        return Destination(MainMenuView, clear_history=True)
-
-
 class PSBTOpReturnView(View):
     """
     Shows the OP_RETURN data

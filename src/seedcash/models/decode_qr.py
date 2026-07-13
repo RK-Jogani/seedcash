@@ -288,7 +288,7 @@ class DecodeQR:
 
     @staticmethod
     def is_base64_psbt(s):
-        from seedcash.models.bch_signer import parse_psbt
+        from seedcash.models.psbt_parser import parse_psbt
 
         try:
             if DecodeQR.is_base64(s):
@@ -300,7 +300,7 @@ class DecodeQR:
 
     @staticmethod
     def is_base43_psbt(s):
-        from seedcash.models.bch_signer import parse_psbt
+        from seedcash.models.psbt_parser import parse_psbt
 
         try:
             parse_psbt(DecodeQR.base43_decode(s))

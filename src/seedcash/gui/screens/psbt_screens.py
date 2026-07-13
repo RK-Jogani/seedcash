@@ -28,11 +28,9 @@ from .screen import ButtonListScreen, BaseTopNavScreen, ButtonOption
 @dataclass
 class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
     spend_amount: int = 0
-    change_amount: int = 0
     fee_amount: int = 0
     num_inputs: int = 0
     num_self_transfer_outputs: int = 0
-    num_change_outputs: int = 0
     destination_addresses: list[str] = None
     has_op_return: bool = False
 
@@ -53,14 +51,9 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
         # icon_text_lines_y = self.components[-1].screen_y + self.components[-1].height
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
-        if not self.destination_addresses:
-            spend_amount = self.change_amount
-        else:
-            spend_amount = self.spend_amount
-
         self.components.append(
             BtcAmount(
-                total_sats=spend_amount,
+                total_sats=self.spend_amount,
                 screen_y=icon_text_lines_y,
             )
         )
@@ -187,11 +180,6 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
             if self.has_op_return:
                 # TRANSLATOR_NOTE: Technical term, should probably NOT be translated in most languages
                 destination_column.append(_("OP_RETURN"))
-
-            if self.num_change_outputs > 0:
-                for i in range(0, self.num_change_outputs):
-                    # TRANSLATOR_NOTE: Label for a change output in the PSBT Overview flow diagram
-                    destination_column.append(_("change"))
 
             max_destination_text_width = 0
             for destination in destination_column:
@@ -535,7 +523,6 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
     spend_amount: int = 0
     num_recipients: int = 0
     fee_amount: int = 0
-    change_amount: int = 0
 
     def __post_init__(self):
         # Customize defaults
@@ -550,10 +537,8 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
             denomination = _("btc")
             self.input_amount /= 1e8
             self.spend_amount /= 1e8
-            self.change_amount /= 1e8
             self.input_amount = f"{self.input_amount:,.8f}"
             self.spend_amount = f"{self.spend_amount:,.8f}"
-            self.change_amount = f"{self.change_amount:,.8f}"
 
             # Note: We keep the fee denominated in sats; just left pad it so it still
             # lines up properly.
@@ -563,13 +548,11 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
             self.input_amount = f"{self.input_amount:,}"
             self.spend_amount = f"{self.spend_amount:,}"
             self.fee_amount = f"{self.fee_amount:,}"
-            self.change_amount = f"{self.change_amount:,}"
 
         longest_amount = max(
             len(self.input_amount),
             len(self.spend_amount),
             len(self.fee_amount),
-            len(self.change_amount),
         )
         if len(self.input_amount) < longest_amount:
             self.input_amount = (
@@ -584,11 +567,6 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
         if len(self.fee_amount) < longest_amount:
             self.fee_amount = (
                 " " * (longest_amount - len(self.fee_amount)) + self.fee_amount
-            )
-
-        if len(self.change_amount) < longest_amount:
-            self.change_amount = (
-                " " * (longest_amount - len(self.change_amount)) + self.change_amount
             )
 
         # Render the info to temp Image
@@ -699,15 +677,6 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
         draw.line(
             (0, cur_y, image.width, cur_y), fill=GUIConstants.BODY_FONT_COLOR, width=1
         )
-        cur_y += GUIConstants.BODY_LINE_SPACING * ssf
-
-        render_amount(
-            cur_y,
-            f" {self.change_amount}",
-            # TRANSLATOR_NOTE: Denonination is inserted (e.g. your "btc change" or "sats change")
-            info_text=_("{} change").format(denomination),
-            info_text_color="darkorange",  # super-sampling alters the perceived color
-        )
 
         # Resize to target and sharpen final image
         image = image.resize((body_width, body_height), Image.Resampling.LANCZOS)
@@ -779,78 +748,6 @@ class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
         self.paste_images.append((self.body_img, (0, body_img_y)))
 
 
-@dataclass
-class PSBTChangeDetailsScreen(ButtonListScreen, BaseTopNavScreen):
-    amount: int = 0
-    address: str = None
-    is_multisig: bool = False
-    fingerprint: str = None
-    derivation_path: str = None
-    is_change_derivation_path: bool = True
-    derivation_path_addr_index: int = 0
-    is_change_addr_verified: bool = False
-
-    def __post_init__(self):
-        # Customize defaults
-        self.is_bottom_list = True
-        super().__post_init__()
-
-        self.components.append(
-            BtcAmount(
-                total_sats=self.amount,
-                screen_y=self.top_nav.height + GUIConstants.COMPONENT_PADDING,
-            )
-        )
-
-        self.components.append(
-            FormattedAddress(
-                screen_y=self.components[-1].screen_y + self.components[-1].height,
-                address=self.address,
-                max_lines=1,
-            )
-        )
-
-        screen_y = (
-            self.components[-1].screen_y
-            + self.components[-1].height
-            + 2 * GUIConstants.COMPONENT_PADDING
-        )
-
-        change_type = _("Multisig") if self.is_multisig else self.fingerprint
-
-        if self.is_change_derivation_path:
-            addr_type = _("Change")
-        else:
-            # TRANSLATOR_NOTE: Abbreviation for receive address
-            addr_type = _("Addr")
-
-        value_text = "{}: {} #{}".format(
-            change_type, addr_type, self.derivation_path_addr_index
-        )
-        self.components.append(
-            IconTextLine(
-                value_text=value_text,
-                icon_name=SeedCashIconsConstants.FINGERPRINT,
-                icon_color=GUIConstants.INFO_COLOR,
-                is_text_centered=False,
-                screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=screen_y,
-            )
-        )
-
-        if self.is_change_addr_verified:
-            self.components.append(
-                IconTextLine(
-                    icon_name=SeedCashIconsConstants.SUCCESS,
-                    icon_color=GUIConstants.SUCCESS_COLOR,
-                    value_text=_("Address verified!"),
-                    is_text_centered=False,
-                    screen_x=GUIConstants.EDGE_PADDING,
-                    screen_y=self.components[-1].screen_y
-                    + self.components[-1].height
-                    + GUIConstants.COMPONENT_PADDING,
-                )
-            )
 
 
 @dataclass
