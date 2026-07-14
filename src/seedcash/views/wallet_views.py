@@ -246,7 +246,8 @@ class WalletOptionsView(View):
         elif button_data[selected_menu_num] == self.GENERATE_ADDRESS:
             return Destination(SeedGenerateAddressView)
         elif button_data[selected_menu_num] == self.SIGN_TRANSACTION:
-            return Destination(SeedSignTransactionView)
+            from seedcash.views.scan_view import ScanPSBTView
+            return Destination(ScanPSBTView)
         elif button_data[selected_menu_num] == self.EXPEL_WALLET:
             return Destination(SeedDiscardView)
 
@@ -322,105 +323,6 @@ class SeedCashAddressView(View):
                 view_args=dict(address=self.address),
                 skip_current_view=True,
             )
-
-
-class SeedSignTransactionView(View):
-    SCAN_TX = ButtonOption("Scan TX", icon_name=SeedCashIconsConstants.SCAN_TX)
-    READ_TX = ButtonOption("Read TX", icon_name=SeedCashIconsConstants.ATTACH_FILE)
-
-    def __init__(self):
-        super().__init__()
-        self.seed = self.controller.storage.seed
-
-    def run(self):
-        button_data = [self.SCAN_TX, self.READ_TX]
-        selected_menu_num = self.run_screen(
-            SeedCashButtonListWithNav,
-            title="Sign Transaction",
-            button_data=button_data,
-        )
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-
-        if button_data[selected_menu_num] == self.SCAN_TX:
-            from seedcash.views.scan_view import ScanPSBTView
-
-            return Destination(ScanPSBTView)
-        elif button_data[selected_menu_num] == self.READ_TX:
-            return Destination(SeedSignTransactionReadView)
-
-
-class SeedSignTransactionReadView(View):
-    def __init__(self):
-        super().__init__()
-
-    def run(self):
-
-        if not self.controller._storage._wallet._transaction:
-            # TRANSLATOR_NOTE: Displayed when the user tries to sign a transaction but no transactions have been added to the wallet yet.
-            self.run_screen(
-                WarningScreen,
-                title=_("No Transactions Found"),
-                status_headline=None,
-                text=_("No transactions have been added to the wallet yet."),
-                show_back_button=True,
-                button_data=[],
-            )
-            return Destination(BackStackView)
-
-        button_data = []
-        button = []
-        for tx_time, tx_data in self.controller._storage._wallet._transaction.items():
-            button_data.append(tx_time)
-            button.append(
-                ButtonOption(f"{tx_time}", icon_name=SeedCashIconsConstants.VIEW_TX)
-            )
-
-        selected_menu_num = self.run_screen(
-            SeedCashButtonListWithNav,
-            button_data=button,
-        )
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-        elif selected_menu_num in range(len(button_data)):
-            tx_data = self.controller._storage._wallet._transaction.get(
-                button_data[selected_menu_num]
-            )
-            if hasattr(tx_data, "psbt_bytes"):
-                tx_data = tx_data.psbt_bytes
-
-            self.controller.psbt_bytes = bytearray(tx_data)
-            self.controller.is_saved_psbt = True
-            self.controller.psbt_parser = None
-            return Destination(LoadingPSBTView)
-
-
-class LoadingPSBTView(View):
-    def __init__(self):
-        super().__init__()
-
-        from seedcash.gui.screens.screen import LoadingScreenThread
-        from seedcash.models.psbt_parser import PSBTParser
-
-        self.loading_screen = LoadingScreenThread(text=_("Parsing PSBT..."))
-        self.loading_screen.start()
-        try:
-            self.controller.psbt_parser = PSBTParser(
-                bytearray(self.controller.psbt_bytes),
-                wallet_fingerprint=self.controller._storage._wallet._fingerprint,
-            )
-            # Keep one canonical representation shared across all PSBT views.
-            self.controller.psbt_bytes = bytearray(self.controller.psbt_parser.psbt_bytes)
-        finally:
-            self.loading_screen.stop()
-
-    def run(self):
-        from seedcash.views.psbt_views import PSBTOverviewView
-
-        return Destination(PSBTOverviewView, skip_current_view=True)
-
 
 class SeedDiscardView(View):
     KEEP = ButtonOption("Keep Wallet")

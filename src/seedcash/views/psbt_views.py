@@ -18,6 +18,30 @@ from seedcash.views.view import (
 from seedcash.gui.screens.psbt_screens import PSBTOverviewScreen
 from seedcash.views.wallet_views import WalletOptionsView
 
+class LoadingPSBTView(View):
+    def __init__(self):
+        super().__init__()
+
+        from seedcash.gui.screens.screen import LoadingScreenThread
+        from seedcash.models.psbt_parser import PSBTParser
+
+        self.loading_screen = LoadingScreenThread(text=_("Parsing PSBT..."))
+        self.loading_screen.start()
+        try:
+            self.controller.psbt_parser = PSBTParser(
+                bytearray(self.controller.psbt_bytes),
+                wallet_fingerprint=self.controller._storage._wallet._fingerprint,
+            )
+            # Keep one canonical representation shared across all PSBT views.
+            self.controller.psbt_bytes = bytearray(self.controller.psbt_parser.psbt_bytes)
+        finally:
+            self.loading_screen.stop()
+
+    def run(self):
+        from seedcash.views.psbt_views import PSBTOverviewView
+
+        return Destination(PSBTOverviewView, skip_current_view=True)
+
 class PSBTOverviewView(View):
     def __init__(self):
         super().__init__()
@@ -251,10 +275,8 @@ class PSBTFinalizeView(View):
 
     def run(self):
         
-        if self.controller.is_saved_psbt:
-            button_data = [self.SHOW_SIGNED_PSBT, self.DELETE_SIGNED_PSBT]
-        else:
-            button_data = [self.SHOW_SIGNED_PSBT, self.SAVE_SIGNED_PSBT, self.DELETE_SIGNED_PSBT]
+        
+        button_data = [self.SHOW_SIGNED_PSBT, self.SAVE_SIGNED_PSBT, self.DELETE_SIGNED_PSBT]
         
         selected_menu_num = self.run_screen(
             SeedCashButtonListWithNav,
@@ -268,14 +290,7 @@ class PSBTFinalizeView(View):
 
         if button_data[selected_menu_num] == self.SHOW_SIGNED_PSBT:
             return Destination(PSBTSignedQRDisplayView)
-        elif button_data[selected_menu_num] == self.SAVE_SIGNED_PSBT:
-            signed_psbt = self.controller.psbt_parser.psbt_bytes
-            self.controller.psbt_bytes = bytearray(signed_psbt)
-            self.controller._storage._wallet.add_transaction(self.controller.psbt_bytes)
-            return Destination(MainMenuView, clear_history=True)
         elif button_data[selected_menu_num] == self.DELETE_SIGNED_PSBT:
-            if self.controller.is_saved_psbt:
-                self.controller._storage._wallet.remove_transaction(self.controller.psbt_bytes)
             self.controller.discard_psbt()
             return Destination(MainMenuView, clear_history=True)
 

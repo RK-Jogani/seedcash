@@ -135,7 +135,7 @@ class ScanView(View):
                 )
 
             elif self.decoder.is_psbt:
-                from seedcash.views.wallet_views import LoadingPSBTView
+                from seedcash.views.psbt_views import LoadingPSBTView
 
                 self.controller.psbt_bytes = self.decoder.get_psbt()
                 return Destination(LoadingPSBTView, skip_current_view=True)
