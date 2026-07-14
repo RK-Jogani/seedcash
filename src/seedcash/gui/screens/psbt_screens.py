@@ -19,13 +19,138 @@ from seedcash.gui.components import (
     linear_interp,
 )
 from seedcash.gui.renderer import Renderer
+from seedcash.hardware.buttons import HardwareButtonsConstants
 from seedcash.models.threads import BaseThread
 
-from .screen import ButtonListScreen, BaseTopNavScreen, ButtonOption
+from .screen import (
+    ButtonListScreen,
+    BaseTopNavScreen,
+    ButtonOption,
+    Button,
+    RET_CODE__BACK_BUTTON,
+    RET_CODE__CHECK_BUTTON,
+)
 
 
 @dataclass
-class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTButtonListScreen(BaseTopNavScreen, ButtonListScreen):
+    def _run(self):
+        while True:
+            ret = self._run_callback()
+            if ret is not None:
+                return ret
+
+            user_input = self.hw_inputs.wait_for(
+                [
+                    HardwareButtonsConstants.KEY_UP,
+                    HardwareButtonsConstants.KEY_DOWN,
+                    HardwareButtonsConstants.KEY_LEFT,
+                    HardwareButtonsConstants.KEY_RIGHT,
+                ]
+                + HardwareButtonsConstants.KEYS__ANYCLICK
+            )
+
+            with self.renderer.lock:
+                if not self.top_nav.is_selected and (
+                    user_input == HardwareButtonsConstants.KEY_LEFT
+                    or (
+                        user_input == HardwareButtonsConstants.KEY_UP
+                        and self.selected_button == 0
+                    )
+                ):
+                    if self.top_nav.show_back_button or self.top_nav.show_check_button:
+                        self.buttons[self.selected_button].is_selected = False
+                        self.buttons[self.selected_button].render()
+                        self.top_nav.is_selected = True
+                        self.top_nav.render_buttons()
+
+                elif user_input == HardwareButtonsConstants.KEY_UP:
+                    if self.top_nav.is_selected:
+                        pass
+                    else:
+                        cur_selected_button: Button = self.buttons[self.selected_button]
+                        self.selected_button -= 1
+                        next_selected_button: Button = self.buttons[
+                            self.selected_button
+                        ]
+                        cur_selected_button.is_selected = False
+                        next_selected_button.is_selected = True
+                        if (
+                            self.has_scroll_arrows
+                            and next_selected_button.screen_y
+                            - next_selected_button.scroll_y
+                            + next_selected_button.height
+                            < self.top_nav.height
+                        ):
+                            frame_scroll = (
+                                cur_selected_button.screen_y
+                                - next_selected_button.screen_y
+                            )
+                            for button in self.buttons:
+                                button.scroll_y -= frame_scroll
+                            self._render_visible_buttons()
+                        else:
+                            cur_selected_button.render()
+                            next_selected_button.render()
+
+                elif user_input == HardwareButtonsConstants.KEY_DOWN or (
+                    self.top_nav.is_selected
+                    and user_input == HardwareButtonsConstants.KEY_RIGHT
+                ):
+                    if self.selected_button == len(self.buttons) - 1:
+                        if not self.top_nav.is_selected:
+                            continue
+
+                    if self.top_nav.is_selected:
+                        self.top_nav.is_selected = False
+                        self.top_nav.render_buttons()
+
+                        cur_selected_button = None
+                        next_selected_button = self.buttons[self.selected_button]
+                        next_selected_button.is_selected = True
+
+                    else:
+                        cur_selected_button: Button = self.buttons[self.selected_button]
+                        self.selected_button += 1
+                        next_selected_button: Button = self.buttons[
+                            self.selected_button
+                        ]
+                        cur_selected_button.is_selected = False
+                        next_selected_button.is_selected = True
+
+                    if self.has_scroll_arrows and (
+                        next_selected_button.screen_y
+                        - next_selected_button.scroll_y
+                        + next_selected_button.height
+                        > self.down_arrow_img_y
+                    ):
+                        frame_scroll = (
+                            next_selected_button.screen_y - cur_selected_button.screen_y
+                        )
+                        for button in self.buttons:
+                            button.scroll_y += frame_scroll
+                        self._render_visible_buttons()
+                    else:
+                        if cur_selected_button:
+                            cur_selected_button.render()
+                        next_selected_button.render()
+
+                elif user_input in HardwareButtonsConstants.KEYS__ANYCLICK:
+                    if self.top_nav.is_selected:
+                        if self.top_nav.show_check_button:
+                            if self.top_nav.right_button.is_selected:
+                                return RET_CODE__CHECK_BUTTON
+                        if self.top_nav.show_back_button:
+                            if self.top_nav.left_button.is_selected:
+                                return RET_CODE__BACK_BUTTON
+
+                    return self.selected_button
+
+                self.renderer.show_image()
+
+
+@dataclass
+class PSBTOverviewScreen(PSBTButtonListScreen):
     spend_amount: int = 0
     fee_amount: int = 0
     num_inputs: int = 0
@@ -522,7 +647,7 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
 
 
 @dataclass
-class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTMathScreen(PSBTButtonListScreen):
     input_amount: int = 0
     num_inputs: int = 0
     spend_amount: int = 0
@@ -697,7 +822,7 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
 
 
 @dataclass
-class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTAddressDetailsScreen(PSBTButtonListScreen):
     address: str = None
     amount: int = 0
 
@@ -753,7 +878,7 @@ class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
         self.paste_images.append((self.body_img, (0, body_img_y)))
 
 @dataclass
-class PSBTOpReturnScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTOpReturnScreen(PSBTButtonListScreen):
     op_return_data: bytes = None
 
     def __post_init__(self):
@@ -820,9 +945,8 @@ class PSBTOpReturnScreen(ButtonListScreen, BaseTopNavScreen):
                 )
             )
 
-
 @dataclass
-class PSBTFinalizeScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTFinalizeScreen(PSBTButtonListScreen):
     def __post_init__(self):
         # Customize defaults
         self.title = _("Sign PSBT")

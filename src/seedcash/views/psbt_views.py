@@ -18,7 +18,6 @@ from seedcash.views.view import (
 from seedcash.gui.screens.psbt_screens import PSBTOverviewScreen
 from seedcash.views.wallet_views import WalletOptionsView
 
- 
 class PSBTOverviewView(View):
     def __init__(self):
         super().__init__()
@@ -61,10 +60,32 @@ class PSBTOverviewView(View):
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
+            return Destination(PSBTDiscardWarningView)
 
         return Destination(PSBTMathView)
 
+# discard PSBT warning view
+class PSBTDiscardWarningView(View):
+    DISCARD_PSBT = ButtonOption("Discard PSBT")
+
+    def run(self):
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title=_("Discard PSBT"),
+            status_icon_name=SeedCashIconsConstants.WARNING,
+            status_headline=_("Are you sure?"),
+            text=_(
+                "Discarding this PSBT will remove it from memory and cannot be undone."
+            ),
+            button_data=[self.DISCARD_PSBT],
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if selected_menu_num == 0:
+            self.controller.discard_psbt()
+            return Destination(MainMenuView, clear_history=True)
 
 class PSBTMathView(View):
     """
@@ -96,7 +117,6 @@ class PSBTMathView(View):
 
         if len(psbt_parser.destination_addresses) > 0:
             return Destination(PSBTAddressDetailsView, view_args={"address_num": 0})
-
 
 class PSBTAddressDetailsView(View):
     """
