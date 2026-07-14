@@ -14,8 +14,11 @@ class PSBTParser:
     def __init__(
         self,
         raw_psbt_bytes: bytearray,
+        wallet_fingerprint: str,
     ):
         self.psbt_bytes: bytearray = raw_psbt_bytes
+        self.wallet_fingerprint = wallet_fingerprint
+        self.is_signed: bool = False
 
         self.spend_amount = 0
         self.fee_amount = 0
@@ -35,10 +38,48 @@ class PSBTParser:
     def num_destinations(self):
         return len(self.destination_addresses)
 
+    @staticmethod
+    def _wallet_pubkeys_in_map(input_map, wallet_fingerprint_bytes: bytes) -> set:
+        wallet_pubkeys = set()
+
+        if not wallet_fingerprint_bytes:
+            return wallet_pubkeys
+
+        for k, v in input_map:
+            # 0x06 -> BIP32 derivation: keydata includes pubkey, value starts with fingerprint
+            if k[0] == 0x06 and len(k) > 1 and len(v) >= 4 and v[:4] == wallet_fingerprint_bytes:
+                wallet_pubkeys.add(k[1:])
+
+        return wallet_pubkeys
+
+    @staticmethod
+    def _input_signed_by_wallet(input_map, wallet_pubkeys: set) -> bool:
+        if not wallet_pubkeys:
+            return False
+
+        for k, v in input_map:
+            key_type = k[0]
+
+            # 0x02 -> partial signature key data: pubkey is appended to the key type byte
+            if key_type == 0x02 and len(k) > 1 and len(v) > 0 and k[1:] in wallet_pubkeys:
+                return True
+
+        return False
+
     def parse(self):
         if self.psbt_bytes is None:
             logger.info("self.psbt_bytes is None!!")
             return False
+
+        # Reset parse-derived fields so parse() remains idempotent.
+        self.is_signed = False
+        self.spend_amount = 0
+        self.fee_amount = 0
+        self.input_amount = 0
+        self.num_inputs = 0
+        self.destination_addresses = []
+        self.destination_amounts = []
+        self.op_return_data = None
 
         try:
             parsed_psbt = parse_psbt(self.psbt_bytes)
@@ -50,8 +91,31 @@ class PSBTParser:
         unsigned_tx = parse_unsigned_tx(tx_bytes)
 
         self.num_inputs = parsed_psbt["input_count"]
+        if self.num_inputs > 0:
+            wallet_fingerprint_bytes = None
+            if self.wallet_fingerprint:
+                wallet_fingerprint_bytes = bytes.fromhex(self.wallet_fingerprint)
 
-        self.input_amount = 0
+            wallet_psbt_detected = False
+            wallet_inputs_found = False
+            wallet_inputs_signed = True
+
+            for input_map in parsed_psbt["inputs"]:
+                wallet_pubkeys = self._wallet_pubkeys_in_map(
+                    input_map, wallet_fingerprint_bytes
+                )
+                if wallet_pubkeys:
+                    wallet_psbt_detected = True
+                    wallet_inputs_found = True
+                    if not self._input_signed_by_wallet(input_map, wallet_pubkeys):
+                        wallet_inputs_signed = False
+
+            for output_map in parsed_psbt["outputs"]:
+                if self._wallet_pubkeys_in_map(output_map, wallet_fingerprint_bytes):
+                    wallet_psbt_detected = True
+
+            self.is_signed = wallet_psbt_detected and wallet_inputs_found and wallet_inputs_signed
+
         for i, input_map in enumerate(parsed_psbt["inputs"]):
             for k, v in input_map:
                 if k[0] == 0x00:  # PSBT_IN_NON_WITNESS_UTXO
@@ -107,11 +171,9 @@ class PSBTParser:
                     input_index=i,
                 )
             self.psbt_bytes = signed_psbt
-            return signed_psbt
+            self.is_signed = True
         except Exception as e:
             logger.error(f"Error signing PSBT: {e}")
-            return None
-
 
 def read_varint(buf, pos):
     """Read Bitcoin-style varint (compact size uint)."""

@@ -948,6 +948,13 @@ class FormattedAddress(BaseComponent):
         if self.width == 0:
             self.width = self.renderer.canvas_width
 
+        # Display the address body only for cashaddr; legacy addresses already have
+        # no scheme prefix and should be left unchanged.
+        if self.address.startswith("bitcoincash:"):
+            display_address = self.address[len("bitcoincash:") :]
+        else:
+            display_address = self.address
+
         self.font = Fonts.get_font(self.font_name, self.font_size)
         self.accent_font = Fonts.get_font(
             GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, self.font_size
@@ -958,7 +965,7 @@ class FormattedAddress(BaseComponent):
         char_width, char_height = right - left, bottom - top
 
         n = 7
-        display_str = f"{self.address[:n]} {self.address[n:-1*n]} {self.address[-1*n:]}"
+        display_str = f"{display_address[:n]} {display_address[n:-1*n]} {display_address[-1*n:]}"
         self.text_params = []
         cur_y = 0
 
@@ -1056,7 +1063,7 @@ class FormattedAddress(BaseComponent):
                     self.text_params.append(
                         (
                             (addr_lines_x + char_width * (len(cur_str) - (n)), cur_y),
-                            self.address[-1 * n :],
+                            display_address[-1 * n :],
                             self.font_accent_color,
                             self.accent_font,
                         )

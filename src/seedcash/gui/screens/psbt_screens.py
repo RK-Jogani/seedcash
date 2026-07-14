@@ -38,7 +38,7 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
         # Customize defaults
         self.title = _("Review PSBT")
         self.is_bottom_list = True
-        self.button_data = [ButtonOption("Sign")]
+        self.button_data = [ButtonOption("Next")]
         self.is_button_text_centered = True
 
         super().__post_init__()
@@ -144,8 +144,14 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
 
         # Now let's maximize the actual destination col by adjusting our addr truncation
         def calculate_destination_col_width(truncate_at: int = 0):
+            def display_destination_addr(addr):
+                if addr.startswith("bitcoincash:"):
+                    return addr[len("bitcoincash:") :]
+                return addr
+
             def truncate_destination_addr(addr):
                 # TRANSLATOR_NOTE: Ellipsis ("...") characters used to truncate an address (e.g. "bc1qabc...")
+                addr = display_destination_addr(addr)
                 if len(addr) <= truncate_at + len(_("...")):
                     # No point in truncating
                     return addr
@@ -520,7 +526,7 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
     input_amount: int = 0
     num_inputs: int = 0
     spend_amount: int = 0
-    num_recipients: int = 0
+    num_outputs: int = 0
     fee_amount: int = 0
 
     def __post_init__(self):
@@ -657,12 +663,12 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
 
         # spend_amount will be zero on self-transfers; only display when there's an
         # external recipient.
-        if self.num_recipients > 0:
+        if self.num_outputs > 0:
             cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
             render_amount(
                 cur_y,
                 f"-{self.spend_amount}",
-                info_text=ngettext("recipient", "recipients", self.num_recipients),
+                info_text=ngettext("output", "outputs", self.num_outputs),
             )
 
         cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
@@ -745,9 +751,6 @@ class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
         )
 
         self.paste_images.append((self.body_img, (0, body_img_y)))
-
-
-
 
 @dataclass
 class PSBTOpReturnScreen(ButtonListScreen, BaseTopNavScreen):

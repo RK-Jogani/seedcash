@@ -31,3 +31,9 @@ class Wallet:
         now = datetime.now()
         dt_string = now.strftime("%H:%M %d/%m/%Y")
         self.transaction[dt_string] = tx_data
+
+    def remove_transaction(self, tx_data: bytearray):
+        for key, value in list(self.transaction.items()):
+            if value == tx_data:
+                del self.transaction[key]
+                break

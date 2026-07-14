@@ -5,6 +5,7 @@ from seedcash.gui.screens import RET_CODE__BACK_BUTTON
 from seedcash.gui.screens.screen import (
     ButtonOption,
     QRDisplayScreen,
+    SeedCashButtonListWithNav,
     WarningScreen,
 )
 from seedcash.models.psbt_parser import PSBTParser
@@ -86,7 +87,7 @@ class PSBTMathView(View):
             input_amount=psbt_parser.input_amount,
             num_inputs=psbt_parser.num_inputs,
             spend_amount=psbt_parser.spend_amount,
-            num_recipients=psbt_parser.num_destinations,
+            num_outputs=psbt_parser.num_destinations,
             fee_amount=psbt_parser.fee_amount,
         )
 
@@ -149,7 +150,9 @@ class PSBTAddressDetailsView(View):
 
         else:
             # Move on to sign the PSBT.
-            return Destination(PSBTFinalizeView)
+            if psbt_parser.is_signed:
+                return Destination(PSBTFinalizeView)
+            return Destination(PSBTConfirmationView)
 class PSBTOpReturnView(View):
     """
     Shows the OP_RETURN data
@@ -176,15 +179,17 @@ class PSBTOpReturnView(View):
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
+        if psbt_parser.is_signed:
+            return Destination(PSBTFinalizeView)
+        return Destination(PSBTConfirmationView)
 
-        return Destination(PSBTFinalizeView)
+class PSBTConfirmationView(View):
+    """
+    Shows the user a confirmation screen before signing the PSBT.
+    """
+    SIGN_PSBT = ButtonOption("Sign PSBT")
+    DELETE_PSBT = ButtonOption("Delete PSBT")
 
-
-class PSBTFinalizeView(View):
-    """ """
-
-    SHOW_SIGNED_TX_QR = ButtonOption("Show Signed TX QR")
-    SAVE_SIGNED_TX_FILE = ButtonOption("Save Signed Tx File")
 
     def run(self):
         from seedcash.gui.screens.psbt_screens import PSBTFinalizeScreen
@@ -197,27 +202,62 @@ class PSBTFinalizeView(View):
 
         selected_menu_num = self.run_screen(
             PSBTFinalizeScreen,
-            button_data=[self.SHOW_SIGNED_TX_QR, self.SAVE_SIGNED_TX_FILE],
+            button_data=[self.SIGN_PSBT, self.DELETE_PSBT],
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+        if selected_menu_num == 0:
+            try:
+                psbt_parser.sign_with_wallet_xpriv(self.controller._storage._wallet._xpriv)
+            except Exception as e:
+                return Destination(PSBTSigningErrorView)
+            # Keep controller bytes in sync with parser after signing.
+            self.controller.psbt_bytes = bytearray(psbt_parser.psbt_bytes)
+            return Destination(PSBTFinalizeView)
+        elif selected_menu_num == 1:
+            self.controller.discard_psbt()
+            return Destination(MainMenuView, clear_history=True)
+
+class PSBTFinalizeView(View):
+    """ """
+
+    SHOW_SIGNED_PSBT = ButtonOption("Show Signed PSBT")
+    SAVE_SIGNED_PSBT = ButtonOption("Save Signed PSBT")
+    DELETE_SIGNED_PSBT = ButtonOption("Delete Signed PSBT")
+    
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        
+        if self.controller.is_saved_psbt:
+            button_data = [self.SHOW_SIGNED_PSBT, self.DELETE_SIGNED_PSBT]
+        else:
+            button_data = [self.SHOW_SIGNED_PSBT, self.SAVE_SIGNED_PSBT, self.DELETE_SIGNED_PSBT]
+        
+        selected_menu_num = self.run_screen(
+            SeedCashButtonListWithNav,
+            title="Sign Transaction",
+            button_data=button_data,
+            show_back_button=False,
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        sig_cnt = psbt_parser.sign_with_wallet_xpriv(
-            self.controller._storage._wallet._xpriv
-        )
-        if sig_cnt is None:
-            return Destination(PSBTSigningErrorView)
-        else:
-            if selected_menu_num == 0:
-                # Show signed PSBT QR code
-                self.controller.psbt_bytes = sig_cnt
-                return Destination(PSBTSignedQRDisplayView)
-            elif selected_menu_num == 1:
-                # Save signed PSBT to file
-                self.controller._storage._wallet.add_transaction(sig_cnt)
-                return Destination(MainMenuView, clear_history=True)
-
+        if button_data[selected_menu_num] == self.SHOW_SIGNED_PSBT:
+            return Destination(PSBTSignedQRDisplayView)
+        elif button_data[selected_menu_num] == self.SAVE_SIGNED_PSBT:
+            signed_psbt = self.controller.psbt_parser.psbt_bytes
+            self.controller.psbt_bytes = bytearray(signed_psbt)
+            self.controller._storage._wallet.add_transaction(self.controller.psbt_bytes)
+            return Destination(MainMenuView, clear_history=True)
+        elif button_data[selected_menu_num] == self.DELETE_SIGNED_PSBT:
+            if self.controller.is_saved_psbt:
+                self.controller._storage._wallet.remove_transaction(self.controller.psbt_bytes)
+            self.controller.discard_psbt()
+            return Destination(MainMenuView, clear_history=True)
 
 class PSBTSignedQRDisplayView(View):
     def run(self):
@@ -225,7 +265,15 @@ class PSBTSignedQRDisplayView(View):
         from seedcash.models.threads import ThreadsafeCounter
         from seedcash.models.settings_definition import SettingsConstants
 
-        qr_encoder = UrPsbtQrEncoder(psbt=self.controller.psbt_bytes)
+        psbt_bytes = self.controller.psbt_bytes
+        if self.controller.psbt_parser and self.controller.psbt_parser.psbt_bytes:
+            psbt_bytes = self.controller.psbt_parser.psbt_bytes
+
+        # UR encoder expects mutable bytearray fragments internally.
+        psbt_bytes = bytearray(psbt_bytes)
+        self.controller.psbt_bytes = psbt_bytes
+
+        qr_encoder = UrPsbtQrEncoder(psbt=psbt_bytes)
 
         current_brightness = self.controller.settings.get_value(
             SettingsConstants.SETTING__QR_BRIGHTNESS
@@ -247,7 +295,6 @@ class PSBTSignedQRDisplayView(View):
         # We're done with this PSBT. Route back to MainMenuView which always
         #   clears all ephemeral data (except in-memory seeds).
         return Destination(MainMenuView, clear_history=True)
-
 
 class PSBTSigningErrorView(View):
     SELECT_DIFF_SEED = ButtonOption("Select Diff Seed")

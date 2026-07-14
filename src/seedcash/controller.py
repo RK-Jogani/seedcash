@@ -104,6 +104,7 @@ class Controller(Singleton):
     _storage: SeedStorage = None
     psbt_bytes: bytearray = b""
     psbt_parser: PSBTParser = None
+    is_saved_psbt: bool = False
     settings: Settings = None
 
     back_stack: BackStack = None
@@ -184,6 +185,11 @@ class Controller(Singleton):
 
     def discard_wallet(self):
         self.storage.wallet = None
+
+    def discard_psbt(self):
+        self.psbt_bytes = b""
+        self.psbt_parser = None
+        self.is_saved_psbt = False
 
     def pop_prev_from_back_stack(self):
         if len(self.back_stack) > 0:

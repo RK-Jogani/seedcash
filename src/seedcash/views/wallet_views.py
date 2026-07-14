@@ -369,11 +369,13 @@ class SeedSignTransactionReadView(View):
             )
             return Destination(BackStackView)
 
+        button_data = []
+        button = []
         for tx_time, tx_data in self.controller._storage._wallet._transaction.items():
-            button_data = [tx_time]
-            button = [
-                ButtonOption(f"{tx_time}", icon_name=SeedCashIconsConstants.VIEW_TX),
-            ]
+            button_data.append(tx_time)
+            button.append(
+                ButtonOption(f"{tx_time}", icon_name=SeedCashIconsConstants.VIEW_TX)
+            )
 
         selected_menu_num = self.run_screen(
             SeedCashButtonListWithNav,
@@ -386,7 +388,12 @@ class SeedSignTransactionReadView(View):
             tx_data = self.controller._storage._wallet._transaction.get(
                 button_data[selected_menu_num]
             )
-            self.controller.psbt_bytes = tx_data
+            if hasattr(tx_data, "psbt_bytes"):
+                tx_data = tx_data.psbt_bytes
+
+            self.controller.psbt_bytes = bytearray(tx_data)
+            self.controller.is_saved_psbt = True
+            self.controller.psbt_parser = None
             return Destination(LoadingPSBTView)
 
 
@@ -400,7 +407,12 @@ class LoadingPSBTView(View):
         self.loading_screen = LoadingScreenThread(text=_("Parsing PSBT..."))
         self.loading_screen.start()
         try:
-            self.controller.psbt_parser = PSBTParser(self.controller.psbt_bytes)
+            self.controller.psbt_parser = PSBTParser(
+                bytearray(self.controller.psbt_bytes),
+                wallet_fingerprint=self.controller._storage._wallet._fingerprint,
+            )
+            # Keep one canonical representation shared across all PSBT views.
+            self.controller.psbt_bytes = bytearray(self.controller.psbt_parser.psbt_bytes)
         finally:
             self.loading_screen.stop()
 
