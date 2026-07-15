@@ -185,6 +185,10 @@ class Controller(Singleton):
     def discard_wallet(self):
         self.storage.wallet = None
 
+    def discard_psbt(self):
+        self.psbt_bytes = b""
+        self.psbt_parser = None
+
     def pop_prev_from_back_stack(self):
         if len(self.back_stack) > 0:
             # Pop the top View (which is the current View_cls)

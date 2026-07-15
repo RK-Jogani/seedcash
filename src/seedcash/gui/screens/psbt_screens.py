@@ -8,9 +8,8 @@ from gettext import ngettext
 from PIL import Image, ImageDraw, ImageFilter
 
 from seedcash.gui.components import (
-    BtcAmount,
+    BchAmount,
     Icon,
-    IconTextLine,
     FormattedAddress,
     GUIConstants,
     Fonts,
@@ -20,19 +19,142 @@ from seedcash.gui.components import (
     linear_interp,
 )
 from seedcash.gui.renderer import Renderer
+from seedcash.hardware.buttons import HardwareButtonsConstants
 from seedcash.models.threads import BaseThread
 
-from .screen import ButtonListScreen, BaseTopNavScreen, ButtonOption
+from .screen import (
+    ButtonListScreen,
+    BaseTopNavScreen,
+    ButtonOption,
+    Button,
+    RET_CODE__BACK_BUTTON,
+    RET_CODE__CHECK_BUTTON,
+)
 
 
 @dataclass
-class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTButtonListScreen(BaseTopNavScreen, ButtonListScreen):
+    def _run(self):
+        while True:
+            ret = self._run_callback()
+            if ret is not None:
+                return ret
+
+            user_input = self.hw_inputs.wait_for(
+                [
+                    HardwareButtonsConstants.KEY_UP,
+                    HardwareButtonsConstants.KEY_DOWN,
+                    HardwareButtonsConstants.KEY_LEFT,
+                    HardwareButtonsConstants.KEY_RIGHT,
+                ]
+                + HardwareButtonsConstants.KEYS__ANYCLICK
+            )
+
+            with self.renderer.lock:
+                if not self.top_nav.is_selected and (
+                    user_input == HardwareButtonsConstants.KEY_LEFT
+                    or (
+                        user_input == HardwareButtonsConstants.KEY_UP
+                        and self.selected_button == 0
+                    )
+                ):
+                    if self.top_nav.show_back_button or self.top_nav.show_check_button:
+                        self.buttons[self.selected_button].is_selected = False
+                        self.buttons[self.selected_button].render()
+                        self.top_nav.is_selected = True
+                        self.top_nav.render_buttons()
+
+                elif user_input == HardwareButtonsConstants.KEY_UP:
+                    if self.top_nav.is_selected:
+                        pass
+                    else:
+                        cur_selected_button: Button = self.buttons[self.selected_button]
+                        self.selected_button -= 1
+                        next_selected_button: Button = self.buttons[
+                            self.selected_button
+                        ]
+                        cur_selected_button.is_selected = False
+                        next_selected_button.is_selected = True
+                        if (
+                            self.has_scroll_arrows
+                            and next_selected_button.screen_y
+                            - next_selected_button.scroll_y
+                            + next_selected_button.height
+                            < self.top_nav.height
+                        ):
+                            frame_scroll = (
+                                cur_selected_button.screen_y
+                                - next_selected_button.screen_y
+                            )
+                            for button in self.buttons:
+                                button.scroll_y -= frame_scroll
+                            self._render_visible_buttons()
+                        else:
+                            cur_selected_button.render()
+                            next_selected_button.render()
+
+                elif user_input == HardwareButtonsConstants.KEY_DOWN or (
+                    self.top_nav.is_selected
+                    and user_input == HardwareButtonsConstants.KEY_RIGHT
+                ):
+                    if self.selected_button == len(self.buttons) - 1:
+                        if not self.top_nav.is_selected:
+                            continue
+
+                    if self.top_nav.is_selected:
+                        self.top_nav.is_selected = False
+                        self.top_nav.render_buttons()
+
+                        cur_selected_button = None
+                        next_selected_button = self.buttons[self.selected_button]
+                        next_selected_button.is_selected = True
+
+                    else:
+                        cur_selected_button: Button = self.buttons[self.selected_button]
+                        self.selected_button += 1
+                        next_selected_button: Button = self.buttons[
+                            self.selected_button
+                        ]
+                        cur_selected_button.is_selected = False
+                        next_selected_button.is_selected = True
+
+                    if self.has_scroll_arrows and (
+                        next_selected_button.screen_y
+                        - next_selected_button.scroll_y
+                        + next_selected_button.height
+                        > self.down_arrow_img_y
+                    ):
+                        frame_scroll = (
+                            next_selected_button.screen_y - cur_selected_button.screen_y
+                        )
+                        for button in self.buttons:
+                            button.scroll_y += frame_scroll
+                        self._render_visible_buttons()
+                    else:
+                        if cur_selected_button:
+                            cur_selected_button.render()
+                        next_selected_button.render()
+
+                elif user_input in HardwareButtonsConstants.KEYS__ANYCLICK:
+                    if self.top_nav.is_selected:
+                        if self.top_nav.show_check_button:
+                            if self.top_nav.right_button.is_selected:
+                                return RET_CODE__CHECK_BUTTON
+                        if self.top_nav.show_back_button:
+                            if self.top_nav.left_button.is_selected:
+                                return RET_CODE__BACK_BUTTON
+
+                    return self.selected_button
+
+                self.renderer.show_image()
+
+
+@dataclass
+class PSBTOverviewScreen(PSBTButtonListScreen):
     spend_amount: int = 0
-    change_amount: int = 0
     fee_amount: int = 0
     num_inputs: int = 0
     num_self_transfer_outputs: int = 0
-    num_change_outputs: int = 0
     destination_addresses: list[str] = None
     has_op_return: bool = False
 
@@ -41,7 +163,7 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
         # Customize defaults
         self.title = _("Review PSBT")
         self.is_bottom_list = True
-        self.button_data = [ButtonOption("Sign")]
+        self.button_data = [ButtonOption("Next")]
         self.is_button_text_centered = True
 
         super().__post_init__()
@@ -53,14 +175,9 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
         # icon_text_lines_y = self.components[-1].screen_y + self.components[-1].height
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
-        if not self.destination_addresses:
-            spend_amount = self.change_amount
-        else:
-            spend_amount = self.spend_amount
-
         self.components.append(
-            BtcAmount(
-                total_sats=spend_amount,
+            BchAmount(
+                total_sats=self.spend_amount,
                 screen_y=icon_text_lines_y,
             )
         )
@@ -152,8 +269,14 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
 
         # Now let's maximize the actual destination col by adjusting our addr truncation
         def calculate_destination_col_width(truncate_at: int = 0):
+            def display_destination_addr(addr):
+                if addr.startswith("bitcoincash:"):
+                    return addr[len("bitcoincash:") :]
+                return addr
+
             def truncate_destination_addr(addr):
                 # TRANSLATOR_NOTE: Ellipsis ("...") characters used to truncate an address (e.g. "bc1qabc...")
+                addr = display_destination_addr(addr)
                 if len(addr) <= truncate_at + len(_("...")):
                     # No point in truncating
                     return addr
@@ -187,11 +310,6 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
             if self.has_op_return:
                 # TRANSLATOR_NOTE: Technical term, should probably NOT be translated in most languages
                 destination_column.append(_("OP_RETURN"))
-
-            if self.num_change_outputs > 0:
-                for i in range(0, self.num_change_outputs):
-                    # TRANSLATOR_NOTE: Label for a change output in the PSBT Overview flow diagram
-                    destination_column.append(_("change"))
 
             max_destination_text_width = 0
             for destination in destination_column:
@@ -529,13 +647,12 @@ class PSBTOverviewScreen(ButtonListScreen, BaseTopNavScreen):
 
 
 @dataclass
-class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTMathScreen(PSBTButtonListScreen):
     input_amount: int = 0
     num_inputs: int = 0
     spend_amount: int = 0
-    num_recipients: int = 0
+    num_outputs: int = 0
     fee_amount: int = 0
-    change_amount: int = 0
 
     def __post_init__(self):
         # Customize defaults
@@ -547,13 +664,11 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
         super().__post_init__()
 
         if self.input_amount > 1e6:
-            denomination = _("btc")
+            denomination = _("bch")
             self.input_amount /= 1e8
             self.spend_amount /= 1e8
-            self.change_amount /= 1e8
             self.input_amount = f"{self.input_amount:,.8f}"
             self.spend_amount = f"{self.spend_amount:,.8f}"
-            self.change_amount = f"{self.change_amount:,.8f}"
 
             # Note: We keep the fee denominated in sats; just left pad it so it still
             # lines up properly.
@@ -563,13 +678,11 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
             self.input_amount = f"{self.input_amount:,}"
             self.spend_amount = f"{self.spend_amount:,}"
             self.fee_amount = f"{self.fee_amount:,}"
-            self.change_amount = f"{self.change_amount:,}"
 
         longest_amount = max(
             len(self.input_amount),
             len(self.spend_amount),
             len(self.fee_amount),
-            len(self.change_amount),
         )
         if len(self.input_amount) < longest_amount:
             self.input_amount = (
@@ -584,11 +697,6 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
         if len(self.fee_amount) < longest_amount:
             self.fee_amount = (
                 " " * (longest_amount - len(self.fee_amount)) + self.fee_amount
-            )
-
-        if len(self.change_amount) < longest_amount:
-            self.change_amount = (
-                " " * (longest_amount - len(self.change_amount)) + self.change_amount
             )
 
         # Render the info to temp Image
@@ -625,7 +733,7 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
             # secondary_digit_color = GUIConstants.BODY_FONT_COLOR
             # tertiary_digit_color = GUIConstants.BODY_FONT_COLOR
             # digit_group_spacing = 0
-            if denomination == _("btc"):
+            if denomination == _("bch"):
                 display_str = amount_str
                 main_zone = display_str[:-6]
                 mid_zone = display_str[-6:-3]
@@ -680,12 +788,12 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
 
         # spend_amount will be zero on self-transfers; only display when there's an
         # external recipient.
-        if self.num_recipients > 0:
+        if self.num_outputs > 0:
             cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
             render_amount(
                 cur_y,
                 f"-{self.spend_amount}",
-                info_text=ngettext("recipient", "recipients", self.num_recipients),
+                info_text=ngettext("output", "outputs", self.num_outputs),
             )
 
         cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
@@ -698,15 +806,6 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
         cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
         draw.line(
             (0, cur_y, image.width, cur_y), fill=GUIConstants.BODY_FONT_COLOR, width=1
-        )
-        cur_y += GUIConstants.BODY_LINE_SPACING * ssf
-
-        render_amount(
-            cur_y,
-            f" {self.change_amount}",
-            # TRANSLATOR_NOTE: Denonination is inserted (e.g. your "btc change" or "sats change")
-            info_text=_("{} change").format(denomination),
-            info_text_color="darkorange",  # super-sampling alters the perceived color
         )
 
         # Resize to target and sharpen final image
@@ -723,7 +822,7 @@ class PSBTMathScreen(ButtonListScreen, BaseTopNavScreen):
 
 
 @dataclass
-class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTAddressDetailsScreen(PSBTButtonListScreen):
     address: str = None
     amount: int = 0
 
@@ -742,7 +841,7 @@ class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
         )
         draw = ImageDraw.Draw(center_img)
 
-        btc_amount = BtcAmount(
+        bch_amount = BchAmount(
             image_draw=draw,
             canvas=center_img,
             total_sats=self.amount,
@@ -754,13 +853,13 @@ class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
             canvas=center_img,
             width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
             screen_x=GUIConstants.EDGE_PADDING,
-            screen_y=btc_amount.height + GUIConstants.COMPONENT_PADDING,
+            screen_y=bch_amount.height + GUIConstants.COMPONENT_PADDING,
             font_size=24,
             address=self.address,
         )
 
         # Render each to the temp img we passed in
-        btc_amount.render()
+        bch_amount.render()
         formatted_address.render()
 
         self.body_img = center_img.crop(
@@ -778,83 +877,8 @@ class PSBTAddressDetailsScreen(ButtonListScreen, BaseTopNavScreen):
 
         self.paste_images.append((self.body_img, (0, body_img_y)))
 
-
 @dataclass
-class PSBTChangeDetailsScreen(ButtonListScreen, BaseTopNavScreen):
-    amount: int = 0
-    address: str = None
-    is_multisig: bool = False
-    fingerprint: str = None
-    derivation_path: str = None
-    is_change_derivation_path: bool = True
-    derivation_path_addr_index: int = 0
-    is_change_addr_verified: bool = False
-
-    def __post_init__(self):
-        # Customize defaults
-        self.is_bottom_list = True
-        super().__post_init__()
-
-        self.components.append(
-            BtcAmount(
-                total_sats=self.amount,
-                screen_y=self.top_nav.height + GUIConstants.COMPONENT_PADDING,
-            )
-        )
-
-        self.components.append(
-            FormattedAddress(
-                screen_y=self.components[-1].screen_y + self.components[-1].height,
-                address=self.address,
-                max_lines=1,
-            )
-        )
-
-        screen_y = (
-            self.components[-1].screen_y
-            + self.components[-1].height
-            + 2 * GUIConstants.COMPONENT_PADDING
-        )
-
-        change_type = _("Multisig") if self.is_multisig else self.fingerprint
-
-        if self.is_change_derivation_path:
-            addr_type = _("Change")
-        else:
-            # TRANSLATOR_NOTE: Abbreviation for receive address
-            addr_type = _("Addr")
-
-        value_text = "{}: {} #{}".format(
-            change_type, addr_type, self.derivation_path_addr_index
-        )
-        self.components.append(
-            IconTextLine(
-                value_text=value_text,
-                icon_name=SeedCashIconsConstants.FINGERPRINT,
-                icon_color=GUIConstants.INFO_COLOR,
-                is_text_centered=False,
-                screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=screen_y,
-            )
-        )
-
-        if self.is_change_addr_verified:
-            self.components.append(
-                IconTextLine(
-                    icon_name=SeedCashIconsConstants.SUCCESS,
-                    icon_color=GUIConstants.SUCCESS_COLOR,
-                    value_text=_("Address verified!"),
-                    is_text_centered=False,
-                    screen_x=GUIConstants.EDGE_PADDING,
-                    screen_y=self.components[-1].screen_y
-                    + self.components[-1].height
-                    + GUIConstants.COMPONENT_PADDING,
-                )
-            )
-
-
-@dataclass
-class PSBTOpReturnScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTOpReturnScreen(PSBTButtonListScreen):
     op_return_data: bytes = None
 
     def __post_init__(self):
@@ -921,9 +945,8 @@ class PSBTOpReturnScreen(ButtonListScreen, BaseTopNavScreen):
                 )
             )
 
-
 @dataclass
-class PSBTFinalizeScreen(ButtonListScreen, BaseTopNavScreen):
+class PSBTFinalizeScreen(PSBTButtonListScreen):
     def __post_init__(self):
         # Customize defaults
         self.title = _("Sign PSBT")

@@ -32,108 +32,6 @@ logger = logging.getLogger(__name__)
 RET_CODE__BACK_BUTTON = 1000
 RET_CODE__CHECK_BUTTON = 1001
 
-
-@dataclass
-class BaseScreen(BaseComponent):
-    def __post_init__(self):
-        super().__post_init__()
-
-        self.hw_inputs = HardwareButtons.get_instance()
-
-        # Implementation classes can add their own BaseThread to run in parallel with the
-        # main execution thread.
-        self.threads: List[BaseThread] = []
-
-        # Implementation classes can add additional BaseComponent-derived objects to the
-        # list. They'll be called to `render()` themselves in BaseScreen._render().
-        self.components: List[BaseComponent] = []
-
-        # Implementation classes can add PIL.Image objs here. Format is a tuple of the
-        # Image and its (x,y) paste coords.
-        self.paste_images: List[Tuple] = []
-
-        # Tracks position on scrollable pages, determines which elements are visible.
-        self.scroll_y = 0
-
-    def get_threads(self) -> List[BaseThread]:
-        threads = self.threads.copy()
-        for component in self.components:
-            threads += component.threads
-        return threads
-
-    def display(self) -> Any:
-        try:
-            with self.renderer.lock:
-                self._render()
-                self.renderer.show_image()
-
-            for t in self.get_threads():
-                if not t.is_alive():
-                    t.start()
-
-            return self._run()
-        except Exception as e:
-            repr(e)
-            raise e
-        finally:
-            for t in self.get_threads():
-                t.stop()
-
-            for t in self.get_threads():
-                # Wait for each thread to stop; equivalent to `join()` but gracefully
-                # handles threads that were never run (necessary for screenshot generator
-                # compatibility, perhaps other edge cases).
-                while t.is_alive():
-                    time.sleep(0.01)
-
-    def clear_screen(self):
-        # Clear the whole canvas
-        self.image_draw.rectangle(
-            (0, 0, self.canvas_width, self.canvas_height),
-            fill=0,
-        )
-
-    def _render(self):
-        self.clear_screen()
-
-        # TODO: Check self.scroll_y and only render visible elements
-        for component in self.components:
-            component.render()
-
-        for img, coords in self.paste_images:
-            self.canvas.paste(img, coords)
-
-    def _run_callback(self):
-        """
-        Optional implementation step that's called during each _run() loop.
-
-        Loop will continue if it returns None.
-        If it returns a value, the Screen will exit and relay that return value to
-        its parent View.
-        """
-        pass
-
-    def _run(self):
-        """
-        Screen can run on its own until it returns a final exit input from the user.
-
-        For example: A basic menu screen where the user can key up and down. The
-        Screen can handle the UI updates to light up the currently selected menu item
-        on its own. Only when the user clicks to make a selection would _run() exit
-        and return the selected option.
-
-        In general, _run() will be implemented as a continuous loop waiting for user
-        input and redrawing the screen as needed. When it redraws, it must claim
-        the `Renderer.lock` to ensure that its updates don't conflict with any other
-        threads that might be updating the screen at the same time (e.g. flashing
-        warning edges, auto-scrolling long titles or buttons, etc).
-
-        Just note that this loop cannot hold the lock indefinitely! Each iteration
-        through the loop should claim the lock, render, and then release it.
-        """
-        raise Exception("Must implement in a child class")
-
-
 class LoadingScreenThread(BaseThread):
     def __init__(self, text: str = None, animation_speed: float = 0.45):
         super().__init__()
@@ -260,6 +158,106 @@ class LoadingScreenThread(BaseThread):
             width=GUIConstants.COMPONENT_PADDING,
         )
 
+
+@dataclass
+class BaseScreen(BaseComponent):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.hw_inputs = HardwareButtons.get_instance()
+
+        # Implementation classes can add their own BaseThread to run in parallel with the
+        # main execution thread.
+        self.threads: List[BaseThread] = []
+
+        # Implementation classes can add additional BaseComponent-derived objects to the
+        # list. They'll be called to `render()` themselves in BaseScreen._render().
+        self.components: List[BaseComponent] = []
+
+        # Implementation classes can add PIL.Image objs here. Format is a tuple of the
+        # Image and its (x,y) paste coords.
+        self.paste_images: List[Tuple] = []
+
+        # Tracks position on scrollable pages, determines which elements are visible.
+        self.scroll_y = 0
+
+    def get_threads(self) -> List[BaseThread]:
+        threads = self.threads.copy()
+        for component in self.components:
+            threads += component.threads
+        return threads
+
+    def display(self) -> Any:
+        try:
+            with self.renderer.lock:
+                self._render()
+                self.renderer.show_image()
+
+            for t in self.get_threads():
+                if not t.is_alive():
+                    t.start()
+
+            return self._run()
+        except Exception as e:
+            repr(e)
+            raise e
+        finally:
+            for t in self.get_threads():
+                t.stop()
+
+            for t in self.get_threads():
+                # Wait for each thread to stop; equivalent to `join()` but gracefully
+                # handles threads that were never run (necessary for screenshot generator
+                # compatibility, perhaps other edge cases).
+                while t.is_alive():
+                    time.sleep(0.01)
+
+    def clear_screen(self):
+        # Clear the whole canvas
+        self.image_draw.rectangle(
+            (0, 0, self.canvas_width, self.canvas_height),
+            fill=0,
+        )
+
+    def _render(self):
+        self.clear_screen()
+
+        # TODO: Check self.scroll_y and only render visible elements
+        for component in self.components:
+            component.render()
+
+        for img, coords in self.paste_images:
+            self.canvas.paste(img, coords)
+
+    def _run_callback(self):
+        """
+        Optional implementation step that's called during each _run() loop.
+
+        Loop will continue if it returns None.
+        If it returns a value, the Screen will exit and relay that return value to
+        its parent View.
+        """
+        pass
+
+    def _run(self):
+        """
+        Screen can run on its own until it returns a final exit input from the user.
+
+        For example: A basic menu screen where the user can key up and down. The
+        Screen can handle the UI updates to light up the currently selected menu item
+        on its own. Only when the user clicks to make a selection would _run() exit
+        and return the selected option.
+
+        In general, _run() will be implemented as a continuous loop waiting for user
+        input and redrawing the screen as needed. When it redraws, it must claim
+        the `Renderer.lock` to ensure that its updates don't conflict with any other
+        threads that might be updating the screen at the same time (e.g. flashing
+        warning edges, auto-scrolling long titles or buttons, etc).
+
+        Just note that this loop cannot hold the lock indefinitely! Each iteration
+        through the loop should claim the lock, render, and then release it.
+        """
+        raise Exception("Must implement in a child class")
 
 @dataclass
 class BaseTopNavScreen(BaseScreen):
@@ -1026,7 +1024,6 @@ class LargeButtonScreen(BaseScreen):
 
                 self.renderer.show_image()
 
-
 @dataclass
 class LargeIconStatusScreen(ButtonListScreen):
     status_icon_name: str = SeedCashIconsConstants.SUCCESS
@@ -1083,7 +1080,6 @@ class LargeIconStatusScreen(ButtonListScreen):
                     screen_y=next_y,
                 )
             )
-
 
 class WarningEdgesThread(BaseThread):
     def __init__(self, args):
@@ -1145,7 +1141,6 @@ class WarningEdgesThread(BaseThread):
         except KeyboardInterrupt as e:
             self.stop()
             raise e
-
 
 @dataclass
 class WarningEdgesMixin:
