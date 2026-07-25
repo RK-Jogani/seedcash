@@ -37,6 +37,8 @@ class GUIConstants:
     SUCCESS_COLOR = "#30D158"
     INFO_COLOR = "#409CFF"
     BITCOIN_GREEN = "#00F100"
+    PUSD_PURPLE = "#B238EC"
+    MUSD_BLUE = "#5D90F4"
     TESTNET_COLOR = "#00F100"
     REGTEST_COLOR = "#00CAF1"
     GREEN_INDICATOR_COLOR = ACCENT_COLOR
@@ -166,9 +168,14 @@ class SeedCashIconsConstants:
     VIEW_TX = "\ue925"
     SCAN_TX = "\ue926"
 
+    # Cashtokens
+    PUSD = "\ue927"
+    MUSD = "\ue928"
+    CASHTOKEN = "\ue929"
+
     # Must be updated whenever new icons are added. See usage in `Icon` class below.
     MIN_VALUE = LOAD_SEED
-    MAX_VALUE = SCAN_TX
+    MAX_VALUE = CASHTOKEN
 
 
 def load_image(image_name: str, directory: str) -> Image.Image:

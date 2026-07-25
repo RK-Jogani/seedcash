@@ -1,13 +1,11 @@
 import logging
 import time
 from gettext import gettext as _
-from seedcash.gui.components import SeedCashIconsConstants
 from seedcash.models.bip44 import Bip44
 from seedcash.gui.screens import (
     RET_CODE__BACK_BUTTON,
     WarningScreen,
-    load_seed_screens,
-    SeedCashButtonListWithNav,
+    load_seed_screens
 )
 from seedcash.gui.screens.screen import ButtonOption
 from seedcash.models.wallet import Wallet

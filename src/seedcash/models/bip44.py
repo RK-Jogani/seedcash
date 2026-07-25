@@ -1,6 +1,5 @@
 import hashlib
 import hmac
-import os
 from base58 import b58decode, b58encode
 from ecdsa import SECP256k1, SigningKey, VerifyingKey
 from ecdsa.util import string_to_number, number_to_string
