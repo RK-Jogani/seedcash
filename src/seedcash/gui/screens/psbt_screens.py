@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 from seedcash.gui.components import (
     BchAmount,
+    TokenAmount,
     Icon,
     FormattedAddress,
     GUIConstants,
@@ -156,6 +157,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
     num_self_transfer_outputs: int = 0
     destination_addresses: list[str] = None
     has_op_return: bool = False
+    category_id: str = None
 
     def __post_init__(self):
 
@@ -174,12 +176,23 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         # icon_text_lines_y = self.components[-1].screen_y + self.components[-1].height
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
-        self.components.append(
-            BchAmount(
-                total_sats=self.spend_amount,
-                screen_y=icon_text_lines_y,
+
+        
+        if self.category_id:
+            self.components.append(
+                TokenAmount(
+                    amount=self.spend_amount,
+                    category_id=self.category_id,
+                    screen_y=icon_text_lines_y,
+                )
             )
-        )
+        else:
+            self.components.append(
+                BchAmount(
+                    total_sats=self.spend_amount,
+                    screen_y=icon_text_lines_y,
+                )
+            )
 
         # Prep the transaction flow chart
         self.chart_x = 0
@@ -824,6 +837,7 @@ class PSBTMathScreen(PSBTButtonListScreen):
 class PSBTAddressDetailsScreen(PSBTButtonListScreen):
     address: str = None
     amount: int = 0
+    category_id: str = None
 
     def __post_init__(self):
         # Customize defaults
@@ -840,25 +854,34 @@ class PSBTAddressDetailsScreen(PSBTButtonListScreen):
         )
         draw = ImageDraw.Draw(center_img)
 
-        bch_amount = BchAmount(
-            image_draw=draw,
-            canvas=center_img,
-            total_sats=self.amount,
-            screen_y=int(GUIConstants.COMPONENT_PADDING / 2),
-        )
+        if self.category_id:
+            _amount = TokenAmount(
+                image_draw=draw,
+                canvas=center_img,
+                amount=self.amount,
+                category_id=self.category_id,
+                screen_y=int(GUIConstants.COMPONENT_PADDING / 2)
+            )
+        else:
+            _amount = BchAmount(
+                image_draw=draw,
+                canvas=center_img,
+                total_sats=self.amount,
+                screen_y=int(GUIConstants.COMPONENT_PADDING / 2),
+            )
 
         formatted_address = FormattedAddress(
             image_draw=draw,
             canvas=center_img,
             width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
             screen_x=GUIConstants.EDGE_PADDING,
-            screen_y=bch_amount.height + GUIConstants.COMPONENT_PADDING,
+            screen_y=_amount.height + GUIConstants.COMPONENT_PADDING,
             font_size=24,
             address=self.address,
         )
 
         # Render each to the temp img we passed in
-        bch_amount.render()
+        _amount.render()
         formatted_address.render()
 
         self.body_img = center_img.crop(

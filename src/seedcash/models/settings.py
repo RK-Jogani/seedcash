@@ -129,23 +129,6 @@ class Settings(Singleton):
     def __str__(self):
         return json.dumps(self._data, indent=4)
 
-    # this functtion is not used anymore, but keeping it here for reference
-    # the function actually writes the current settings to disk
-    # def save(self):
-    #     from seedcash.hardware.microsd import MicroSD
-
-    #     if (
-    #         self._data[SettingsConstants.SETTING__PERSISTENT_SETTINGS]
-    #         == SettingsConstants.OPTION__ENABLED
-    #         and MicroSD.get_instance().is_inserted
-    #     ):
-    #         with open(Settings.SETTINGS_FILENAME, "w") as settings_file:
-    #             json.dump(self._data, settings_file, indent=4)
-    #             # SeedSignerOS makes removing the microsd possible, flush and then fsync forces persistent settings to disk
-    #             # without this, recent settings changes could be missing after the microsd card was removed
-    #             settings_file.flush()
-    #             os.fsync(settings_file.fileno())
-
     def update(self, new_settings: dict):
         """
         Replaces the current settings with the incoming dict.

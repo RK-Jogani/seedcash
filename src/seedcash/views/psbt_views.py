@@ -73,15 +73,28 @@ class PSBTOverviewView(View):
             self.loading_screen.stop()
 
         # Run the overview screen
-        selected_menu_num = self.run_screen(
-            PSBTOverviewScreen,
-            spend_amount=psbt_parser.spend_amount,
-            fee_amount=psbt_parser.fee_amount,
-            num_inputs=psbt_parser.num_inputs,
-            num_self_transfer_outputs=num_self_transfer_outputs,
-            destination_addresses=psbt_parser.destination_addresses,
-            has_op_return=psbt_parser.op_return_data is not None,
-        )
+        print("PSBT tx_type:", psbt_parser.tx_type)
+        if psbt_parser.tx_type == "standard":
+            selected_menu_num = self.run_screen(
+                PSBTOverviewScreen,
+                spend_amount=psbt_parser.output_amount,
+                fee_amount=psbt_parser.fee_amount,
+                num_inputs=psbt_parser.num_inputs,
+                num_self_transfer_outputs=num_self_transfer_outputs,
+                destination_addresses=psbt_parser.destination_addresses,
+                has_op_return=psbt_parser.op_return_data is not None,
+            )
+        elif psbt_parser.tx_type == "ft":
+            selected_menu_num = self.run_screen(
+                PSBTOverviewScreen,
+                spend_amount=psbt_parser.ft_output_amount,
+                fee_amount=psbt_parser.fee_amount,
+                num_inputs=psbt_parser.num_inputs,
+                num_self_transfer_outputs=num_self_transfer_outputs,
+                destination_addresses=psbt_parser.destination_addresses,
+                has_op_return=psbt_parser.op_return_data is not None,
+                category_id=psbt_parser.token_categories[0],
+            )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(PSBTDiscardWarningView)
@@ -131,7 +144,7 @@ class PSBTMathView(View):
             PSBTMathScreen,
             input_amount=psbt_parser.input_amount,
             num_inputs=psbt_parser.num_inputs,
-            spend_amount=psbt_parser.spend_amount,
+            spend_amount=psbt_parser.output_amount,
             num_outputs=psbt_parser.num_destinations,
             fee_amount=psbt_parser.fee_amount,
         )
@@ -171,14 +184,23 @@ class PSBTAddressDetailsView(View):
         else:
             # TRANSLATOR_NOTE: Short for "Next step"
             button_data.append(ButtonOption("Next"))
-
-        selected_menu_num = self.run_screen(
-            PSBTAddressDetailsScreen,
-            title=title,
-            button_data=button_data,
-            address=psbt_parser.destination_addresses[self.address_num],
-            amount=psbt_parser.destination_amounts[self.address_num],
-        )
+        if psbt_parser.tx_type == "ft":
+            selected_menu_num = self.run_screen(
+                PSBTAddressDetailsScreen,
+                title=title,
+                button_data=button_data,
+                address=psbt_parser.destination_addresses[self.address_num],
+                amount=psbt_parser.output_at_index(self.address_num).token.ft_amount,
+                category_id=psbt_parser.output_at_index(self.address_num).token.category_id,
+            )
+        else:
+            selected_menu_num = self.run_screen(
+                PSBTAddressDetailsScreen,
+                title=title,
+                button_data=button_data,
+                address=psbt_parser.destination_addresses[self.address_num],
+                amount=psbt_parser.output_at_index(self.address_num).value_satoshis,
+            )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
@@ -193,10 +215,8 @@ class PSBTAddressDetailsView(View):
             return Destination(PSBTOpReturnView)
 
         else:
-            # Move on to sign the PSBT.
-            if psbt_parser.is_signed:
-                return Destination(PSBTFinalizeView)
-            return Destination(PSBTConfirmationView)
+            return Destination(PSBTFinalizeView)
+            
 class PSBTOpReturnView(View):
     """
     Shows the OP_RETURN data
@@ -223,51 +243,13 @@ class PSBTOpReturnView(View):
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
-        if psbt_parser.is_signed:
-            return Destination(PSBTFinalizeView)
-        return Destination(PSBTConfirmationView)
-
-class PSBTConfirmationView(View):
-    """
-    Shows the user a confirmation screen before signing the PSBT.
-    """
-    SIGN_PSBT = ButtonOption("Sign PSBT")
-    DELETE_PSBT = ButtonOption("Delete PSBT")
-
-
-    def run(self):
-        from seedcash.gui.screens.psbt_screens import PSBTFinalizeScreen
-
-        psbt_parser: PSBTParser = self.controller.psbt_parser
-
-        if not psbt_parser:
-            # Should not be able to get here
-            return Destination(MainMenuView)
-
-        selected_menu_num = self.run_screen(
-            PSBTFinalizeScreen,
-            button_data=[self.SIGN_PSBT, self.DELETE_PSBT],
-        )
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-        if selected_menu_num == 0:
-            try:
-                psbt_parser.sign_with_wallet_xpriv(self.controller._storage._wallet._xpriv)
-            except Exception as e:
-                return Destination(PSBTSigningErrorView)
-            # Keep controller bytes in sync with parser after signing.
-            self.controller.psbt_bytes = bytearray(psbt_parser.psbt_bytes)
-            return Destination(PSBTFinalizeView)
-        elif selected_menu_num == 1:
-            self.controller.discard_psbt()
-            return Destination(MainMenuView, clear_history=True)
+        
+        return Destination(PSBTFinalizeView)
 
 class PSBTFinalizeView(View):
     """ """
 
     SHOW_SIGNED_PSBT = ButtonOption("Show Signed PSBT")
-    SAVE_SIGNED_PSBT = ButtonOption("Save Signed PSBT")
     DELETE_SIGNED_PSBT = ButtonOption("Delete Signed PSBT")
     
     def __init__(self):
@@ -276,7 +258,7 @@ class PSBTFinalizeView(View):
     def run(self):
         
         
-        button_data = [self.SHOW_SIGNED_PSBT, self.SAVE_SIGNED_PSBT, self.DELETE_SIGNED_PSBT]
+        button_data = [self.SHOW_SIGNED_PSBT, self.DELETE_SIGNED_PSBT]
         
         selected_menu_num = self.run_screen(
             SeedCashButtonListWithNav,
@@ -289,6 +271,7 @@ class PSBTFinalizeView(View):
             return Destination(BackStackView)
 
         if button_data[selected_menu_num] == self.SHOW_SIGNED_PSBT:
+            self.controller.psbt_parser.sign_with_wallet_xpriv(self.controller._storage._wallet.xpriv)
             return Destination(PSBTSignedQRDisplayView)
         elif button_data[selected_menu_num] == self.DELETE_SIGNED_PSBT:
             self.controller.discard_psbt()
