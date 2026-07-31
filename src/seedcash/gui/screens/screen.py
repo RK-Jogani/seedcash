@@ -334,6 +334,7 @@ class ButtonOption:
     right_icon_name: str = None
     button_label_color: str = None
     return_data: Any = None
+    button_color: str = GUIConstants.ACCENT_COLOR
     active_button_label: str = (
         None  # Changes displayed button label when button is active
     )
@@ -354,7 +355,6 @@ class ButtonListScreen(BaseScreen):
     button_font_name: str = None
     button_font_size: int = None
 
-    button_selected_color: str = GUIConstants.ACCENT_COLOR  # Color for selected button
 
     # Settings for checkbox-style buttons
     Button_cls = Button  # Allows custom Button class substitution
@@ -453,7 +453,7 @@ class ButtonListScreen(BaseScreen):
                 font_size=button_option.font_size or self.button_font_size,
                 font_color=button_option.button_label_color
                 or GUIConstants.BUTTON_FONT_COLOR,
-                selected_color=self.button_selected_color,
+                selected_color=button_option.button_color,
                 is_scrollable_text=True,  # Enables text scrolling for long labels
             )
 

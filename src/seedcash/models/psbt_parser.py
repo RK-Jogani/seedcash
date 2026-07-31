@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class NFTData:
     capability: str
-    commitment: bytes
+    commitment: str
 
 @dataclass
 class TokenData:
@@ -145,7 +145,7 @@ def parse_token_script(script: bytes) -> Optional[Dict[str, Any]]:
             pos += nft_len
         else:
             nft_bytes = b""
-        nft_data: NFTData = NFTData(capability=capability, commitment=nft_bytes)
+        nft_data: NFTData = NFTData(capability=capability, commitment=nft_bytes.hex())
 
     ft_amount = None
     if has_amount:
@@ -388,6 +388,14 @@ class PSBTParser:
             if out.token and out.token.ft_amount is not None:
                 total_ft_amount += out.token.ft_amount
         return total_ft_amount if total_ft_amount > 0 else None
+
+    @property
+    def nft_data(self) -> List[NFTData]:
+        all_nfts = []
+        for out in self.tx.outputs:
+            if out.token and out.token.nft_data is not None:
+                all_nfts.append(out.token.nft_data)
+        return all_nfts
 
     @property
     def destination_addresses(self) -> List[str]:

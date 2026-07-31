@@ -8,7 +8,7 @@ from seedcash.gui.screens.screen import (
     SeedCashButtonListWithNav,
     WarningScreen,
 )
-from seedcash.models.psbt_parser import PSBTParser
+from seedcash.models.psbt_parser import NFTData, PSBTParser
 from seedcash.views.view import (
     MainMenuView,
     View,
@@ -35,71 +35,149 @@ class LoadingPSBTView(View):
             # Keep one canonical representation shared across all PSBT views.
             self.controller.psbt_bytes = bytearray(self.controller.psbt_parser.psbt_bytes)
         finally:
+            time.sleep(2)
             self.loading_screen.stop()
 
     def run(self):
-        from seedcash.views.psbt_views import PSBTOverviewView
+        if self.controller.psbt_parser.tx_type == "standard":
+            return Destination(BCHPSBTOverviewView, skip_current_view=True)
+        elif self.controller.psbt_parser.tx_type == "ft":
+            return Destination(PSBTFungibleTokenDetailsView, skip_current_view=True)
+        else:
+            return Destination(PSBTNFTView, skip_current_view=True)
 
-        return Destination(PSBTOverviewView, skip_current_view=True)
 
-class PSBTOverviewView(View):
+# BCH
+class BCHPSBTOverviewView(View):
     def __init__(self):
         super().__init__()
-
         self.loading_screen = None
-
-        # The PSBTParser takes a while to read the PSBT. Run the loading screen while
-        # we wait.
-        from seedcash.gui.screens.screen import LoadingScreenThread
-
-        self.loading_screen = LoadingScreenThread(text=_("Parsing PSBT..."))
-        self.loading_screen.start()
-
-        try:
-            time.sleep(2)  # Give loading screen time to start
-        except Exception as e:
-            self.loading_screen.stop()
-            raise e
 
     def run(self):
         psbt_parser = self.controller.psbt_parser
         if not psbt_parser:
             return Destination(MainMenuView)
 
-        num_self_transfer_outputs = 0
-
-        # Everything is set. Stop the loading screen
-        if self.loading_screen:
-            self.loading_screen.stop()
-
         # Run the overview screen
-        print("PSBT tx_type:", psbt_parser.tx_type)
-        if psbt_parser.tx_type == "standard":
-            selected_menu_num = self.run_screen(
-                PSBTOverviewScreen,
-                spend_amount=psbt_parser.output_amount,
-                fee_amount=psbt_parser.fee_amount,
-                num_inputs=psbt_parser.num_inputs,
-                num_self_transfer_outputs=num_self_transfer_outputs,
-                destination_addresses=psbt_parser.destination_addresses,
-                has_op_return=psbt_parser.op_return_data is not None,
-            )
-        elif psbt_parser.tx_type == "ft":
-            selected_menu_num = self.run_screen(
-                PSBTOverviewScreen,
-                spend_amount=psbt_parser.ft_output_amount,
-                fee_amount=psbt_parser.fee_amount,
-                num_inputs=psbt_parser.num_inputs,
-                num_self_transfer_outputs=num_self_transfer_outputs,
-                destination_addresses=psbt_parser.destination_addresses,
-                has_op_return=psbt_parser.op_return_data is not None,
-                category_id=psbt_parser.token_categories[0],
-            )
-
+        selected_menu_num = self.run_screen(
+            PSBTOverviewScreen,
+            spend_amount=psbt_parser.output_amount,
+            fee_amount=psbt_parser.fee_amount,
+            num_inputs=psbt_parser.num_inputs,
+            destination_addresses=psbt_parser.destination_addresses,
+            has_op_return=psbt_parser.op_return_data is not None,
+            category_id=None
+        )
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(PSBTDiscardWarningView)
 
         return Destination(PSBTMathView)
+
+# FT View
+class PSBTFungibleTokenDetailsView(View):
+    def __init__(self):
+            super().__init__()
+            self.loading_screen = None
+            
+    def run(self):
+        from seedcash.gui.screens.psbt_screens import PSBTOverviewScreen
+
+        psbt_parser: PSBTParser = self.controller.psbt_parser
+        if not psbt_parser:
+            # Should not be able to get here
+            return Destination(MainMenuView)
+        
+        selected_menu_num = self.run_screen(
+            PSBTOverviewScreen,
+            spend_amount=psbt_parser.ft_output_amount,
+            num_inputs=psbt_parser.num_inputs,
+            destination_addresses=psbt_parser.destination_addresses,
+            category_id=psbt_parser.token_categories[0]
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+        if selected_menu_num == 0:
+            return Destination(PSBTAddressDetailsView, view_args={"address_num": 0, "is_ft": True})
+        return Destination(BCHPSBTOverviewView)
+
+# NFT Details View
+class PSBTNFTView(View):
+    def __init__(self, output_num=0):
+            super().__init__()
+            self.loading_screen = None
+            self.output_num = output_num
+    
+    def run(self):
+        from seedcash.gui.screens.psbt_screens import PSBTNFTScreen   # correct import
+
+        psbt_parser: PSBTParser = self.controller.psbt_parser
+
+        if not psbt_parser:
+            return Destination(MainMenuView)
+
+        selected_menu_num = self.run_screen(
+            PSBTNFTScreen,
+            nft_index=self.output_num + 1,
+            category_id=psbt_parser.token_categories[0],
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+        if selected_menu_num == 0:
+            return Destination(PSBTNFTDetailsView, view_args={"output_num": self.output_num})
+        return Destination(PSBTMathView)
+
+# NFT Details View
+class PSBTNFTDetailsView(View):
+    def __init__(self, output_num: int = 0):
+        self.output_num = output_num
+        super().__init__()
+        
+
+    def run(self):
+        from seedcash.gui.screens.psbt_screens import PSBTNFTDetailsScreen
+
+        psbt_parser: PSBTParser = self.controller.psbt_parser
+
+        selected_menu_num = self.run_screen(
+            PSBTNFTDetailsScreen,
+            nft_commitment=psbt_parser.nft_data[self.output_num].commitment,
+            nft_capability=psbt_parser.nft_data[self.output_num].capability,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+        
+        return Destination(PSBTNFTAddressDetailsView, view_args={"output_num": 0})
+class PSBTNFTAddressDetailsView(View):
+    NEXT_BUTTON = ButtonOption("Next")
+    def __init__(self, output_num):
+        super().__init__()
+        self.output_num = output_num
+
+    def run(self):
+        from seedcash.gui.screens.psbt_screens import PSBTNFTAddressScreen
+
+        psbt_parser: PSBTParser = self.controller.psbt_parser
+
+        btn_data = [self.NEXT_BUTTON]
+        selected_menu_num = self.run_screen(
+            PSBTNFTAddressScreen,
+            button_data=btn_data,
+            destination_addr=psbt_parser.destination_addresses[self.output_num]
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if self.output_num < len(psbt_parser.destination_addresses) - 1:
+            # Show the next receive addr
+            return Destination(
+                PSBTNFTAddressDetailsView, view_args={"address_num": self.address_num + 1}
+            )
+        else:
+            return Destination(BCHPSBTOverviewView)
 
 # discard PSBT warning view
 class PSBTDiscardWarningView(View):
@@ -160,9 +238,10 @@ class PSBTAddressDetailsView(View):
     Shows the recipient's address and amount they will receive
     """
 
-    def __init__(self, address_num):
+    def __init__(self, address_num, is_ft=False):
         super().__init__()
         self.address_num = address_num
+        self.is_ft = is_ft
 
     def run(self):
         from seedcash.gui.screens.psbt_screens import PSBTAddressDetailsScreen
@@ -178,17 +257,15 @@ class PSBTAddressDetailsView(View):
         if psbt_parser.num_destinations > 1:
             title += f" (#{self.address_num + 1})"
 
-        button_data = []
+        button_title = "Next"
         if self.address_num < psbt_parser.num_destinations - 1:
-            button_data.append(ButtonOption("Next Recipient"))
-        else:
-            # TRANSLATOR_NOTE: Short for "Next step"
-            button_data.append(ButtonOption("Next"))
-        if psbt_parser.tx_type == "ft":
+            button_title = _("Next Recipient")
+        
+        if self.is_ft:
             selected_menu_num = self.run_screen(
                 PSBTAddressDetailsScreen,
                 title=title,
-                button_data=button_data,
+                button_title=button_title,
                 address=psbt_parser.destination_addresses[self.address_num],
                 amount=psbt_parser.output_at_index(self.address_num).token.ft_amount,
                 category_id=psbt_parser.output_at_index(self.address_num).token.category_id,
@@ -197,7 +274,7 @@ class PSBTAddressDetailsView(View):
             selected_menu_num = self.run_screen(
                 PSBTAddressDetailsScreen,
                 title=title,
-                button_data=button_data,
+                button_title=button_title,
                 address=psbt_parser.destination_addresses[self.address_num],
                 amount=psbt_parser.output_at_index(self.address_num).value_satoshis,
             )
@@ -208,13 +285,15 @@ class PSBTAddressDetailsView(View):
         if self.address_num < len(psbt_parser.destination_addresses) - 1:
             # Show the next receive addr
             return Destination(
-                PSBTAddressDetailsView, view_args={"address_num": self.address_num + 1}
+                PSBTAddressDetailsView, view_args={"address_num": self.address_num + 1, "is_ft": self.is_ft}
             )
-
+        
         elif psbt_parser.op_return_data:
             return Destination(PSBTOpReturnView)
 
         else:
+            if self.is_ft:
+                return Destination(BCHPSBTOverviewView)
             return Destination(PSBTFinalizeView)
             
 class PSBTOpReturnView(View):

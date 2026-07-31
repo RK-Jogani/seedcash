@@ -1803,7 +1803,7 @@ categories: List[Category] = [
 ]
 @dataclass
 class TokenAmount(BaseComponent):
-    category_id: str = None
+    category: Category = None
     amount: int = 0
     icon_size: int = 34
     font_size: int = 24
@@ -1812,21 +1812,6 @@ class TokenAmount(BaseComponent):
 
     def __post_init__(self):
         super().__post_init__()
-
-        for category in categories:
-            if category.category_id == self.category_id:
-                self.category: Category = category
-                break
-
-        if category is None:
-            self.category: Category = Category(
-                category_id=self.category_id,
-                token_symbol="Unknown",
-                decimal=0,
-                icon_name=SeedCashIconsConstants.CASHTOKEN,
-                icon_color=GUIConstants.BITCOIN_GREEN,
-            )
-
 
         digit_font = Fonts.get_font(
             font_name=GUIConstants.BODY_FONT_NAME, size=self.font_size
@@ -1848,8 +1833,8 @@ class TokenAmount(BaseComponent):
         token_icon = Icon(
             image_draw=draw,
             canvas=self.paste_image,
-            icon_name=category.icon_name,
-            icon_color=category.icon_color,
+            icon_name=self.category.icon_name,
+            icon_color=self.category.icon_color,
             icon_size=self.icon_size,
             screen_x=0,
             screen_y=0,
@@ -1857,7 +1842,7 @@ class TokenAmount(BaseComponent):
         token_icon.render()
         cur_x = token_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
         
-        self.amount = self.amount / (10 ** category.decimal)
+        self.amount = self.amount / (10 ** self.category.decimal)
         amount_text = f"{self.amount}"
 
         font = digit_font
@@ -1877,7 +1862,7 @@ class TokenAmount(BaseComponent):
         )
         cur_x += text_width
 
-        unit_text = category.token_symbol
+        unit_text = self.category.token_symbol
 
         # Draw the unit
         unit_font = Fonts.get_font(
