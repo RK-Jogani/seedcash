@@ -718,7 +718,126 @@ class TextArea(BaseComponent):
         if self.horizontal_text_scroll_thread:
             self.horizontal_text_scroll_thread.scroll_y = scroll_y
 
+@dataclass
+class RoundedTextArea(BaseComponent):
+    """
+    Rounded "chip" background drawn directly on the canvas at render time —
+    same technique Button already uses — so there's no need to align the
+    rounding with TextArea's internal resample-padding crop.
+    Supports multiline text and character‑by‑character wrapping (treat_chars_as_words).
+    """
+    text: str = ""
+    width: int = None
+    height: int = None
+    screen_x: int = 0
+    screen_y: int = 0
+    scroll_y: int = 0
+    corner_radius: int = 8
+    border_width: int = 0
+    border_color: str = None
+    fill_color: str = GUIConstants.INACTIVE_COLOR
+    font_name: str = GUIConstants.BODY_FONT_NAME
+    font_size: int = GUIConstants.BODY_FONT_SIZE
+    font_color: str = GUIConstants.BODY_FONT_COLOR
+    edge_padding: int = GUIConstants.EDGE_PADDING
+    is_text_centered: bool = False
+    treat_chars_as_words: bool = False
+    allow_text_overflow: bool = False
 
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Default width: from screen_x to right edge minus padding
+        if self.width is None:
+            self.width = self.canvas_width - self.screen_x - GUIConstants.EDGE_PADDING
+        
+
+        # Break text into lines using the same reflow function as TextArea
+        # Use 2 * edge_padding for left/right margins
+        self.text_lines = reflow_text_for_width(
+            text=self.text,
+            width=self.width - 2 * self.edge_padding,
+            font_name=self.font_name,
+            font_size=self.font_size,
+            allow_text_overflow=self.allow_text_overflow,
+            treat_chars_as_words=self.treat_chars_as_words,
+        )
+
+        # Font metrics
+        font = Fonts.get_font(self.font_name, self.font_size)
+        left, top, _, bottom = font.getbbox("Agjpqy", anchor="ls")
+        self.text_height_above_baseline = -top
+        self.text_height_below_baseline = bottom
+        self.line_spacing = GUIConstants.BODY_LINE_SPACING
+
+        # Total text height
+        if not self.text_lines:
+            total_text_height = 0
+        elif len(self.text_lines) == 1:
+            total_text_height = (
+                self.text_height_above_baseline + self.text_height_below_baseline
+            )
+        else:
+            total_text_height = (
+                self.text_height_above_baseline * len(self.text_lines)
+                + self.line_spacing * (len(self.text_lines) - 1)
+                + self.text_height_below_baseline  # last line
+            )
+
+        # Auto‑height if not provided (add vertical padding)
+        if self.height is None:
+            self.height = total_text_height + self.edge_padding//2
+        # else keep user-provided height (text may overflow)
+
+        # Vertical offset to center text within the component's height
+        self.text_offset_y = (self.height - total_text_height) // 2
+        if self.text_offset_y < 0:
+            self.text_offset_y = 0
+
+        # Store y‑position of each line (baseline) relative to component's top
+        self.line_positions = []
+        cur_y = self.text_offset_y + self.text_height_above_baseline
+        for _ in self.text_lines:
+            self.line_positions.append(cur_y)
+            cur_y += self.text_height_above_baseline + self.line_spacing
+
+    def render(self):
+        # Draw rounded background – fill the whole component area
+        self.image_draw.rounded_rectangle(
+            (
+                self.screen_x,
+                self.screen_y - self.edge_padding//4,
+                self.width + self.edge_padding,
+                self.screen_y + self.height,
+            ),
+            radius=self.corner_radius,
+            outline=self.border_color,
+            width=self.border_width,
+            fill=self.fill_color,
+        )
+
+        # Draw each text line
+        font = Fonts.get_font(self.font_name, self.font_size)
+        for i, line_dict in enumerate(self.text_lines):
+            line_text = line_dict["text"]
+            if not line_text:
+                continue
+            line_width = line_dict["text_width"]
+
+            if self.is_text_centered:
+                x = self.screen_x + (self.width - line_width) // 2
+            else:
+                x = self.screen_x + self.edge_padding
+
+            y = self.screen_y + self.line_positions[i] - self.scroll_y
+
+            self.image_draw.text(
+                (x, y),
+                line_text,
+                font=font,
+                fill=self.font_color,
+                anchor="ls",
+            )
 @dataclass
 class ScrollableTextLine(TextArea):
     """

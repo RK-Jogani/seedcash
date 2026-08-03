@@ -151,7 +151,6 @@ class PSBTNFTDetailsView(View):
         
         return Destination(PSBTNFTAddressDetailsView, view_args={"output_num": 0})
 class PSBTNFTAddressDetailsView(View):
-    NEXT_BUTTON = ButtonOption("Next")
     def __init__(self, output_num):
         super().__init__()
         self.output_num = output_num
@@ -161,11 +160,11 @@ class PSBTNFTAddressDetailsView(View):
 
         psbt_parser: PSBTParser = self.controller.psbt_parser
 
-        btn_data = [self.NEXT_BUTTON]
+        
         selected_menu_num = self.run_screen(
             PSBTNFTAddressScreen,
-            button_data=btn_data,
-            destination_addr=psbt_parser.destination_addresses[self.output_num]
+            destination_addr=psbt_parser.destination_addresses[self.output_num],
+            index=self.output_num + 1
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
@@ -294,7 +293,7 @@ class PSBTAddressDetailsView(View):
         else:
             if self.is_ft:
                 return Destination(BCHPSBTOverviewView)
-            return Destination(PSBTFinalizeView)
+            return Destination(PSBTSignedQRDisplayView)
             
 class PSBTOpReturnView(View):
     """
@@ -322,39 +321,8 @@ class PSBTOpReturnView(View):
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
-        
-        return Destination(PSBTFinalizeView)
-
-class PSBTFinalizeView(View):
-    """ """
-
-    SHOW_SIGNED_PSBT = ButtonOption("Show Signed PSBT")
-    DELETE_SIGNED_PSBT = ButtonOption("Delete Signed PSBT")
-    
-    def __init__(self):
-        super().__init__()
-
-    def run(self):
-        
-        
-        button_data = [self.SHOW_SIGNED_PSBT, self.DELETE_SIGNED_PSBT]
-        
-        selected_menu_num = self.run_screen(
-            SeedCashButtonListWithNav,
-            title="Sign Transaction",
-            button_data=button_data,
-            show_back_button=False,
-        )
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-
-        if button_data[selected_menu_num] == self.SHOW_SIGNED_PSBT:
-            self.controller.psbt_parser.sign_with_wallet_xpriv(self.controller._storage._wallet.xpriv)
-            return Destination(PSBTSignedQRDisplayView)
-        elif button_data[selected_menu_num] == self.DELETE_SIGNED_PSBT:
-            self.controller.discard_psbt()
-            return Destination(MainMenuView, clear_history=True)
+        # TODO: Will function to sign the PSBT be added here? If so, we can route to the signing view.
+        return Destination(PSBTSignedQRDisplayView)
 
 class PSBTSignedQRDisplayView(View):
     def run(self):
