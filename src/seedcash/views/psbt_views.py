@@ -1,14 +1,14 @@
 import time
 from gettext import gettext as _
-from seedcash.gui.components import SeedCashIconsConstants
+from typing import List
+from seedcash.gui.components import GUIConstants, SeedCashIconsConstants, get_category_color
 from seedcash.gui.screens import RET_CODE__BACK_BUTTON
 from seedcash.gui.screens.screen import (
     ButtonOption,
     QRDisplayScreen,
-    SeedCashButtonListWithNav,
     WarningScreen,
 )
-from seedcash.models.psbt_parser import NFTData, PSBTParser
+from seedcash.models.psbt_parser import PSBTParser, TxOutput
 from seedcash.views.view import (
     MainMenuView,
     View,
@@ -39,19 +39,21 @@ class LoadingPSBTView(View):
             self.loading_screen.stop()
 
     def run(self):
-        if self.controller.psbt_parser.tx_type == "standard":
-            return Destination(BCHPSBTOverviewView, skip_current_view=True)
-        elif self.controller.psbt_parser.tx_type == "ft":
+        print("PSBT inputs:", self.controller.psbt_parser.inputs)
+        if len(self.controller.psbt_parser.inputs[0].items()) > 0:
+            return Destination(PSBTNFTView, skip_current_view=True)
+        elif len(self.controller.psbt_parser.inputs[1].items()) > 0:
             return Destination(PSBTFungibleTokenDetailsView, skip_current_view=True)
         else:
-            return Destination(PSBTNFTView, skip_current_view=True)
+            return Destination(BCHPSBTOverviewView, skip_current_view=True, view_args={"is_last": True})
 
 
 # BCH
 class BCHPSBTOverviewView(View):
-    def __init__(self):
+    def __init__(self, is_last=False):
         super().__init__()
         self.loading_screen = None
+        self.is_last = is_last
 
     def run(self):
         psbt_parser = self.controller.psbt_parser
@@ -69,15 +71,18 @@ class BCHPSBTOverviewView(View):
             category_id=None
         )
         if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(PSBTDiscardWarningView)
+            if self.is_last:
+                return Destination(PSBTDiscardWarningView)
+            return Destination(BackStackView)
 
         return Destination(PSBTMathView)
 
 # FT View
 class PSBTFungibleTokenDetailsView(View):
-    def __init__(self):
+    def __init__(self, category_num=0):
             super().__init__()
             self.loading_screen = None
+            self.category_num = category_num
             
     def run(self):
         from seedcash.gui.screens.psbt_screens import PSBTOverviewScreen
@@ -86,52 +91,66 @@ class PSBTFungibleTokenDetailsView(View):
         if not psbt_parser:
             # Should not be able to get here
             return Destination(MainMenuView)
+
+        if len(psbt_parser.token_categories) == 0:
+            # Should not be able to get here
+            return Destination(BCHPSBTOverviewView, skip_current_view=True)
         
+        category_id = psbt_parser.token_categories[self.category_num]
+
+        if psbt_parser.ft_burning(category_id):
+            return Destination(PSBTBurningFTWarningView, view_args={"category_num": self.category_num, "btn_color": get_category_color(category_id)})
+
+        destination_addresses = psbt_parser.token_destination_addresses(category_id)
         selected_menu_num = self.run_screen(
             PSBTOverviewScreen,
-            spend_amount=psbt_parser.ft_output_amount,
-            num_inputs=psbt_parser.num_inputs,
-            destination_addresses=psbt_parser.destination_addresses,
-            category_id=psbt_parser.token_categories[0]
+            spend_amount=psbt_parser.ft_output_amount(category_id),
+            num_inputs=len(psbt_parser.inputs[1].get(category_id, [])),
+            destination_addresses=destination_addresses,
+            category_id=category_id
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         if selected_menu_num == 0:
-            return Destination(PSBTAddressDetailsView, view_args={"address_num": 0, "is_ft": True})
+            return Destination(PSBTAddressDetailsView, view_args={"address_num": 0, "destination_addresses": destination_addresses, "category_num": self.category_num})
         return Destination(BCHPSBTOverviewView)
 
 # NFT Details View
 class PSBTNFTView(View):
-    def __init__(self, output_num=0):
+    def __init__(self, category_num=0, confirmed=False):
             super().__init__()
+            self.category_num = category_num
+            self.confirmed = confirmed
             self.loading_screen = None
-            self.output_num = output_num
     
     def run(self):
         from seedcash.gui.screens.psbt_screens import PSBTNFTScreen   # correct import
 
         psbt_parser: PSBTParser = self.controller.psbt_parser
 
-        if not psbt_parser:
-            return Destination(MainMenuView)
-
+        if not self.confirmed:
+            warning = self.controller.psbt_parser.get_warning(self.controller.psbt_parser.nft_categories[self.category_num])
+            if warning == "minting":
+                return Destination(PSBTMintingNFTWarningView, view_args={"category_num": self.category_num})
+            elif warning == "burning":
+                return Destination(PSBTBurningNFTWarningView, view_args={"category_num": self.category_num})
+        
         selected_menu_num = self.run_screen(
             PSBTNFTScreen,
-            nft_index=self.output_num + 1,
-            category_id=psbt_parser.token_categories[0],
+            category_id=psbt_parser.nft_categories[self.category_num],
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         if selected_menu_num == 0:
-            return Destination(PSBTNFTDetailsView, view_args={"output_num": self.output_num})
-        return Destination(PSBTMathView)
+            return Destination(PSBTNFTDetailsView, view_args={"category_num": self.category_num})
 
 # NFT Details View
 class PSBTNFTDetailsView(View):
-    def __init__(self, output_num: int = 0):
+    def __init__(self, output_num: int = 0, category_num: int = 0):
         self.output_num = output_num
+        self.category_num = category_num
         super().__init__()
         
 
@@ -139,67 +158,53 @@ class PSBTNFTDetailsView(View):
         from seedcash.gui.screens.psbt_screens import PSBTNFTDetailsScreen
 
         psbt_parser: PSBTParser = self.controller.psbt_parser
+        tx_outputs: List[TxOutput] = psbt_parser.outputs[0].get(psbt_parser.nft_categories[self.category_num], [])
 
         selected_menu_num = self.run_screen(
             PSBTNFTDetailsScreen,
-            nft_commitment=psbt_parser.nft_data[self.output_num].commitment,
-            nft_capability=psbt_parser.nft_data[self.output_num].capability,
+            output_num=self.output_num + 1,
+            nft_commitment=tx_outputs[self.output_num].token.nft_data.commitment,
+            nft_capability=tx_outputs[self.output_num].token.nft_data.capability,
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         
-        return Destination(PSBTNFTAddressDetailsView, view_args={"output_num": 0})
+        return Destination(PSBTNFTAddressDetailsView, view_args={"output_num": self.output_num, "category_num": self.category_num})
 class PSBTNFTAddressDetailsView(View):
-    def __init__(self, output_num):
+    def __init__(self, output_num, category_num):
         super().__init__()
         self.output_num = output_num
+        self.category_num = category_num
 
     def run(self):
         from seedcash.gui.screens.psbt_screens import PSBTNFTAddressScreen
 
         psbt_parser: PSBTParser = self.controller.psbt_parser
 
+        tx_outputs: List[TxOutput] = psbt_parser.outputs[0].get(psbt_parser.nft_categories[self.category_num], [])
         
         selected_menu_num = self.run_screen(
             PSBTNFTAddressScreen,
-            destination_addr=psbt_parser.destination_addresses[self.output_num],
+            destination_addr=tx_outputs[self.output_num].address,
             index=self.output_num + 1
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        if self.output_num < len(psbt_parser.destination_addresses) - 1:
-            # Show the next receive addr
+        if self.output_num < len(tx_outputs) - 1:
             return Destination(
-                PSBTNFTAddressDetailsView, view_args={"address_num": self.address_num + 1}
+                PSBTNFTDetailsView,
+                view_args={"output_num": self.output_num + 1, "category_num": self.category_num},
             )
-        else:
-            return Destination(BCHPSBTOverviewView)
-
-# discard PSBT warning view
-class PSBTDiscardWarningView(View):
-    DISCARD_PSBT = ButtonOption("Discard PSBT")
-
-    def run(self):
-        selected_menu_num = self.run_screen(
-            WarningScreen,
-            title=_("Discard PSBT"),
-            status_icon_name=SeedCashIconsConstants.WARNING,
-            status_headline=_("Are you sure?"),
-            text=_(
-                "Discarding this PSBT will remove it from memory and cannot be undone."
-            ),
-            button_data=[self.DISCARD_PSBT],
-        )
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-
-        if selected_menu_num == 0:
-            self.controller.discard_psbt()
-            return Destination(MainMenuView, clear_history=True)
+        if self.category_num < len(psbt_parser.nft_categories) - 1:
+            return Destination(
+                PSBTNFTDetailsView,
+                view_args={"output_num": 0, "category_num": self.category_num + 1},
+            )
+        
+        return Destination(PSBTFungibleTokenDetailsView, view_args={"category_num": 0})
 
 class PSBTMathView(View):
     """
@@ -237,10 +242,15 @@ class PSBTAddressDetailsView(View):
     Shows the recipient's address and amount they will receive
     """
 
-    def __init__(self, address_num, is_ft=False):
+    def __init__(self, address_num, destination_addresses=None, category_num=None):
         super().__init__()
         self.address_num = address_num
-        self.is_ft = is_ft
+        if destination_addresses:
+            self.destination_addresses = destination_addresses
+        else:
+            self.destination_addresses = self.controller.psbt_parser.destination_addresses
+
+        self.category_num = category_num
 
     def run(self):
         from seedcash.gui.screens.psbt_screens import PSBTAddressDetailsScreen
@@ -260,12 +270,12 @@ class PSBTAddressDetailsView(View):
         if self.address_num < psbt_parser.num_destinations - 1:
             button_title = _("Next Recipient")
         
-        if self.is_ft:
+        if self.category_num is not None:
             selected_menu_num = self.run_screen(
                 PSBTAddressDetailsScreen,
                 title=title,
                 button_title=button_title,
-                address=psbt_parser.destination_addresses[self.address_num],
+                address=self.destination_addresses[self.address_num],
                 amount=psbt_parser.output_at_index(self.address_num).token.ft_amount,
                 category_id=psbt_parser.output_at_index(self.address_num).token.category_id,
             )
@@ -274,26 +284,29 @@ class PSBTAddressDetailsView(View):
                 PSBTAddressDetailsScreen,
                 title=title,
                 button_title=button_title,
-                address=psbt_parser.destination_addresses[self.address_num],
+                address=self.destination_addresses[self.address_num],
                 amount=psbt_parser.output_at_index(self.address_num).value_satoshis,
             )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        if self.address_num < len(psbt_parser.destination_addresses) - 1:
+        if self.address_num < len(self.destination_addresses) - 1:
             # Show the next receive addr
             return Destination(
-                PSBTAddressDetailsView, view_args={"address_num": self.address_num + 1, "is_ft": self.is_ft}
+                PSBTAddressDetailsView, view_args={"address_num": self.address_num + 1, "destination_addresses": self.destination_addresses, "category_num": self.category_num}
             )
         
         elif psbt_parser.op_return_data:
             return Destination(PSBTOpReturnView)
 
-        else:
-            if self.is_ft:
+        elif self.category_num is not None:
+            if self.category_num < len(psbt_parser.token_categories) - 1:
+                return Destination(PSBTFungibleTokenDetailsView, view_args={"category_num": self.category_num + 1})
+            else:
                 return Destination(BCHPSBTOverviewView)
-            return Destination(PSBTSignedQRDisplayView)
+
+        return Destination(MainMenuView, clear_history=True)
             
 class PSBTOpReturnView(View):
     """
@@ -387,3 +400,97 @@ class PSBTSigningErrorView(View):
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
+
+
+# PSBT Warning Views
+
+# Discard PSBT Warning
+class PSBTDiscardWarningView(View):
+    DISCARD_PSBT = ButtonOption("Discard PSBT")
+
+    def run(self):
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title=_("Discard PSBT"),
+            status_icon_name=SeedCashIconsConstants.WARNING,
+            status_headline=_("Are you sure?"),
+            text=_(
+                "Discarding this PSBT will remove it from memory and cannot be undone."
+            ),
+            button_data=[self.DISCARD_PSBT],
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if selected_menu_num == 0:
+            self.controller.discard_psbt()
+            return Destination(MainMenuView, clear_history=True)
+
+# Minting NFT(s) Detected Warning
+class PSBTMintingNFTWarningView(View):
+    CONFIRM = ButtonOption("Confirm", button_color=GUIConstants.MUSD_BLUE)
+    def __init__(self, category_num=0):
+        super().__init__()
+        self.category_num = category_num
+    def run(self):
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title=_("Minting NFT(s)"),
+            status_icon_name=SeedCashIconsConstants.WARNING,
+            status_headline=_("Are you sure?"),
+            text=_("Signing would allow transfer, burn, or modify any involved NFT(s)"),
+            button_data=[self.CONFIRM],
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if selected_menu_num == 0:
+            return Destination(PSBTNFTView, view_args={"category_num": self.category_num, "confirmed": True})
+
+# Burning NFT(s) Detected Warning
+class PSBTBurningNFTWarningView(View):
+    CONFIRM = ButtonOption("Confirm", button_color=GUIConstants.MUSD_BLUE)
+
+    def __init__(self, category_num=0):
+        super().__init__()
+        self.category_num = category_num
+
+    def run(self):
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title=_("Burning NFT(s)"),
+            status_icon_name=SeedCashIconsConstants.WARNING,
+            status_headline=_("Are you sure?"),
+            text=_("At least one NFT in the following category has been modified or burned."),
+            button_data=[self.CONFIRM],
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if selected_menu_num == 0:
+            return Destination(PSBTNFTView, view_args={"category_num": self.category_num})
+
+class PSBTBurningFTWarningView(View):
+    def __init__(self, category_num=0, btn_color=GUIConstants.MUSD_BLUE):
+        super().__init__()
+        self.category_num = category_num
+        self.button_color = btn_color
+
+    def run(self):
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title=_("Burning Fungible Token(s)"),
+            status_icon_name=SeedCashIconsConstants.WARNING,
+            status_headline=_("Are you sure?"),
+            text=_("At least one fungible token in the following category has been modified or burned."),
+            button_data=[ButtonOption("Confirm", button_color=self.button_color)],
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if selected_menu_num == 0:
+            return Destination(PSBTFungibleTokenDetailsView, view_args={"category_num": self.category_num})

@@ -1,6 +1,6 @@
-from enum import Enum
 import logging
 import struct
+from enum import StrEnum
 from typing import Dict, List, Optional, Tuple, Any, Set
 from dataclasses import dataclass, field
 
@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 class NFTData:
     capability: str
     commitment: str
+
+# Enum for NFT Warnings
+class NFTWarning(StrEnum):
+    MINTING = "minting"
+    BURNING = "burning"
 
 @dataclass
 class TokenData:
@@ -47,11 +52,6 @@ class TxInput:
     def is_token_input(self) -> bool:
         return self.spent_output is not None and self.spent_output.token is not None
 
-class TxType(Enum):
-    STANDARD = "standard"
-    NFT = "nft"
-    FT = "ft"
-
 @dataclass
 class Transaction:
     version: int
@@ -61,6 +61,7 @@ class Transaction:
     input_maps: List[List[Tuple[bytes, bytes]]] = field(default_factory=list)
     output_maps: List[List[Tuple[bytes, bytes]]] = field(default_factory=list)
     raw_unsigned_tx: bytes = field(repr=False, default=b"")
+    categories: Dict[str, List[str]] = field(default_factory=lambda: {"nft": [], "ft": []})  # [nft_categories, ft_categories]
 
     # ---- Total BCH (including token carriers) ----
     @property
@@ -75,23 +76,59 @@ class Transaction:
     def fee(self) -> int:
         return self.total_input - self.total_output
 
-    # ---- Token detection ----
-    @property
-    def tx_type(self) -> TxType:
-        if any(inp.is_token_input for inp in self.inputs) or any(
-            out.is_token_output for out in self.outputs
-        ):
-            if any(out.token and out.token.nft_data for out in self.outputs):
-                return TxType.NFT
-            if any(out.token and out.token.ft_amount is not None for out in self.outputs):
-                return TxType.FT
-        return TxType.STANDARD
 
-    def categories(self) -> Set[str]:
-        cats = {inp.spent_output.token.category_id for inp in self.inputs if inp.is_token_input}
-        cats |= {out.token.category_id for out in self.outputs if out.is_token_output}
-        return cats
+    def arrange_inputs_by_type_and_category(self) -> List[Dict[str, List[TxInput]]]: 
+        st_dict: Dict[str, List[TxInput]] = {}
+        ft_dict: Dict[str, List[TxInput]] = {}
+        nft_dict: Dict[str, List[TxInput]] = {}
 
+        for inp in self.inputs:
+            if inp.is_token_input:
+                if inp.spent_output.token.nft_data is not None:
+                    category = inp.spent_output.token.category_id
+                    if category not in nft_dict:
+                        self.categories["nft"].append(category)
+                        nft_dict[category] = []
+                    nft_dict[category].append(inp)
+                elif inp.spent_output.token.ft_amount is not None:
+                    category = inp.spent_output.token.category_id
+                    if category not in ft_dict:
+                        self.categories["ft"].append(category)
+                        ft_dict[category] = []
+                    ft_dict[category].append(inp)
+            else:
+                if "bch" not in st_dict:
+                    st_dict["bch"] = []
+                st_dict["bch"].append(inp)
+
+        return [nft_dict,ft_dict,st_dict]
+
+    def arrange_outputs_by_type_and_category(self) -> List[Dict[str, List[TxOutput]]]:
+        st_dict: Dict[str, List[TxOutput]] = {}
+        ft_dict: Dict[str, List[TxOutput]] = {}
+        nft_dict: Dict[str, List[TxOutput]] = {}
+
+        for out in self.outputs:
+            if out.is_token_output:
+                if out.token.nft_data is not None:
+                    category = out.token.category_id
+                    if category not in nft_dict:
+                        nft_dict[category] = []
+                    nft_dict[category].append(out)
+                elif out.token.ft_amount is not None:
+                    category = out.token.category_id
+                    if category not in ft_dict:
+                        ft_dict[category] = []
+                    ft_dict[category].append(out)
+            else:
+                if "bch" not in st_dict:
+                    st_dict["bch"] = []
+                st_dict["bch"].append(out)
+
+        return [nft_dict, ft_dict, st_dict]
+    
+    def categories_type(self, type_name: str) -> List[str]:
+        return self.categories.get(type_name, [])
 
 def read_varint(buf: bytes, pos: int) -> Tuple[int, int]:
     """Read a Bitcoin-style varint (CompactSize uint) at ``pos``."""
@@ -342,21 +379,26 @@ class PSBTParser:
         try:
             self.parsed = parse_psbt(self.psbt_bytes)
             self.tx = self._build_transaction()
+            self._outputs = self.tx.arrange_outputs_by_type_and_category()
+            self._inputs = self.tx.arrange_inputs_by_type_and_category()
         except Exception:
             logger.error(f"CRASHING PSBT BYTES HEX: {bytes(self.psbt_bytes).hex()}")
             raise
-        
-    @property
-    def tx_type(self) -> str:
-        if self.tx is None:
-            raise ValueError("Transaction not parsed yet")
-        return self.tx.tx_type.value
-
 
     @property
     def token_categories(self) -> List[str]:
-        return sorted(self.tx.categories()) if self.tx else []
+        return sorted(self.tx.categories_type("ft")) if self.tx else []
 
+    @property
+    def ft_burning(self, category_id: str) -> bool:
+        input_count = len(self.inputs[1].get(category_id, []))
+        output_count = len(self.outputs[1].get(category_id, []))
+        return input_count > 0 and output_count < input_count
+
+    @property
+    def nft_categories(self) -> List[str]:
+        return sorted(self.tx.categories_type("nft")) if self.tx else []
+    
     @property
     def input_amount(self) -> int:
         return self.tx.total_input if self.tx else 0
@@ -370,53 +412,62 @@ class PSBTParser:
         return self.tx.fee if self.tx else 0
 
     @property
-    def inputs(self) -> List[TxInput]:
-        return self.tx.inputs if self.tx else []
+    def inputs(self) -> List[Dict[str, TxInput]]:
+        return self._inputs
 
     @property
     def num_inputs(self) -> int:
         return len(self.tx.inputs) if self.tx else 0
 
     @property
-    def outputs(self) -> List[TxOutput]:
-        return self.tx.outputs if self.tx else []
-
-    @property
-    def ft_output_amount(self) -> Optional[int]:
+    def outputs(self) -> List[Dict[str, TxOutput]]:
+        return self._outputs
+    def ft_output_amount(self, category_id: str) -> Optional[int]:
         total_ft_amount = 0
-        for out in self.tx.outputs:
+        for out in self.outputs[1].get(category_id, []):
             if out.token and out.token.ft_amount is not None:
                 total_ft_amount += out.token.ft_amount
         return total_ft_amount if total_ft_amount > 0 else None
 
     @property
-    def nft_data(self) -> List[NFTData]:
-        all_nfts = []
-        for out in self.tx.outputs:
-            if out.token and out.token.nft_data is not None:
-                all_nfts.append(out.token.nft_data)
-        return all_nfts
-
-    @property
     def destination_addresses(self) -> List[str]:
-        return [out.address for out in self.outputs if out.address]
+        return [out.address for out in self.tx.outputs if out.address]
 
+    
     @property
     def num_destinations(self) -> int:
         return len(self.destination_addresses)
 
     @property
     def op_return_data(self) -> Optional[bytes]:
-        for out in self.outputs:
+        for out in self.tx.outputs:
             if out.script_pubkey.startswith(b"\x6a"):
                 return out.script_pubkey[1:]  # strip OP_RETURN
         return None
-    
+
+    def token_destination_addresses(self, category_id: str) -> List[str]:
+        return [out.address for out in self.outputs[1].get(category_id, []) if out.is_token_output and out.address]
+        
     def output_at_index(self, index: int) -> Optional[TxOutput]:
         if self.tx and 0 <= index < len(self.tx.outputs):
             return self.tx.outputs[index]
         return None
-    
+
+    def get_warning(self, category_id: str) -> Optional[NFTWarning]:
+        for out in self.outputs[0].get(category_id, []):
+            if out.token.nft_data.capability == "minting":
+                return NFTWarning.MINTING.value
+            
+        if len(self.inputs[0].get(category_id, [])) < len(self.outputs[0].get(category_id, [])):
+            return NFTWarning.BURNING.value
+
+        if len(self.inputs[0].get(category_id, [])) == len(self.outputs[0].get(category_id, [])):
+            for i in range(len(self.inputs[0].get(category_id, []))):
+                if ((self.inputs[0].get(category_id, [])[i].spent_output.token.nft_data.capability != self.outputs[0].get(category_id, [])[i].token.nft_data.capability) 
+                    or self.inputs[0].get(category_id, [])[i].spent_output.token.nft_data.commitment != self.outputs[0].get(category_id, [])[i].token.nft_data.commitment):
+                    return NFTWarning.BURNING.value
+        return None
+
     @staticmethod
     def address_from_script(script_pubkey: bytes, is_token_tx: bool = False) -> Optional[str]:
         if script_pubkey.startswith(b"\x76\xa9\x14") and script_pubkey.endswith(b"\x88\xac"):

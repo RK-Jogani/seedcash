@@ -1920,6 +1920,12 @@ categories: List[Category] = [
         icon_color=GUIConstants.MUSD_BLUE,
     ),
 ]
+
+def get_category_color(category_id: str) -> str:
+    for category in categories:
+        if category.category_id == category_id:
+            return category.icon_color
+    return GUIConstants.MUSD_BLUE  # Default color if not found
 @dataclass
 class TokenAmount(BaseComponent):
     category: Category = None

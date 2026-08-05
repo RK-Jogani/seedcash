@@ -1017,28 +1017,18 @@ class PSBTFinalizeScreen(PSBTButtonListScreen):
 
 @dataclass
 class PSBTNFTScreen(PSBTButtonListScreen):
-    nft_index: int = None
     category_id: str = None
 
     def __post_init__(self):
         # Customize defaults
         self.title = _("Review PSBT")
         self.is_bottom_list = True
-        self.button_data = [ButtonOption("Next", )]
+        self.button_data = [ButtonOption("Next", button_color=GUIConstants.MUSD_BLUE)]
         super().__post_init__()
         
         # collection TODO: For now we have unkown we will add collection in future
         y_offset = self.top_nav.height
-        self.components.append(
-            TextArea(
-                text=f"NFT #{self.nft_index}",
-                font_size=GUIConstants.BODY_FONT_SIZE,
-                screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=y_offset,
-            )
-        )
-
-        y_offset += GUIConstants.BODY_FONT_SIZE
+        
         self.components.append(
             TextArea(
                 text="Collection",
@@ -1082,6 +1072,7 @@ class PSBTNFTScreen(PSBTButtonListScreen):
         )
 @dataclass
 class PSBTNFTDetailsScreen(PSBTButtonListScreen):
+    output_num: int = None
     nft_commitment: str = None
     nft_capability: str = None
 
@@ -1094,6 +1085,15 @@ class PSBTNFTDetailsScreen(PSBTButtonListScreen):
 
         # Type
         y_offset = self.top_nav.height + GUIConstants.COMPONENT_PADDING
+        self.components.append(
+            TextArea(
+                text=f"NFT #{self.output_num}",
+                font_size=GUIConstants.BODY_FONT_SIZE,
+                screen_y=y_offset,
+            )
+        )
+
+        y_offset += GUIConstants.BODY_FONT_SIZE
         self.components.append(
             TextArea(
                 text="Type",
