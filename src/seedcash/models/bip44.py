@@ -1,6 +1,5 @@
 import hashlib
 import hmac
-import os
 from base58 import b58decode, b58encode
 from ecdsa import SECP256k1, SigningKey, VerifyingKey
 from ecdsa.util import string_to_number, number_to_string
@@ -324,16 +323,17 @@ class Bip44:
         return address
 
     @staticmethod
-    def hash160_to_cashaddr(hash160: bytes) -> str:
-        """Convert a 20-byte HASH160 to a bitcoincash cashaddr string (P2PKH payload)."""
+    def hash160_to_cashaddr(hash160: bytes, version_byte: int = 0x00) -> str:
+        """Convert a 20-byte HASH160 to a cashaddr string.
+        - version_byte: 0x00 for P2PKH (q...), 0x08 for P2SH (p...).
+        """
         if len(hash160) != 20:
             raise ValueError("hash160 must be 20 bytes")
-        version_byte = 0x00
         payload = bytes([version_byte]) + hash160
         payload_5bit = Bip44.convert_bits(payload, 8, 5)
         checksum = Bip44.create_checksum("bitcoincash", payload_5bit)
-        address = "bitcoincash:" + Bip44.encode_base32(payload_5bit + checksum)
-        return address
+        return "bitcoincash:" + Bip44.encode_base32(payload_5bit + checksum)
+
 
     @staticmethod
     def xpub_to_cashaddr_address(xpub, address_index):

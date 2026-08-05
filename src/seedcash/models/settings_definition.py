@@ -15,26 +15,9 @@ class SettingsConstants:
     OPTION__PROMPT = "prompt"
     OPTIONS__ENABLED_DISABLED = [OPTION__ENABLED, OPTION__DISABLED]
 
-    # Bitcoin Denomination
-    BCH_DENOMINATION__BCH = "bch"
-    BCH_DENOMINATION__SATS = "sats"
-    BCH_DENOMINATION__THRESHOLD = "threshold"
-    BCH_DENOMINATION__BCHSATSHYBRID = "bchsatshybrid"
-
-    # User-facing selection options
-    COORDINATOR__BLUE_WALLET = "bw"
-    COORDINATOR__NUNCHUK = "nun"
-    COORDINATOR__SPARROW = "spa"
-    COORDINATOR__SPECTER_DESKTOP = "spd"
-    COORDINATOR__KEEPER = "kpr"
-    ALL_COORDINATORS = [
-        (COORDINATOR__BLUE_WALLET, "BlueWallet"),
-        (COORDINATOR__NUNCHUK, "Nunchuk"),
-        (COORDINATOR__SPARROW, "Sparrow"),
-        (COORDINATOR__SPECTER_DESKTOP, "Specter Desktop"),
-        (COORDINATOR__KEEPER, "Keeper"),
-    ]
-
+    # Paths Derivation
+    BCH_ACCOUNT_PATH = "m/44'/145'/0'"
+    
     LOCALE__ENGLISH = "en"
     LOCALE__CHINESE = "zh_Hans_CN"
     LOCALE__SPANISH = "es"
@@ -42,7 +25,6 @@ class SettingsConstants:
     ALL_LOCALES = {
         LOCALE__ENGLISH: "English",
         LOCALE__CHINESE: "简体中文 (Chinese Simplified)",
-        LOCALE__SPANISH: "Español (Spanish)",
         LOCALE__SPANISH: "Español (Spanish)",
     }
 
@@ -149,9 +131,7 @@ class SettingsConstants:
     PERSISTENT_SETTINGS__SD_REMOVED__HELP_TEXT = "Insert SD card to enable"
 
     WORDLIST_LANGUAGE__ENGLISH = "en"
-    WORDLIST_LANGUAGE__CHINESE = "zh_Hant_TW"
-    WORDLIST_LANGUAGE__SPANISH = "es"
-
+    
     ALL_WORDLIST_LANGUAGES = [
         (WORDLIST_LANGUAGE__ENGLISH, "English"),
     ]
@@ -197,10 +177,7 @@ class SettingsConstants:
 
     # Structural constants
     # TODO: Not using these for display purposes yet (ever?)
-    CATEGORY__SYSTEM = "system"
-    CATEGORY__DISPLAY = "display"
-    CATEGORY__WALLET = "wallet"
-    CATEGORY__FEATURES = "features"
+    
 
     VISIBILITY__GENERAL = "general"
     VISIBILITY__ADVANCED = "advanced"
@@ -223,18 +200,6 @@ class SettingsConstants:
         TYPE__ENABLED_DISABLED_PROMPT,
         TYPE__ENABLED_DISABLED_PROMPT_REQUIRED,
     ]
-
-    # Electrum seed constants
-    ELECTRUM_SEED_STANDARD = "01"
-    ELECTRUM_SEED_SEGWIT = "100"
-    ELECTRUM_SEED_2FA = "101"
-    ELECTRUM_PBKDF2_ROUNDS = 2048
-
-    # Label strings
-    LABEL__BIP39_PASSPHRASE = "BIP-39 Passphrase"
-    # TRANSLATOR_NOTE: Terminology used by Electrum seeds; equivalent to bip39 passphrase
-    custom_extension = "Custom Extension"
-    LABEL__CUSTOM_EXTENSION = custom_extension
 
 
 @dataclass

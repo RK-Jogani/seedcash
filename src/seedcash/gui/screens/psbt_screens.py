@@ -1,4 +1,3 @@
-from asyncio import base_events
 import math
 import time
 
@@ -9,12 +8,16 @@ from PIL import Image, ImageDraw, ImageFilter
 
 from seedcash.gui.components import (
     BchAmount,
+    Category,
+    categories,
+    TokenAmount,
     Icon,
     FormattedAddress,
     GUIConstants,
     Fonts,
     SeedCashIconsConstants,
     TextArea,
+    RoundedTextArea,
     calc_bezier_curve,
     linear_interp,
 )
@@ -154,17 +157,31 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
     spend_amount: int = 0
     fee_amount: int = 0
     num_inputs: int = 0
-    num_self_transfer_outputs: int = 0
     destination_addresses: list[str] = None
     has_op_return: bool = False
+    category_id: str = None
 
     def __post_init__(self):
 
         # Customize defaults
         self.title = _("Review PSBT")
         self.is_bottom_list = True
-        self.button_data = [ButtonOption("Next")]
         self.is_button_text_centered = True
+
+        for category in categories:
+            if category.category_id == self.category_id:
+                self.category: Category = category
+                break        
+        else:
+            self.category: Category = Category(
+                category_id=self.category_id,
+                token_symbol="Unknown",
+                decimal=0,
+                icon_name=SeedCashIconsConstants.CASHTOKEN,
+                icon_color=GUIConstants.ACCENT_COLOR,
+            )
+
+        self.button_data = [ButtonOption("Next", button_color=self.category.icon_color)]
 
         super().__post_init__()
 
@@ -175,12 +192,23 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         # icon_text_lines_y = self.components[-1].screen_y + self.components[-1].height
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
-        self.components.append(
-            BchAmount(
-                total_sats=self.spend_amount,
-                screen_y=icon_text_lines_y,
+
+        
+        if self.category_id:
+            self.components.append(
+                TokenAmount(
+                    amount=self.spend_amount,
+                    category=self.category,
+                    screen_y=icon_text_lines_y,
+                )
             )
-        )
+        else:
+            self.components.append(
+                BchAmount(
+                    total_sats=self.spend_amount,
+                    screen_y=icon_text_lines_y,
+                )
+            )
 
         # Prep the transaction flow chart
         self.chart_x = 0
@@ -285,14 +313,9 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
             destination_column = []
 
-            if len(self.destination_addresses) + self.num_self_transfer_outputs <= 3:
+            if len(self.destination_addresses) <= 3:
                 for addr in self.destination_addresses:
                     destination_column.append(truncate_destination_addr(addr))
-
-                for i in range(0, self.num_self_transfer_outputs):
-                    destination_column.append(
-                        truncate_destination_addr(_("self-transfer"))
-                    )
             else:
                 # destination_column.append(f"{len(self.destination_addresses)} recipients")
                 destination_column.append(_("recipient 1"))
@@ -300,12 +323,10 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
                 destination_column.append(_("[ ... ]"))
                 # TRANSLATOR_NOTE: Inserts the recipient number (e.g. the fifth one is: "recipient 5")
                 destination_column.append(
-                    _("recipient {}").format(
-                        len(self.destination_addresses) + self.num_self_transfer_outputs
-                    )
+                    _("recipient {}").format(len(self.destination_addresses))
                 )
-
-            destination_column.append(_("fee"))
+            if self.fee_amount > 0:
+                destination_column.append(_(f"fee"))
 
             if self.has_op_return:
                 # TRANSLATOR_NOTE: Technical term, should probably NOT be translated in most languages
@@ -319,7 +340,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
             return (max_destination_text_width, destination_column)
 
-        if len(self.destination_addresses) + self.num_self_transfer_outputs > 3:
+        if len(self.destination_addresses) > 3:
             # We're not going to display any destination addrs so truncation doesn't matter
             destination_text_width, destination_column = (
                 calculate_destination_col_width()
@@ -540,6 +561,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         # Pass input and output curves to the animation thread
         self.threads.append(
             PSBTOverviewScreen.TxExplorerAnimationThread(
+                pulse_color=self.category.icon_color,
                 inputs=input_curves,
                 outputs=output_curves,
                 supersampling_factor=ssf,
@@ -550,10 +572,10 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
     class TxExplorerAnimationThread(BaseThread):
         def __init__(
-            self, inputs, outputs, supersampling_factor, offset_y, renderer: Renderer
+            self, pulse_color, inputs, outputs, supersampling_factor, offset_y, renderer: Renderer
         ):
             super().__init__()
-
+            self.pulse_color = pulse_color
             # Translate the point coords into renderer space
             ssf = supersampling_factor
             self.inputs = [
@@ -567,7 +589,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
             self.renderer = renderer
 
         def run(self):
-            pulse_color = GUIConstants.ACCENT_COLOR
+            pulse_color = self.pulse_color
             reset_color = "#666"
             line_width = 3
 
@@ -796,17 +818,16 @@ class PSBTMathScreen(PSBTButtonListScreen):
                 info_text=ngettext("output", "outputs", self.num_outputs),
             )
 
-        cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
+        cur_y += digits_height + GUIConstants.BODY_LINE_SPACING
+        draw.line((0, cur_y, image.width, cur_y), fill=GUIConstants.BODY_FONT_COLOR, width=1)
+
+        cur_y += ssf
         render_amount(
             cur_y,
-            f"-{self.fee_amount}",
+            f" {self.fee_amount}",
             info_text=_("fee"),
-        )
+            )
 
-        cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
-        draw.line(
-            (0, cur_y, image.width, cur_y), fill=GUIConstants.BODY_FONT_COLOR, width=1
-        )
 
         # Resize to target and sharpen final image
         image = image.resize((body_width, body_height), Image.Resampling.LANCZOS)
@@ -820,16 +841,29 @@ class PSBTMathScreen(PSBTButtonListScreen):
             )
         )
 
-
 @dataclass
 class PSBTAddressDetailsScreen(PSBTButtonListScreen):
     address: str = None
     amount: int = 0
+    button_title: str = _("Next")
+    category_id: str = None
 
     def __post_init__(self):
         # Customize defaults
         self.is_bottom_list = True
-
+        for category in categories:
+            if category.category_id == self.category_id:
+                self.category: Category = category
+                break
+        else:
+            self.category: Category = Category(
+                category_id=self.category_id,
+                token_symbol="Unknown",
+                decimal=0,
+                icon_name=SeedCashIconsConstants.CASHTOKEN,
+                icon_color=GUIConstants.ACCENT_COLOR,
+            )
+        self.button_data = [ButtonOption(self.button_title, button_color=self.category.icon_color)]
         super().__post_init__()
 
         center_img_height = self.buttons[0].screen_y - self.top_nav.height
@@ -841,25 +875,35 @@ class PSBTAddressDetailsScreen(PSBTButtonListScreen):
         )
         draw = ImageDraw.Draw(center_img)
 
-        bch_amount = BchAmount(
-            image_draw=draw,
-            canvas=center_img,
-            total_sats=self.amount,
-            screen_y=int(GUIConstants.COMPONENT_PADDING / 2),
-        )
+        if self.category_id:
+            _amount = TokenAmount(
+                image_draw=draw,
+                canvas=center_img,
+                amount=self.amount,
+                category=self.category,
+                screen_y=int(GUIConstants.COMPONENT_PADDING / 2)
+            )
+        else:
+            _amount = BchAmount(
+                image_draw=draw,
+                canvas=center_img,
+                total_sats=self.amount,
+                screen_y=int(GUIConstants.COMPONENT_PADDING / 2),
+            )
 
         formatted_address = FormattedAddress(
             image_draw=draw,
             canvas=center_img,
             width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
             screen_x=GUIConstants.EDGE_PADDING,
-            screen_y=bch_amount.height + GUIConstants.COMPONENT_PADDING,
+            screen_y=_amount.height + GUIConstants.COMPONENT_PADDING,
             font_size=24,
+            font_accent_color=self.category.icon_color,
             address=self.address,
         )
 
         # Render each to the temp img we passed in
-        bch_amount.render()
+        _amount.render()
         formatted_address.render()
 
         self.body_img = center_img.crop(
@@ -970,3 +1014,173 @@ class PSBTFinalizeScreen(PSBTButtonListScreen):
                 + 2 * GUIConstants.COMPONENT_PADDING,
             )
         )
+
+@dataclass
+class PSBTNFTScreen(PSBTButtonListScreen):
+    category_id: str = None
+
+    def __post_init__(self):
+        # Customize defaults
+        self.title = _("Review PSBT")
+        self.is_bottom_list = True
+        self.button_data = [ButtonOption("Next", button_color=GUIConstants.MUSD_BLUE)]
+        super().__post_init__()
+        
+        # collection TODO: For now we have unkown we will add collection in future
+        y_offset = self.top_nav.height
+        
+        self.components.append(
+            TextArea(
+                text="Collection",
+                font_size=GUIConstants.BODY_FONT_SIZE - 4,
+                is_text_centered=False,
+                screen_y=y_offset,
+            )
+        )
+        y_offset += GUIConstants.BODY_FONT_SIZE
+        self.components.append(
+            RoundedTextArea(
+                text="Unknown",
+                font_size=GUIConstants.BODY_FONT_SIZE,
+                is_text_centered=False,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=y_offset,
+            )
+        )
+
+        # category
+        y_offset += GUIConstants.BODY_FONT_SIZE + 2 * GUIConstants.COMPONENT_PADDING
+        self.components.append(
+            TextArea(
+                text="Category ID",
+                font_size=GUIConstants.BODY_FONT_SIZE - 4,
+                is_text_centered=False,
+                screen_y=y_offset,
+            )
+        )
+
+        y_offset += GUIConstants.BODY_FONT_SIZE
+        self.components.append(
+            RoundedTextArea(
+                text=self.category_id,
+                font_size=GUIConstants.BODY_FONT_SIZE,
+                is_text_centered=False,
+                treat_chars_as_words=True,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=y_offset,
+            )
+        )
+@dataclass
+class PSBTNFTDetailsScreen(PSBTButtonListScreen):
+    output_num: int = None
+    nft_commitment: str = None
+    nft_capability: str = None
+
+    def __post_init__(self):
+        # Customize defaults
+        self.title = _("Review PSBT")
+        self.is_bottom_list = True
+        self.button_data = [ButtonOption("Next", button_color=GUIConstants.MUSD_BLUE)]
+        super().__post_init__()
+
+        # Type
+        y_offset = self.top_nav.height + GUIConstants.COMPONENT_PADDING
+        self.components.append(
+            TextArea(
+                text=f"NFT #{self.output_num}",
+                font_size=GUIConstants.BODY_FONT_SIZE,
+                screen_y=y_offset,
+            )
+        )
+
+        y_offset += GUIConstants.BODY_FONT_SIZE
+        self.components.append(
+            TextArea(
+                text="Type",
+                font_size=GUIConstants.BODY_FONT_SIZE - 4,
+                is_text_centered=False,
+                screen_y=y_offset,
+            )
+        )
+
+        y_offset += GUIConstants.BODY_FONT_SIZE
+        self.components.append(
+            RoundedTextArea(
+                text=self.nft_capability,
+                font_size=GUIConstants.BODY_FONT_SIZE,
+                is_text_centered=False,
+                treat_chars_as_words=True,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=y_offset,
+            )
+        )
+
+        # Commitment
+        y_offset += GUIConstants.BODY_FONT_SIZE + 2 * GUIConstants.COMPONENT_PADDING
+        self.components.append(
+            TextArea(
+                    text="Commitment",
+                    font_size=GUIConstants.BODY_FONT_SIZE - 4,
+                    is_text_centered=False,
+                    screen_y=y_offset,
+                )
+            )
+        y_offset += GUIConstants.BODY_FONT_SIZE
+        self.components.append(
+            RoundedTextArea(
+                text=self.nft_commitment,
+                font_size=GUIConstants.BODY_FONT_SIZE,
+                is_text_centered=False,
+                treat_chars_as_words=True,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=y_offset,
+            )
+        )
+
+@dataclass
+class PSBTNFTAddressScreen(PSBTButtonListScreen):
+    destination_addr: str = None
+    index: int = None
+
+    def __post_init__(self):
+        self.title = _("Will Send")
+        self.is_bottom_list = True
+        self.button_data = [ButtonOption("Next", button_color=GUIConstants.MUSD_BLUE)]
+        super().__post_init__()
+
+        center_img_height = self.buttons[0].screen_y - self.top_nav.height
+        center_img = Image.new("RGB", (self.canvas_width, center_img_height), GUIConstants.BACKGROUND_COLOR)
+        draw = ImageDraw.Draw(center_img)
+
+        # ---- Center the "NFT#" label ----
+        self.text_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, 24)
+        draw.text(
+            (self.canvas_width // 2, 2*GUIConstants.COMPONENT_PADDING),  # <-- center x
+            text=f"NFT#{self.index}",
+            font=self.text_font,
+            fill=GUIConstants.BODY_FONT_COLOR,
+            anchor="ms",   # middle baseline (center horizontally, baseline vertical)
+        )
+
+        # Address (left‑aligned)
+        formatted_address = FormattedAddress(
+            image_draw=draw,
+            canvas=center_img,
+            width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
+            screen_x=GUIConstants.EDGE_PADDING,
+            screen_y=GUIConstants.COMPONENT_PADDING + 30,
+            font_size=24,
+            font_accent_color=GUIConstants.MUSD_BLUE,
+            address=self.destination_addr,
+        )
+        formatted_address.render()
+
+        # Crop and position as before...
+        center_img = center_img.crop(
+            (0, 0, self.canvas_width, formatted_address.screen_y + formatted_address.height)
+        )
+        body_img_y = self.top_nav.height + int(
+            (center_img_height - center_img.height - GUIConstants.COMPONENT_PADDING) / 2
+        )
+        self.paste_images.append((center_img, (0, body_img_y))) 
+

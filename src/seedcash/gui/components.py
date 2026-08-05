@@ -11,10 +11,10 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from typing import List, Tuple
 
 from seedcash.gui.renderer import Renderer
-from seedcash.models.settings_definition import SettingsConstants
 
 from seedcash.models.singleton import Singleton
 from seedcash.models.threads import BaseThread
+
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,8 @@ class GUIConstants:
     SUCCESS_COLOR = "#30D158"
     INFO_COLOR = "#409CFF"
     BITCOIN_GREEN = "#00F100"
+    PUSD_PURPLE = "#8048EA"
+    MUSD_BLUE = "#447DF7"
     TESTNET_COLOR = "#00F100"
     REGTEST_COLOR = "#00CAF1"
     GREEN_INDICATOR_COLOR = ACCENT_COLOR
@@ -166,9 +168,14 @@ class SeedCashIconsConstants:
     VIEW_TX = "\ue925"
     SCAN_TX = "\ue926"
 
+    # Cashtokens
+    PUSD = "\ue927"
+    MUSD = "\ue928"
+    CASHTOKEN = "\ue929"
+
     # Must be updated whenever new icons are added. See usage in `Icon` class below.
     MIN_VALUE = LOAD_SEED
-    MAX_VALUE = SCAN_TX
+    MAX_VALUE = CASHTOKEN
 
 
 def load_image(image_name: str, directory: str) -> Image.Image:
@@ -711,7 +718,126 @@ class TextArea(BaseComponent):
         if self.horizontal_text_scroll_thread:
             self.horizontal_text_scroll_thread.scroll_y = scroll_y
 
+@dataclass
+class RoundedTextArea(BaseComponent):
+    """
+    Rounded "chip" background drawn directly on the canvas at render time —
+    same technique Button already uses — so there's no need to align the
+    rounding with TextArea's internal resample-padding crop.
+    Supports multiline text and character‑by‑character wrapping (treat_chars_as_words).
+    """
+    text: str = ""
+    width: int = None
+    height: int = None
+    screen_x: int = 0
+    screen_y: int = 0
+    scroll_y: int = 0
+    corner_radius: int = 8
+    border_width: int = 0
+    border_color: str = None
+    fill_color: str = GUIConstants.INACTIVE_COLOR
+    font_name: str = GUIConstants.BODY_FONT_NAME
+    font_size: int = GUIConstants.BODY_FONT_SIZE
+    font_color: str = GUIConstants.BODY_FONT_COLOR
+    edge_padding: int = GUIConstants.EDGE_PADDING
+    is_text_centered: bool = False
+    treat_chars_as_words: bool = False
+    allow_text_overflow: bool = False
 
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Default width: from screen_x to right edge minus padding
+        if self.width is None:
+            self.width = self.canvas_width - self.screen_x - GUIConstants.EDGE_PADDING
+        
+
+        # Break text into lines using the same reflow function as TextArea
+        # Use 2 * edge_padding for left/right margins
+        self.text_lines = reflow_text_for_width(
+            text=self.text,
+            width=self.width - 2 * self.edge_padding,
+            font_name=self.font_name,
+            font_size=self.font_size,
+            allow_text_overflow=self.allow_text_overflow,
+            treat_chars_as_words=self.treat_chars_as_words,
+        )
+
+        # Font metrics
+        font = Fonts.get_font(self.font_name, self.font_size)
+        left, top, _, bottom = font.getbbox("Agjpqy", anchor="ls")
+        self.text_height_above_baseline = -top
+        self.text_height_below_baseline = bottom
+        self.line_spacing = GUIConstants.BODY_LINE_SPACING
+
+        # Total text height
+        if not self.text_lines:
+            total_text_height = 0
+        elif len(self.text_lines) == 1:
+            total_text_height = (
+                self.text_height_above_baseline + self.text_height_below_baseline
+            )
+        else:
+            total_text_height = (
+                self.text_height_above_baseline * len(self.text_lines)
+                + self.line_spacing * (len(self.text_lines) - 1)
+                + self.text_height_below_baseline  # last line
+            )
+
+        # Auto‑height if not provided (add vertical padding)
+        if self.height is None:
+            self.height = total_text_height + self.edge_padding//2
+        # else keep user-provided height (text may overflow)
+
+        # Vertical offset to center text within the component's height
+        self.text_offset_y = (self.height - total_text_height) // 2
+        if self.text_offset_y < 0:
+            self.text_offset_y = 0
+
+        # Store y‑position of each line (baseline) relative to component's top
+        self.line_positions = []
+        cur_y = self.text_offset_y + self.text_height_above_baseline
+        for _ in self.text_lines:
+            self.line_positions.append(cur_y)
+            cur_y += self.text_height_above_baseline + self.line_spacing
+
+    def render(self):
+        # Draw rounded background – fill the whole component area
+        self.image_draw.rounded_rectangle(
+            (
+                self.screen_x,
+                self.screen_y - self.edge_padding//4,
+                self.width + self.edge_padding,
+                self.screen_y + self.height,
+            ),
+            radius=self.corner_radius,
+            outline=self.border_color,
+            width=self.border_width,
+            fill=self.fill_color,
+        )
+
+        # Draw each text line
+        font = Fonts.get_font(self.font_name, self.font_size)
+        for i, line_dict in enumerate(self.text_lines):
+            line_text = line_dict["text"]
+            if not line_text:
+                continue
+            line_width = line_dict["text_width"]
+
+            if self.is_text_centered:
+                x = self.screen_x + (self.width - line_width) // 2
+            else:
+                x = self.screen_x + self.edge_padding
+
+            y = self.screen_y + self.line_positions[i] - self.scroll_y
+
+            self.image_draw.text(
+                (x, y),
+                line_text,
+                font=font,
+                fill=self.font_color,
+                anchor="ls",
+            )
 @dataclass
 class ScrollableTextLine(TextArea):
     """
@@ -1617,15 +1743,15 @@ class TopNav(BaseComponent):
 @dataclass
 class BchAmount(BaseComponent):
     """
-    Display bch value based on the SETTING__BCH_DENOMINATION Setting:
-    * bch: "B" icon + 8-decimal amount + "bch" (can truncate zero decimals to .0 or .09)
-    * sats: "B" icon + comma-separated amount + "sats"
-    * threshold: bch display at or above 0.01 bch; otherwise sats
-    * bchsatshybrd: "B" icon + 2-decimal amount + "|" + up to 6-digit, comma-separated sats + "sats"
+    Display a Bitcoin amount in either BCH or sats, depending on the value. The
+    amount is centered horizontally in the canvas and vertically in the component's
+    height. The component's height is determined by the font size and icon size, and
+    the component's width is determined by the canvas width. The component's height
+    is automatically calculated based on the font size and icon size, and the component's width is automatically calculated based on the canvas width. The component's
+    height is automatically calculated based on the font size and icon size, and the component's width is automatically calculated based on the canvas width. The component's height is automatically calculated based on the font size and icon size, and the
     """
 
     total_sats: int = None
-    denomination: str = "sats"
     icon_size: int = 34
     font_size: int = 24
     screen_x: int = 0
@@ -1639,8 +1765,7 @@ class BchAmount(BaseComponent):
         # TRANSLATOR_NOTE: Testnet bitcoin
         bch_unit = _("tBch")
         sats_unit = _("sats")
-        bch_color = GUIConstants.BITCOIN_GREEN
-        denomination = self.denomination
+    
 
         digit_font = Fonts.get_font(
             font_name=GUIConstants.BODY_FONT_NAME, size=self.font_size
@@ -1671,19 +1796,7 @@ class BchAmount(BaseComponent):
         bch_icon.render()
         cur_x = bch_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
 
-        if (
-            denomination == SettingsConstants.BCH_DENOMINATION__BCH
-            or (
-                denomination == SettingsConstants.BCH_DENOMINATION__THRESHOLD
-                and self.total_sats >= 1e6
-            )
-            or (
-                denomination == SettingsConstants.BCH_DENOMINATION__BCHSATSHYBRID
-                and self.total_sats >= 1e6
-                and str(self.total_sats)[-6:] == "0" * 6
-            )
-            or self.total_sats > 1e10
-        ):
+        if self.total_sats > 1e10:
             decimal_bch = Decimal(self.total_sats / 1e8).quantize(Decimal("0.12345678"))
             if str(self.total_sats)[-8:] == "0" * 8:
                 # Only whole bch units being displayed; truncate to a single decimal place
@@ -1723,17 +1836,7 @@ class BchAmount(BaseComponent):
 
             unit_text = bch_unit
 
-        elif (
-            denomination == SettingsConstants.BCH_DENOMINATION__SATS
-            or (
-                denomination == SettingsConstants.BCH_DENOMINATION__THRESHOLD
-                and self.total_sats < 1e6
-            )
-            or (
-                denomination == SettingsConstants.BCH_DENOMINATION__BCHSATSHYBRID
-                and self.total_sats < 1e6
-            )
-        ):
+        else:
             # Draw the sats side
             sats_text = f"{self.total_sats:,}"
 
@@ -1756,71 +1859,6 @@ class BchAmount(BaseComponent):
 
             unit_text = sats_unit
 
-        elif denomination == SettingsConstants.BCH_DENOMINATION__BCHSATSHYBRID:
-            decimal_bch = Decimal(self.total_sats / 1e8).quantize(Decimal("0.12345678"))
-            decimal_bch = Decimal(str(decimal_bch)[:-6])
-            bch_text = f"{decimal_bch:,}"
-            sats_text = f"{self.total_sats:,}"[-7:]
-            while sats_text[0] == "0":
-                sats_text = sats_text[1:]
-
-            bch_icon = Icon(
-                image_draw=draw,
-                canvas=self.paste_image,
-                icon_name=SeedCashIconsConstants.BITCOIN_ALT,
-                icon_color=bch_color,
-                icon_size=self.icon_size,
-                screen_x=0,
-                screen_y=0,
-            )
-            bch_icon.render()
-            cur_x = bch_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
-
-            left, top, text_width, bottom = smaller_digit_font.getbbox(
-                bch_text, anchor="ls"
-            )
-            text_height = -1 * top + bottom
-            text_y = self.paste_image.height - int(
-                (self.paste_image.height - text_height) / 2
-            )
-
-            draw.text(
-                xy=(cur_x, text_y),
-                font=smaller_digit_font,
-                text=bch_text,
-                fill=GUIConstants.BODY_FONT_COLOR,
-                anchor="ls",
-            )
-            cur_x += text_width - int(GUIConstants.COMPONENT_PADDING / 2)
-
-            # Draw the pipe separator
-            pipe_font = Fonts.get_font(
-                font_name=GUIConstants.BODY_FONT_NAME, size=self.icon_size - 4
-            )
-            left, top, text_width, bottom = pipe_font.getbbox("|", anchor="ls")
-            draw.text(
-                xy=(cur_x, text_y),
-                font=pipe_font,
-                text="|",
-                fill=bch_color,
-                anchor="ls",
-            )
-            cur_x += text_width - int(GUIConstants.COMPONENT_PADDING / 2)
-
-            # Draw the sats side
-            left, top, text_width, bottom = smaller_digit_font.getbbox(
-                sats_text, anchor="ls"
-            )
-            draw.text(
-                xy=(cur_x, text_y),
-                font=smaller_digit_font,
-                text=sats_text,
-                fill=GUIConstants.BODY_FONT_COLOR,
-                anchor="ls",
-            )
-            cur_x += text_width
-
-            unit_text = sats_unit
 
         # Draw the unit
         unit_font = Fonts.get_font(
@@ -1856,6 +1894,136 @@ class BchAmount(BaseComponent):
 
     def render(self):
         self.canvas.paste(self.paste_image, self.paste_coords)
+
+@dataclass
+class Category:
+    category_id: str
+    token_symbol: str
+    decimal: int
+    icon_name: str
+    icon_color: str
+
+# Define the list of categories
+categories: List[Category] = [
+    Category(
+        category_id="2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544",
+        token_symbol="PUSD",
+        decimal=2,
+        icon_name=SeedCashIconsConstants.PUSD,
+        icon_color=GUIConstants.PUSD_PURPLE,
+    ),
+    Category(
+        category_id="b38a33f750f84c5c169a6f23cb873e6e79605021585d4f3408789689ed87f366",
+        token_symbol="MUSD",
+        decimal=2,
+        icon_name=SeedCashIconsConstants.MUSD,
+        icon_color=GUIConstants.MUSD_BLUE,
+    ),
+]
+
+def get_category_color(category_id: str) -> str:
+    for category in categories:
+        if category.category_id == category_id:
+            return category.icon_color
+    return GUIConstants.MUSD_BLUE  # Default color if not found
+@dataclass
+class TokenAmount(BaseComponent):
+    category: Category = None
+    amount: int = 0
+    icon_size: int = 34
+    font_size: int = 24
+    screen_x: int = 0
+    screen_y: int = None
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        digit_font = Fonts.get_font(
+            font_name=GUIConstants.BODY_FONT_NAME, size=self.font_size
+        )
+        smaller_digit_font = Fonts.get_font(
+            font_name=GUIConstants.BODY_FONT_NAME, size=self.font_size - 2
+        )
+        unit_font_size = GUIConstants.BODY_FONT_SIZE + 2
+
+        # Render to a temp surface
+        self.paste_image = Image.new(
+            mode="RGB",
+            size=(self.canvas_width, self.icon_size),
+            color=GUIConstants.BACKGROUND_COLOR,
+        )
+        draw = ImageDraw.Draw(self.paste_image)
+
+        # Render the circular Bitcoin icon
+        token_icon = Icon(
+            image_draw=draw,
+            canvas=self.paste_image,
+            icon_name=self.category.icon_name,
+            icon_color=self.category.icon_color,
+            icon_size=self.icon_size,
+            screen_x=0,
+            screen_y=0,
+        )
+        token_icon.render()
+        cur_x = token_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
+        
+        self.amount = self.amount / (10 ** self.category.decimal)
+        amount_text = f"{self.amount}"
+
+        font = digit_font
+        if self.amount > 1e9:
+            font = smaller_digit_font
+        left, top, text_width, bottom = font.getbbox(amount_text, anchor="ls")
+        text_height = -1 * top + bottom
+        text_y = self.paste_image.height - int(
+            (self.paste_image.height - text_height) / 2
+        )
+        draw.text(
+            xy=(cur_x, text_y),
+            font=font,
+            text=amount_text,
+            fill=GUIConstants.BODY_FONT_COLOR,
+            anchor="ls",
+        )
+        cur_x += text_width
+
+        unit_text = self.category.token_symbol
+
+        # Draw the unit
+        unit_font = Fonts.get_font(
+            font_name=GUIConstants.BODY_FONT_NAME, size=unit_font_size
+        )
+        left, top, unit_text_width, bottom = unit_font.getbbox(unit_text, anchor="ls")
+        unit_font_height = -1 * top
+
+        unit_textarea = TextArea(
+            image_draw=draw,
+            canvas=self.paste_image,
+            text=f" {unit_text}",
+            font_name=GUIConstants.BODY_FONT_NAME,
+            font_size=unit_font_size,
+            font_color=GUIConstants.BODY_FONT_COLOR,
+            supersampling_factor=2,
+            is_text_centered=False,
+            edge_padding=0,
+            screen_x=cur_x,
+            screen_y=text_y - unit_font_height,
+        )
+        unit_textarea.render()
+
+        final_x = cur_x + GUIConstants.COMPONENT_PADDING + unit_text_width
+
+        self.paste_image = self.paste_image.crop(
+            (0, 0, final_x, self.paste_image.height)
+        )
+        self.paste_coords = (int((self.canvas_width - final_x) / 2), self.screen_y)
+
+        self.width = self.canvas_width
+        self.height = self.paste_image.height
+
+    def render(self):
+        self.canvas.paste(self.paste_image, self.paste_coords)
+
 
 
 def linear_interp(a, b, t):

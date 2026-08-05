@@ -21,7 +21,7 @@ from seedcash.gui.screens.screen import (
 from seedcash.hardware.buttons import HardwareButtonsConstants
 from dataclasses import dataclass
 from gettext import gettext as _
-from PIL import Image, ImageDraw
+from PIL import ImageDraw
 from seedcash.models import visual_hash as vh
 from seedcash.models.scheme import Scheme
 
