@@ -67,6 +67,7 @@ class BackgroundImportThread(BaseThread):
         time_import("seedcash.models.wallet")
         time_import("seedcash.models.seed")
         time_import("seedcash.models.storage")
+        time_import("seedcash.models.psbt_parser")
         from seedcash.models.storage import SeedStorage
 
         Controller.get_instance()._storage = SeedStorage()
@@ -77,6 +78,7 @@ class BackgroundImportThread(BaseThread):
         time_import("seedcash.views.generate_seed_views")
         time_import("seedcash.views.load_slip_views")
         time_import("seedcash.views.generate_slip_views")
+        time_import("seedcash.views.psbt_views")
 
 
 class Controller(Singleton):
