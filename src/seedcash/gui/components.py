@@ -115,8 +115,9 @@ class FontAwesomeIconConstants:
 
 class SeedCashIconsConstants:
 
-    LOAD_SEED = "\ue901"
-    GENERATE_SEED = "\ue902"
+    LOAD_SEED = "\ue900"
+    GENERATE_SEED = "\ue901"
+    STORE_SEED = "\ue902"
 
     # Menu icons
     SETTINGS = "\ue903"
@@ -469,11 +470,9 @@ class TextArea(BaseComponent):
             image_width = self.width - self.edge_padding
 
         if self.supersampling_factor > 1:
-            start = time.time()
             supersampled_font = Fonts.get_font(
                 self.font_name, int(self.supersampling_factor * self.font_size)
             )
-            print(f"Supersampled font load time: {time.time() - start:.04}")
         else:
             supersampled_font = font
 
@@ -1309,7 +1308,6 @@ class Button(BaseComponent):
             left, top, self.text_width, bottom = self.font.getbbox(
                 self.text, anchor="ls"
             )
-            # print(f"left: {left} |  top: {top} | right: {self.text_width} | bottom: {bottom}")
 
             # Note: "top" is negative when measured from a "baseline" anchor. Intentionally
             # ignore any chars below the baseline for consistent vertical positioning

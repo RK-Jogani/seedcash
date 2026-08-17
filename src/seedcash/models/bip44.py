@@ -359,3 +359,12 @@ class Bip44:
         )  # m/44'/145'/0'/0/0
         address = Bip44.public_key_to_cashaddr_address(child_public_address_index)
         return address
+
+    @staticmethod
+    def private_to_public(private_key_bytes: bytes) -> bytes:
+        """Convert a private key (32 bytes) to compressed public key (33 bytes)."""
+        sk = SigningKey.from_string(private_key_bytes, curve=SECP256k1)
+        vk = sk.verifying_key
+        return vk.to_string("compressed")
+
+

@@ -884,23 +884,17 @@ class LargeButtonScreen(BaseScreen):
 
         # Calculate available height for main buttons (excluding bottom power button)
         num_main_buttons = len(self.button_data)
-        total_padding = (num_main_buttons - 1) * GUIConstants.COMPONENT_PADDING
-        max_button_height = (
-            self.canvas_height
-            - total_padding
-            - 2 * GUIConstants.EDGE_PADDING
-            - GUIConstants.TOP_NAV_BUTTON_SIZE
-        ) // num_main_buttons
-        button_size = min(
-            self.canvas_width - 2 * GUIConstants.EDGE_PADDING, max_button_height
-        )
+        
+        total_padding = GUIConstants.COMPONENT_PADDING
+        # Maximize 2-across width
+        button_width = int((self.canvas_width - GUIConstants.TOP_NAV_HEIGHT - 2 * GUIConstants.COMPONENT_PADDING) / 2)
+
+        # Maximize 2-row height
+        button_height = int((self.canvas_height - GUIConstants.TOP_NAV_HEIGHT - 3 * GUIConstants.COMPONENT_PADDING) / 2)
 
         # Center the column of buttons
-        total_buttons_height = num_main_buttons * button_size + total_padding
-        button_start_y = (
-            self.canvas_height - GUIConstants.EDGE_PADDING - total_buttons_height
-        ) // 2
-        button_start_x = (self.canvas_width - button_size) // 2
+        button_start_y = int((self.canvas_height - (2 * button_height)) / 2) - 3 * GUIConstants.COMPONENT_PADDING
+        
 
         self.buttons = []
         for i, button_option in enumerate(self.button_data):
@@ -914,12 +908,17 @@ class LargeButtonScreen(BaseScreen):
             else:
                 raise Exception("button_data must be ButtonOption or dict")
 
+            if i % 2 == 0:
+                button_start_x = 3 * GUIConstants.EDGE_PADDING
+            else:
+                button_start_x = GUIConstants.EDGE_PADDING + button_width + 4 * GUIConstants.COMPONENT_PADDING
+            
             button_args = {
                 "text": _(button_label),
                 "screen_x": button_start_x,
                 "screen_y": button_start_y,
-                "width": button_size,
-                "height": button_size,
+                "width": button_width,
+                "height": button_height,
                 "is_text_centered": True,
                 "font_name": self.button_font_name,
                 "font_size": self.button_font_size,
@@ -939,11 +938,10 @@ class LargeButtonScreen(BaseScreen):
             self.components.append(button)
 
             # set the button as selected if it's the first one
-            if i == 0:
-                button.is_selected = True
-                self.selected_button = 0
+            if i == 1:
+                button_start_y += button_height + GUIConstants.COMPONENT_PADDING
 
-            button_start_y += button_size + GUIConstants.COMPONENT_PADDING
+        self.buttons[self.selected_button].is_selected = True
 
         # Add the small setting button at the bottom left
         self.settings_button = IconButton(

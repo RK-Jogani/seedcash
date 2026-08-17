@@ -15,38 +15,6 @@ from seedcash.models.qr_type import QRType
 logger = logging.getLogger(__name__)
 
 
-def _read_varint(buf: bytes, pos: int) -> tuple[int, int]:
-    value = buf[pos]
-    if value < 0xFD:
-        return value, pos + 1
-    if value == 0xFD:
-        return int.from_bytes(buf[pos + 1 : pos + 3], "little"), pos + 3
-    if value == 0xFE:
-        return int.from_bytes(buf[pos + 1 : pos + 5], "little"), pos + 5
-    return int.from_bytes(buf[pos + 1 : pos + 9], "little"), pos + 9
-
-
-def _serialize_varint(value: int) -> bytes:
-    if value < 0xFD:
-        return bytes([value])
-    if value <= 0xFFFF:
-        return b"\xfd" + value.to_bytes(2, "little")
-    if value <= 0xFFFFFFFF:
-        return b"\xfe" + value.to_bytes(4, "little")
-    return b"\xff" + value.to_bytes(8, "little")
-
-
-def _scan_psbt_map_end(buf: bytes, pos: int) -> int:
-    while pos < len(buf):
-        key_len, pos = _read_varint(buf, pos)
-        if key_len == 0:
-            return pos
-        pos += key_len
-        value_len, pos = _read_varint(buf, pos)
-        pos += value_len
-    raise ValueError("unexpected end while scanning PSBT map")
-
-
 class DecodeQRStatus(IntEnum):
     """
     Used in DecodeQR to communicate status of adding qr frame/segment
@@ -214,10 +182,6 @@ class DecodeQR:
             return None
 
         barcodes = pyzbar.decode(image, symbols=[ZBarSymbol.QRCODE], binary=is_binary)
-
-        # if barcodes:
-        # print("--------------- extract_qr_data ---------------")
-        # print(barcodes)
 
         for barcode in barcodes:
             # Only pull and return the first barcode

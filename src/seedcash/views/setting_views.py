@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 # Final Possible Load Seed View
 class SettingOptionsView(View):
     LANGUAGE = ButtonOption("Language")
-    SEED_PROTOCOL = ButtonOption("Seed Backup Protocol")
     DERIVATION_PATH = ButtonOption("Derivation Path")
     TEST_BUTTONS = ButtonOption("Test Buttons")
     TEST_CAMERA = ButtonOption("Test Camera")
@@ -36,7 +35,6 @@ class SettingOptionsView(View):
 
         button_data = [
             self.LANGUAGE,
-            self.SEED_PROTOCOL,
             self.DERIVATION_PATH,
             self.TEST_BUTTONS,
             self.TEST_CAMERA,
@@ -53,8 +51,6 @@ class SettingOptionsView(View):
             return Destination(MainMenuView)
         elif button_data[selected_menu_num] == self.LANGUAGE:
             return Destination(SettingLanguageView)
-        elif button_data[selected_menu_num] == self.SEED_PROTOCOL:
-            return Destination(SettingSeedProtocolView)
         elif button_data[selected_menu_num] == self.DERIVATION_PATH:
             return Destination(SettingDerivationPathView)
         elif button_data[selected_menu_num] == self.TEST_BUTTONS:
@@ -100,46 +96,6 @@ class SettingLanguageView(View):
             logger.info(f"Language set to: {selected_language}")
             return Destination(BackStackView)
 
-
-class SettingSeedProtocolView(View):
-    def __init__(self):
-        super().__init__()
-
-        # Create button options for each seed protocol
-        self.protocol_buttons = [
-            ButtonOption(protocol[1])
-            for protocol in SettingsConstants.ALL_SEED_PROTOCOLS
-        ]
-
-    def run(self):
-
-        button_data = self.protocol_buttons
-        selected_btn = ["BIP39", "SLIP39"].index(
-            self.controller.settings.get_value(SettingsConstants.SETTING__SEED_PROTOCOL)
-        )
-
-        selected_menu_num = self.run_screen(
-            SeedCashButtonListWithNav,
-            title="Seed Protocol",
-            button_data=button_data,
-            selected_button=selected_btn,
-        )
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-        elif button_data[selected_menu_num] in self.protocol_buttons:
-            selected_protocol = SettingsConstants.ALL_SEED_PROTOCOLS[selected_menu_num][
-                0
-            ]
-            # if selected protocol is same as current, return to back stack
-            if selected_protocol == self.controller.settings.get_value(
-                SettingsConstants.SETTING__SEED_PROTOCOL
-            ):
-                return Destination(BackStackView)
-            return Destination(
-                ProtocolMigrationWarningView, view_args={"protocol": selected_protocol}
-            )
-
-
 class SettingDerivationPathView(View):
     def __init__(self):
         super().__init__()
@@ -154,33 +110,6 @@ class SettingDerivationPathView(View):
         )
 
         return Destination(BackStackView)
-
-
-class ProtocolMigrationWarningView(View):
-    def __init__(self, protocol):
-        self.protocol = protocol
-        self.MIGRATE = ButtonOption("Migrate", button_label_color="red")
-        self.buttons_data = [self.MIGRATE]
-        super().__init__()
-
-    def run(self):
-        ret = self.run_screen(
-            WarningScreen,
-            title="Migrate Protocol?",
-            status_headline="",
-            text=(
-                "BIP-39 and SLIP-39 are different and completely incompatible protocols."
-            ),
-            button_data=self.buttons_data,
-            show_back_button=True,
-        )
-
-        if ret == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-        elif self.buttons_data[ret] == self.MIGRATE:
-            logger.info(f"User confirmed migration to protocol: {self.protocol}")
-            self.controller.switch_seed_protocol(self.protocol)
-            return Destination(BackStackView)
 
 
 class SettingTestButtons(View):

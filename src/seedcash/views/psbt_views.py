@@ -9,6 +9,7 @@ from seedcash.gui.screens.screen import (
     WarningScreen,
 )
 from seedcash.models.psbt_parser import PSBTParser, TxOutput
+
 from seedcash.views.view import (
     MainMenuView,
     View,
@@ -28,18 +29,12 @@ class LoadingPSBTView(View):
         self.loading_screen = LoadingScreenThread(text=_("Parsing PSBT..."))
         self.loading_screen.start()
         try:
-            self.controller.psbt_parser = PSBTParser(
-                bytearray(self.controller.psbt_bytes),
-                wallet_fingerprint=self.controller._storage._wallet._fingerprint,
-            )
-            # Keep one canonical representation shared across all PSBT views.
-            self.controller.psbt_bytes = bytearray(self.controller.psbt_parser.psbt_bytes)
+            self.controller.psbt_parser = PSBTParser(self.controller.psbt_bytes)
         finally:
             time.sleep(2)
             self.loading_screen.stop()
 
     def run(self):
-        print("PSBT inputs:", self.controller.psbt_parser.inputs)
         if len(self.controller.psbt_parser.inputs[0].items()) > 0:
             return Destination(PSBTNFTView, skip_current_view=True)
         elif len(self.controller.psbt_parser.inputs[1].items()) > 0:
@@ -171,6 +166,7 @@ class PSBTNFTDetailsView(View):
             return Destination(BackStackView)
         
         return Destination(PSBTNFTAddressDetailsView, view_args={"output_num": self.output_num, "category_num": self.category_num})
+
 class PSBTNFTAddressDetailsView(View):
     def __init__(self, output_num, category_num):
         super().__init__()
@@ -306,7 +302,7 @@ class PSBTAddressDetailsView(View):
             else:
                 return Destination(BCHPSBTOverviewView)
 
-        return Destination(MainMenuView, clear_history=True)
+        return Destination(PSBTSignedQRDisplayView)
             
 class PSBTOpReturnView(View):
     """
@@ -343,15 +339,12 @@ class PSBTSignedQRDisplayView(View):
         from seedcash.models.threads import ThreadsafeCounter
         from seedcash.models.settings_definition import SettingsConstants
 
-        psbt_bytes = self.controller.psbt_bytes
         if self.controller.psbt_parser and self.controller.psbt_parser.psbt_bytes:
-            psbt_bytes = self.controller.psbt_parser.psbt_bytes
-
-        # UR encoder expects mutable bytearray fragments internally.
-        psbt_bytes = bytearray(psbt_bytes)
-        self.controller.psbt_bytes = psbt_bytes
-
-        qr_encoder = UrPsbtQrEncoder(psbt=psbt_bytes)
+            signed_psbt_bytes = self.controller._storage._wallet.sign_psbt(self.controller.psbt_parser)
+        else:
+            raise Exception("No PSBT to sign")
+        
+        qr_encoder = UrPsbtQrEncoder(psbt=signed_psbt_bytes)
 
         current_brightness = self.controller.settings.get_value(
             SettingsConstants.SETTING__QR_BRIGHTNESS
