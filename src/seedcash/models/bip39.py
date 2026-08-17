@@ -58,7 +58,6 @@ class Bip39:
 
         bits_mnemonic = initial_bits + checksum
         mnemonic = Bip39.binmnemonic_to_mnemonic(bits_mnemonic)
-        print("The mnemonic:", mnemonic)
         return mnemonic
 
     @staticmethod

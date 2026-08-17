@@ -612,7 +612,6 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
                 ]
 
             def draw_line_segment(curves, i, j, color):
-                # print(f"draw: {curves[0][i]} to {curves[0][j]}")
                 for points in curves:
                     pt1 = points[i]
                     pt2 = points[j]

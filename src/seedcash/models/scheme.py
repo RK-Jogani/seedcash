@@ -243,7 +243,6 @@ class Scheme:
         self.groups.clear()
         self.common_params.clear()
         self.master_secret = None
-        print("Scheme discarded. All data reset.")
 
     def discard_group(self, group_id: int):
         """
@@ -251,9 +250,6 @@ class Scheme:
         """
         if group_id in self.groups:
             del self.groups[group_id]
-            print(f"Group {group_id} discarded.")
-        else:
-            print(f"Group {group_id} does not exist.")
 
     def discard_share_of_group(self, share_index: int, group_id: int):
         """
@@ -267,11 +263,7 @@ class Scheme:
             for share in group.shares:
                 if share.index == share_index:
                     group.shares.remove(share)
-                    print(f"Share {share_index} in Group {group_id} discarded.")
                     return
-            print(f"Share {share_index} not found in Group {group_id}.")
-        else:
-            print(f"Group {group_id} does not exist.")
 
     def add_share(self, share_list: List[str]) -> Dict[str, str]:
 
@@ -291,7 +283,6 @@ class Scheme:
                 # Add to existing group
                 group = self.groups.setdefault(share.group_index, ShareGroup())
                 group.add(share)
-                print(f"Share {share.index} added to Group {share.group_index}.")
 
         return {"status": "added", "message": "Mnemonic added successfully"}
 

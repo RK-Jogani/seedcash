@@ -1,7 +1,7 @@
 import logging
 import struct
 from enum import StrEnum
-from typing import Dict, List, Optional, Tuple, Any, Set
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
 
@@ -321,10 +321,14 @@ def parse_psbt(buf) -> Dict[str, Any]:
     if output_count == 0:
         output_count = len(parsed_tx["outputs"])
 
+    input_starts = []
+    input_ends = []
     inputs = []
     for _ in range(input_count):
+        input_starts.append(pos)
         pairs, pos = parse_keypairs(buf, pos)
         inputs.append(pairs)
+        input_ends.append(pos)
 
     outputs = []
     for _ in range(output_count):
@@ -333,6 +337,8 @@ def parse_psbt(buf) -> Dict[str, Any]:
 
     return {
         "global": global_pairs,
+        "input_starts": input_starts,
+        "input_ends": input_ends,
         "inputs": inputs,
         "outputs": outputs,
         "input_count": input_count,
@@ -372,9 +378,8 @@ def resolve_spent_output(
 
 class PSBTParser:
 
-    def __init__(self, raw_psbt_bytes: bytearray, wallet_fingerprint: str):
+    def __init__(self, raw_psbt_bytes: bytearray):
         self.psbt_bytes: bytearray = raw_psbt_bytes
-        self.wallet_fingerprint = wallet_fingerprint
 
         try:
             self.parsed = parse_psbt(self.psbt_bytes)
@@ -384,12 +389,11 @@ class PSBTParser:
         except Exception:
             logger.error(f"CRASHING PSBT BYTES HEX: {bytes(self.psbt_bytes).hex()}")
             raise
-
+    
     @property
     def token_categories(self) -> List[str]:
         return sorted(self.tx.categories_type("ft")) if self.tx else []
 
-    @property
     def ft_burning(self, category_id: str) -> bool:
         input_count = len(self.inputs[1].get(category_id, []))
         output_count = len(self.outputs[1].get(category_id, []))
@@ -422,6 +426,7 @@ class PSBTParser:
     @property
     def outputs(self) -> List[Dict[str, TxOutput]]:
         return self._outputs
+
     def ft_output_amount(self, category_id: str) -> Optional[int]:
         total_ft_amount = 0
         for out in self.outputs[1].get(category_id, []):
@@ -432,8 +437,7 @@ class PSBTParser:
     @property
     def destination_addresses(self) -> List[str]:
         return [out.address for out in self.tx.outputs if out.address]
-
-    
+  
     @property
     def num_destinations(self) -> int:
         return len(self.destination_addresses)

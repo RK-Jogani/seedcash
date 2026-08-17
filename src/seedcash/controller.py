@@ -53,9 +53,7 @@ class BackgroundImportThread(BaseThread):
         # import seedcash.hardware.buttons # slowly imports GPIO along the way
 
         def time_import(module_name):
-            last = time.time()
             import_module(module_name)
-            # print(time.time() - last, module_name)
 
         time_import("ecdsa")
         time_import("base58")

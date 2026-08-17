@@ -193,6 +193,7 @@ class Destination:
 class MainMenuView(View):
     LOAD_SEED = ButtonOption("Load seed", SeedCashIconsConstants.LOAD_SEED)
     GENERATE_SEED = ButtonOption("Generate seed", SeedCashIconsConstants.GENERATE_SEED)
+    SEED_STORAGE = ButtonOption("Store seed", SeedCashIconsConstants.STORE_SEED)
 
     def run(self):
         from seedcash.gui.screens.screen import MainMenuScreen
@@ -205,6 +206,7 @@ class MainMenuView(View):
         button_data = [
             self.LOAD_SEED,
             self.GENERATE_SEED,
+            self.SEED_STORAGE,
         ]
         selected_menu_num = self.run_screen(
             MainMenuScreen,
@@ -215,12 +217,10 @@ class MainMenuView(View):
         button_data.append("Power Off")
 
         if button_data[selected_menu_num] == self.LOAD_SEED:
-            return Destination(SeedCashChooseWordsView)
+            return Destination(LoadSeedView)
 
         elif button_data[selected_menu_num] == self.GENERATE_SEED:
-            from seedcash.views.generate_seed_views import SeedCashGenerateSeedView
-
-            return Destination(SeedCashGenerateSeedView)
+            return Destination(GenerateSeedView)
 
         elif button_data[selected_menu_num] == "Settings":
             from seedcash.views.setting_views import SettingOptionsView
@@ -230,6 +230,71 @@ class MainMenuView(View):
         elif button_data[selected_menu_num] == "Power Off":
             return Destination(PowerOffView)
 
+class LoadSeedView(View):
+    BIP39 = ButtonOption("BIP39")
+    SLIP39 = ButtonOption("SLIP39")
+    SEEDCASHCARD = ButtonOption("SeedCashCard")
+    SEEDQR = ButtonOption("SeedQR")
+
+    def run(self):
+        from seedcash.gui.screens.screen import SeedCashButtonListWithNav
+
+        button_data = [
+            self.BIP39,
+            self.SLIP39,
+            self.SEEDCASHCARD,
+            self.SEEDQR,
+        ]
+        selected_menu_num = self.run_screen(
+            SeedCashButtonListWithNav,
+            title="Backup Protocol",
+            button_data=button_data,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(MainMenuView)
+
+        if button_data[selected_menu_num] == self.BIP39:
+            self.controller.switch_seed_protocol(SettingsConstants.SEED_PROTOCOL__BIP39)
+            return Destination(SeedCashChooseWordsView)
+
+        elif button_data[selected_menu_num] == self.SLIP39:
+            self.controller.switch_seed_protocol(SettingsConstants.SEED_PROTOCOL__SLIP39)
+            return Destination(SeedCashChooseWordsView, view_args={"is_random_seed": False})
+
+        elif button_data[selected_menu_num] == self.SEEDQR:
+            from seedcash.views.load_seed_views import SeedQRScanView
+            return Destination(SeedQRScanView)
+
+class GenerateSeedView(View):
+    BIP39 = ButtonOption("BIP39")
+    SLIP39 = ButtonOption("SLIP39")
+
+    def run(self):
+        from seedcash.gui.screens.screen import SeedCashButtonListWithNav
+
+        button_data = [
+            self.BIP39,
+            self.SLIP39,
+        ]
+        selected_menu_num = self.run_screen(
+            SeedCashButtonListWithNav,
+            title="Backup Protocol",
+            button_data=button_data,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(MainMenuView)
+
+        if button_data[selected_menu_num] == self.BIP39:
+            self.controller.switch_seed_protocol(SettingsConstants.SEED_PROTOCOL__BIP39)
+            from seedcash.views.generate_seed_views import SeedCashGenerateSeedView
+            return Destination(SeedCashGenerateSeedView)
+
+        elif button_data[selected_menu_num] == self.SLIP39:
+            self.controller.switch_seed_protocol(SettingsConstants.SEED_PROTOCOL__SLIP39)
+            from seedcash.views.generate_seed_views import SeedCashGenerateSeedView
+            return Destination(SeedCashGenerateSeedView)
 
 # First Load Seed View
 class SeedCashChooseWordsView(View):
