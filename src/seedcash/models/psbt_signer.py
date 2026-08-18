@@ -9,7 +9,6 @@ from hmac import HMAC
 from seedcash.models.psbt_parser import (
     PSBTParser,
     parse_transaction,
-    parse_keypairs,
 )
 from seedcash.models.bip44 import Bip44
 
