@@ -1,6 +1,6 @@
 import logging
 import struct
-from enum import StrEnum
+from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
@@ -18,7 +18,7 @@ class NFTData:
     commitment: str
 
 # Enum for NFT Warnings
-class NFTWarning(StrEnum):
+class NFTWarning(Enum):
     MINTING = "minting"
     BURNING = "burning"
 
