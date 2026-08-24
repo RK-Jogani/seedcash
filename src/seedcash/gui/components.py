@@ -1436,7 +1436,7 @@ class Button(BaseComponent):
                 font_color=self.selected_font_color,
                 background_color=self.selected_color,
                 screen_x=self.screen_x,
-                screen_y=self.screen_y + self.text_y_offset,
+                screen_y=self.screen_y + self.icon_y_offset + self.text_y_offset,
                 width=self.width,
                 height=(
                     self.text_height
@@ -1761,7 +1761,7 @@ class BchAmount(BaseComponent):
         self.paste_image: Image.Image = None
         self.paste_coords = None
         # TRANSLATOR_NOTE: Testnet bitcoin
-        bch_unit = _("tBch")
+        bch_unit = _("Bch")
         sats_unit = _("sats")
     
 
@@ -1794,23 +1794,9 @@ class BchAmount(BaseComponent):
         bch_icon.render()
         cur_x = bch_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
 
-        if self.total_sats > 1e10:
-            decimal_bch = Decimal(self.total_sats / 1e8).quantize(Decimal("0.12345678"))
-            if str(self.total_sats)[-8:] == "0" * 8:
-                # Only whole bch units being displayed; truncate to a single decimal place
-                decimal_bch = decimal_bch.quantize(Decimal("0.1"))
-
-            elif str(self.total_sats)[-6:] == "0" * 6:
-                # Bottom six digits are all zeroes; trucate to two decimal places
-                decimal_bch = decimal_bch.quantize(Decimal("0.12"))
-
+        if self.total_sats > 1e6:
+            decimal_bch = Decimal(self.total_sats / 1e6).quantize(Decimal("0.1234"))
             bch_text = f"{decimal_bch:,}"
-
-            if len(bch_text) >= 12:
-                # This is a large bch value that won't fit; omit sats
-                bch_text = (
-                    bch_text.split(".")[0] + "." + bch_text.split(".")[-1][:2] + "..."
-                )
 
             # Draw the bch side
             font = digit_font

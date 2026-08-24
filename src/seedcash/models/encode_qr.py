@@ -73,54 +73,6 @@ class BaseStaticQrEncoder(BaseQrEncoder):
         return True
 
 
-@dataclass
-class SeedQrEncoder(BaseStaticQrEncoder):
-    mnemonic: List[str] = None
-    wordlist_language_code: str = SettingsConstants.WORDLIST_LANGUAGE__ENGLISH
-
-    def __post_init__(self):
-        self.wordlist = Seed.get_wordlist(self.wordlist_language_code)
-        super().__post_init__()
-
-        self.data = ""
-        # Output as Numeric data format
-        for word in self.mnemonic:
-            index = self.wordlist.index(word)
-            self.data += str("%04d" % index)
-
-    def next_part(self):
-        return self.data
-
-
-@dataclass
-class CompactSeedQrEncoder(SeedQrEncoder):
-    def next_part(self):
-        # Output as binary data format
-        binary_str = ""
-        for word in self.mnemonic:
-            index = self.wordlist.index(word)
-
-            # Convert index to binary, strip out '0b' prefix; zero-pad to 11 bits
-            binary_str += bin(index).split("b")[1].zfill(11)
-
-        # We can exclude the checksum bits at the end
-        if len(self.mnemonic) == 24:
-            # 8 checksum bits in a 24-word seed
-            binary_str = binary_str[:-8]
-
-        elif len(self.mnemonic) == 12:
-            # 4 checksum bits in a 12-word seed
-            binary_str = binary_str[:-4]
-
-        # Now convert to bytes, 8 bits at a time
-        as_bytes = bytearray()
-        for i in range(0, math.ceil(len(binary_str) / 8)):
-            # int conversion reads byte data as a string prefixed with '0b'
-            as_bytes.append(int("0b" + binary_str[i * 8 : (i + 1) * 8], 2))
-
-        # Must return data as `bytes` for `qrcode` to properly recognize it as byte data
-        return bytes(as_bytes)
-
 
 @dataclass
 class GenericStaticQrEncoder(BaseStaticQrEncoder):

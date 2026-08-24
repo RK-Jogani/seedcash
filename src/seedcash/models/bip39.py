@@ -28,6 +28,23 @@ class Bip39:
             mnemonic.append(word)
         return mnemonic
 
+    def mnemonic_from_bytes(segment):
+        """Convertim un segment de bytes a mnemonic"""
+        # Convertim a binari
+        bin_segment = "".join(format(byte, "08b") for byte in segment)
+        entropy_hash = hashlib.sha256(segment).digest()
+
+        # Determine checksum bits: ENT / 32
+        checksum_bits = len(bin_segment) // 32  # 4 for 128-bit, 8 for 256-bit
+        checksum = format(entropy_hash[0], '08b')[:checksum_bits]
+
+        # Append checksum to entropy
+        full_binary = bin_segment + checksum
+
+        # Convertim a mnemonic
+        mnemonic = Bip39.binmnemonic_to_mnemonic(full_binary)
+        return " ".join(mnemonic)
+
     @staticmethod
     def get_mnemonic(incomplete_mnemonic, last_bits):
 

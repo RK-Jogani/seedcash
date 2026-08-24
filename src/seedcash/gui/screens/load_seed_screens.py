@@ -19,6 +19,7 @@ from seedcash.gui.components import (
 )
 
 from seedcash.gui.keyboard import Keyboard, TextEntryDisplay
+from seedcash.helpers.qr import QR
 from seedcash.models import visual_hash as vh
 
 from .screen import (
@@ -1495,6 +1496,221 @@ class QRCodeScreen(BaseScreen):
                 elif self.selected_button == 1:
                     return "SWITCH"
 
+@dataclass
+class SeedTranscribeSeedQRWholeQRScreen(ButtonListScreen):
+    qr_data: str = None
+
+    def __post_init__(self):
+        self.title = _("Transcribe SeedQR")
+        self.is_bottom_list = True
+        super().__post_init__()
+
+        qr_height = self.canvas_height - GUIConstants.TOP_NAV_HEIGHT - 2 * GUIConstants.COMPONENT_PADDING
+        qr_width = qr_height
+
+        qr = QR()
+        qr_image = qr.qrimage(
+            data=self.qr_data,
+            width=qr_width,
+            height=qr_height,
+            border=1,
+            style=QR.STYLE__GRID
+        ).convert("RGBA")
+
+        self.paste_images.append((qr_image, (int((self.canvas_width - qr_width)/2), GUIConstants.COMPONENT_PADDING)))
+
+@dataclass
+class SeedTranscribeSeedQRZoomedInScreen(BaseScreen):
+    """
+    QR codes are defined by the number of "modules" (squares), e.g. 21x21 modules.
+
+    Each module will be rendered as a square of pixels, e.g. 24x24 pixels.
+
+    In this Screen, a "zone" will mean a square module area, e.g. 5x5 modules, that
+    corresponds to the SeedQR templates which include zone guidelines and labels
+    (e.g. "B-3").
+    """
+    qr_data: str = None
+    num_modules: int = None
+    initial_zone_x: int = 0
+    initial_zone_y: int = 0
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Render an oversized QR code that we can view up close
+        self.pixels_per_module = 24
+
+        # Border must accommodate the 3 blocks outside the center 5x5 mask plus up to
+        # 1 empty block inside the 5x5 mask (29x29 has a 4-block final col/row).
+        self.num_qr_border_modules = 4
+        if self.num_modules == 21:
+            # Optimize for 21x21
+            self.modules_per_zone = 7  # i.e. a 7x7 group of modules
+        else:
+            self.modules_per_zone = 5
+
+        total_qr_image_width = (self.num_qr_border_modules + self.num_modules + self.num_qr_border_modules) * self.pixels_per_module
+        qr = QR()
+        self.qr_image: Image = qr.qrimage(
+            self.qr_data,
+            width=total_qr_image_width,
+            height=total_qr_image_width,  # QR image is always square
+            border=self.num_qr_border_modules,
+            style=QR.STYLE__ROUNDED
+        # ).convert("RGBA")
+        )
+
+        # Render gridlines over the QR code but don't draw on its external white border
+        qr_image_draw = ImageDraw.Draw(self.qr_image)
+        for i in range(self.num_qr_border_modules, math.floor(self.qr_image.width/self.pixels_per_module) - self.num_qr_border_modules):
+            qr_image_draw.line((i * self.pixels_per_module, self.num_qr_border_modules * self.pixels_per_module, i * self.pixels_per_module, self.qr_image.height - self.num_qr_border_modules * self.pixels_per_module), fill="#bbb")
+            qr_image_draw.line((self.num_qr_border_modules * self.pixels_per_module, i * self.pixels_per_module, self.qr_image.width - self.num_qr_border_modules * self.pixels_per_module, i * self.pixels_per_module), fill="#bbb")
+
+        # Make a blank semi-transparent image for the overlay, initially across the
+        # entire canvas.
+        mask_rgba = (0, 0, 0, 226)
+        self.zone_mask = Image.new("RGBA", (self.canvas_width, self.canvas_height), mask_rgba)
+        zone_mask_draw = ImageDraw.Draw(self.zone_mask)
+
+        # Now punch a hole in the center of the mask to highlight the current zone with
+        # an accent outline.
+        # The `zone_mask_offset_*` vars are the top left xy coords of the mask.
+        self.zone_mask_offset_x = int((self.canvas_width - (self.modules_per_zone * self.pixels_per_module))/2)
+        self.zone_mask_offset_y = int((self.canvas_height - (self.modules_per_zone * self.pixels_per_module))/2)
+        zone_mask_draw.rectangle(
+            (
+                self.zone_mask_offset_x,
+                self.zone_mask_offset_y,
+                self.canvas_width - self.zone_mask_offset_x,
+                self.canvas_height - self.zone_mask_offset_y
+            ),
+            fill=(255, 255, 255, 0),  # fully transparent mask area
+            outline=GUIConstants.ACCENT_COLOR,
+            width=1
+        )
+
+        msg = _("click to exit")
+        font = Fonts.get_font(GUIConstants.BODY_FONT_NAME, GUIConstants.BODY_FONT_SIZE)
+        (left, top, right, bottom) = font.getbbox(msg, anchor="ls")
+        msg_height = -1 * top + GUIConstants.COMPONENT_PADDING
+        msg_width = right + 2*GUIConstants.COMPONENT_PADDING
+        zone_mask_draw.rectangle(
+            (
+                int((self.canvas_width - msg_width)/2),
+                self.canvas_height - msg_height,
+                int((self.canvas_width + msg_width)/2),
+                self.canvas_height
+            ),
+            fill=GUIConstants.BACKGROUND_COLOR,
+        )
+        zone_mask_draw.text(
+            (int(self.canvas_width/2), self.canvas_height - int(GUIConstants.COMPONENT_PADDING/2)),
+            msg,
+            fill=GUIConstants.BODY_FONT_COLOR,
+            font=font,
+            anchor="ms"  # Middle, baSeline
+        )
+
+
+
+    def draw_zone_labels(self):
+        # Create overlay for zone labels (e.g. "D-5")
+        # TODO: Discuss w/translators if these zone labels need to be translated; would
+        # trigger a secondary need to have translated SeedQR printable templates as well. 
+        zone_labels_x = ["1", "2", "3", "4", "5", "6"]
+        zone_labels_y = ["A", "B", "C", "D", "E", "F"]
+
+        zone_labels = Image.new("RGBA", (self.canvas_width, self.canvas_height), (255,255,255,0))
+        zone_labels_draw = ImageDraw.Draw(zone_labels)
+        zone_labels_draw.rectangle((self.zone_mask_offset_x, 0, self.canvas_width - self.zone_mask_offset_x, self.pixels_per_module), fill=GUIConstants.ACCENT_COLOR)
+        zone_labels_draw.rectangle((0, self.zone_mask_offset_y, self.pixels_per_module, self.canvas_height - self.zone_mask_offset_y), fill=GUIConstants.ACCENT_COLOR)
+
+        label_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, 28)
+        x_label = zone_labels_x[self.cur_zone_x]
+        (left, top, right, bottom) = label_font.getbbox(x_label, anchor="ls")
+        x_label_height = -1 * top
+
+        zone_labels_draw.text(
+            (int(self.canvas_width/2), self.pixels_per_module - int((self.pixels_per_module - x_label_height)/2)),
+            text=x_label,
+            fill=GUIConstants.BUTTON_SELECTED_FONT_COLOR,
+            font=label_font,
+            anchor="ms",  # Middle, baSeline
+        )
+
+        y_label = zone_labels_y[self.cur_zone_y]
+        (left, top, right, bottom) = label_font.getbbox(y_label, anchor="ls")
+        y_label_height = -1 * top
+        zone_labels_draw.text(
+            (int(self.pixels_per_module/2), int((self.canvas_height + y_label_height) / 2)),
+            text=y_label,
+            fill=GUIConstants.BUTTON_SELECTED_FONT_COLOR,
+            font=label_font,
+            anchor="ms",  # Middle, baSeline
+        )
+
+        return zone_labels
+
+
+    def _render(self):
+        # Track our current zone-level (macro-module) position and our actual pixel
+        # coordinates as we pan around across the QR code image.
+        self.cur_zone_x = self.initial_zone_x
+        self.cur_zone_y = self.initial_zone_y
+        self.cur_pixel_x = (self.cur_zone_x * self.modules_per_zone * self.pixels_per_module) + self.num_qr_border_modules * self.pixels_per_module - self.zone_mask_offset_x
+        self.cur_pixel_y = (self.cur_zone_y * self.modules_per_zone * self.pixels_per_module) + self.num_qr_border_modules * self.pixels_per_module - self.zone_mask_offset_y
+        self.next_pixel_x = self.cur_pixel_x
+        self.next_pixel_y = self.cur_pixel_y
+
+        zone_labels = self.draw_zone_labels()
+
+        self.renderer.show_image(
+            self.qr_image.crop((self.cur_pixel_x, self.cur_pixel_y, self.cur_pixel_x + self.canvas_width, self.cur_pixel_y + self.canvas_height)),
+            alpha_overlay=Image.alpha_composite(self.zone_mask, zone_labels)
+        )
+
+
+    def _run(self):
+        while True:
+            input = self.hw_inputs.wait_for(HardwareButtonsConstants.KEYS__LEFT_RIGHT_UP_DOWN + HardwareButtonsConstants.KEYS__ANYCLICK)
+
+            if input in HardwareButtonsConstants.KEYS__ANYCLICK:
+                # User clicked to exit
+                return
+
+            elif input == HardwareButtonsConstants.KEY_RIGHT and self.cur_zone_x + 1 < math.ceil(self.num_modules/self.modules_per_zone):
+                self.next_pixel_x = self.cur_pixel_x + self.modules_per_zone * self.pixels_per_module
+                self.cur_zone_x += 1
+
+            elif input == HardwareButtonsConstants.KEY_LEFT and self.cur_zone_x - 1 >= 0:
+                self.next_pixel_x = self.cur_pixel_x - self.modules_per_zone * self.pixels_per_module
+                self.cur_zone_x -= 1
+
+            elif input == HardwareButtonsConstants.KEY_DOWN and self.cur_zone_y + 1 < math.ceil(self.num_modules/self.modules_per_zone):
+                self.next_pixel_y = self.cur_pixel_y + self.modules_per_zone * self.pixels_per_module
+                self.cur_zone_y += 1
+
+            elif input == HardwareButtonsConstants.KEY_UP and self.cur_zone_y - 1 >= 0:
+                self.next_pixel_y = self.cur_pixel_y - self.modules_per_zone * self.pixels_per_module
+                self.cur_zone_y -= 1
+
+            else:
+                # User selected a direction that we can't advance any further
+                continue
+
+            # Create overlay for zone labels (e.g. "D-5")
+            zone_labels = self.draw_zone_labels()
+
+            with self.renderer.lock:
+                self.renderer.show_image_pan(
+                    self.qr_image,
+                    self.cur_pixel_x, self.cur_pixel_y, self.next_pixel_x, self.next_pixel_y,
+                    rate=self.pixels_per_module,
+                    alpha_overlay=Image.alpha_composite(self.zone_mask, zone_labels)
+                )
+            self.cur_pixel_x = self.next_pixel_x
+            self.cur_pixel_y = self.next_pixel_y
 
 @dataclass
 class AddressScreen(BaseScreen):
@@ -1604,8 +1820,8 @@ class SeedGenerateAddressScreen(BaseTopNavScreen):
         #
         self.title_text = "Introduce Address Index"
 
-        # Track the selected address type (default to Cashaddr)
-        self.address_type = "cashaddr"
+        # Track the selected address type (default to Standard)
+        self.address_type = "standard"
 
         # Store the user's input index
         self.user_input = ""
@@ -1618,7 +1834,7 @@ class SeedGenerateAddressScreen(BaseTopNavScreen):
         )
 
         # Set up the keyboard params
-        self.right_panel_buttons_width = 110
+        self.right_panel_buttons_width = 118
 
         text_entry_display_y = self.top_nav.height
         text_entry_display_height = 30
@@ -1676,7 +1892,7 @@ class SeedGenerateAddressScreen(BaseTopNavScreen):
         hw_button_y = int((self.canvas_height - GUIConstants.BUTTON_HEIGHT) / 2)
 
         self.hw_button1 = Button(
-            text="Cashaddr",
+            text="Standard",
             is_text_centered=False,
             font_name=GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME,
             font_size=GUIConstants.BUTTON_FONT_SIZE + 4,
@@ -1686,11 +1902,11 @@ class SeedGenerateAddressScreen(BaseTopNavScreen):
             - 3 * GUIConstants.COMPONENT_PADDING
             - GUIConstants.BUTTON_HEIGHT,
             is_scrollable_text=False,
-            is_selected=True,  # Cashaddr is selected by default
+            is_selected=True,  # Standard is selected by default
         )
 
         self.hw_button2 = Button(
-            text="Legacy",
+            text="Cashtoken",
             is_text_centered=False,
             font_name=GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME,
             font_size=GUIConstants.BUTTON_FONT_SIZE + 4,
@@ -1734,8 +1950,8 @@ class SeedGenerateAddressScreen(BaseTopNavScreen):
         super()._render()
 
         # Update button selection states
-        self.hw_button1.is_selected = self.address_type == "cashaddr"
-        self.hw_button2.is_selected = self.address_type == "legacy"
+        self.hw_button1.is_selected = self.address_type == "standard"
+        self.hw_button2.is_selected = self.address_type == "cashtoken"
 
         # Update text display
         self.keyboard.render_keys()
@@ -1754,14 +1970,14 @@ class SeedGenerateAddressScreen(BaseTopNavScreen):
             with self.renderer.lock:
                 # Check for button presses
                 if input == HardwareButtonsConstants.KEY1:
-                    # Cashaddr button pressed
-                    self.address_type = "cashaddr"
+                    # Standard button pressed
+                    self.address_type = "standard"
                     self._render()
                     continue
 
                 elif input == HardwareButtonsConstants.KEY2:
-                    # Legacy button pressed
-                    self.address_type = "legacy"
+                    # Cashtoken button pressed
+                    self.address_type = "cashtoken"
                     self._render()
                     continue
 

@@ -9,7 +9,6 @@ from seedcash.views.view import (
 from seedcash.gui.screens import setting_screens
 from seedcash.gui.screens.screen import (
     ButtonOption,
-    WarningScreen,
     SeedCashButtonListWithNav,
 )
 from seedcash.models.settings_definition import SettingsConstants

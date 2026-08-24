@@ -164,9 +164,8 @@ class ListOfGroupsView(View):
         super().__init__()
         self.is_view_mode = is_view_mode
         self.fingerprint: str = None
-
         self.groups = self.controller.storage.scheme_params._groups_length
-
+        
         # create button options for each group
         self.button_data = [ButtonOption(f"Group {i}") for i in range(self.groups)]
 

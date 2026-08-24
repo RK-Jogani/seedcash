@@ -189,11 +189,8 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         self.show_loading_screen = True
 
         # Prep the headline amount being spent in large callout
-        # icon_text_lines_y = self.components[-1].screen_y + self.components[-1].height
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
-
-        
         if self.category_id:
             self.components.append(
                 TokenAmount(
@@ -221,8 +218,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
             self.buttons[0].screen_y - self.chart_y - GUIConstants.COMPONENT_PADDING
         )
 
-        # We need to supersample the whole panel so that small/thin elements render
-        # clearly.
+        # We need to supersample the whole panel so that small/thin elements render clearly.
         ssf = 4  # super-sampling factor
 
         # Set up our temp supersampled rendering surface
@@ -258,9 +254,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         elif self.num_inputs > 5:
             inputs_column.append(_("input 1"))
             inputs_column.append(_("input 2"))
-            # TRANSLATOR_NOTE: Indicates that items have been omitted from a series: e.g. "1, 2, 3, [...], 8"
             inputs_column.append(_("[ ... ]"))
-            # TRANSLATOR_NOTE: Input number will be inserted (e.g. "input 3")
             inputs_column.append(_("input {}").format(self.num_inputs - 1))
             inputs_column.append(_("input {}").format(self.num_inputs))
         else:
@@ -276,26 +270,8 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         # Given how wide we want our curves on each side to be...
         curve_width = 4 * GUIConstants.COMPONENT_PADDING * ssf
 
-        # ...and the minimum center divider width...
-        center_bar_width = 2 * GUIConstants.COMPONENT_PADDING * ssf
-
-        # We can calculate how wide the destination col can be
-        max_destination_col_width = image.width - (
-            GUIConstants.EDGE_PADDING * ssf
-            + max_inputs_text_width
-            + int(GUIConstants.COMPONENT_PADDING * ssf / 4)
-            + curve_width
-            + center_bar_width
-            + curve_width
-            + int(GUIConstants.COMPONENT_PADDING * ssf / 4)
-            + GUIConstants.EDGE_PADDING * ssf
-        )
-
-        # if self.num_inputs == 1:
-        #     # Use up more of the space on the input side
-        #     max_destination_col_width += curve_width
-
-        # Now let's maximize the actual destination col by adjusting our addr truncation
+        # First, try to show as much of the destination addresses as possible
+        # We'll try truncation from longest to shortest to maximize visibility
         def calculate_destination_col_width(truncate_at: int = 0):
             def display_destination_addr(addr):
                 if addr.startswith("bitcoincash:"):
@@ -303,12 +279,9 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
                 return addr
 
             def truncate_destination_addr(addr):
-                # TRANSLATOR_NOTE: Ellipsis ("...") characters used to truncate an address (e.g. "bc1qabc...")
                 addr = display_destination_addr(addr)
                 if len(addr) <= truncate_at + len(_("...")):
-                    # No point in truncating
                     return addr
-
                 return addr[:truncate_at] + _("...")
 
             destination_column = []
@@ -317,19 +290,16 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
                 for addr in self.destination_addresses:
                     destination_column.append(truncate_destination_addr(addr))
             else:
-                # destination_column.append(f"{len(self.destination_addresses)} recipients")
                 destination_column.append(_("recipient 1"))
-                # TRANSLATOR_NOTE: Indicates that items have been omitted from a series: e.g. "1, 2, 3, [...], 8"
                 destination_column.append(_("[ ... ]"))
-                # TRANSLATOR_NOTE: Inserts the recipient number (e.g. the fifth one is: "recipient 5")
                 destination_column.append(
                     _("recipient {}").format(len(self.destination_addresses))
                 )
+            
             if self.fee_amount > 0:
-                destination_column.append(_(f"fee"))
+                destination_column.append(_("fee"))
 
             if self.has_op_return:
-                # TRANSLATOR_NOTE: Technical term, should probably NOT be translated in most languages
                 destination_column.append(_("OP_RETURN"))
 
             max_destination_text_width = 0
@@ -340,51 +310,73 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
             return (max_destination_text_width, destination_column)
 
-        if len(self.destination_addresses) > 3:
-            # We're not going to display any destination addrs so truncation doesn't matter
-            destination_text_width, destination_column = (
-                calculate_destination_col_width()
-            )
-        else:
-            destination_text_width = None
-            destination_column = None
-            # Steadliy widen out the destination column until we run out of space
-            for i in range(6, 14):
-                new_width, new_col_text = calculate_destination_col_width(truncate_at=i)
-                if new_width > max_destination_col_width:
-                    if not destination_text_width:
-                        destination_text_width = new_width
-                    if not destination_column:
-                        destination_column = new_col_text
-                    break
+        # Calculate the maximum available width for the destination column
+        # We need to leave room for: inputs + padding + curve + center_bar + curve + padding
+        fixed_width_parts = (
+            max_inputs_text_width
+            + int(GUIConstants.COMPONENT_PADDING * ssf / 4)
+            + curve_width
+            + (2 * GUIConstants.COMPONENT_PADDING * ssf)  # Center bar
+            + curve_width
+            + int(GUIConstants.COMPONENT_PADDING * ssf / 4)
+        )
+        
+        max_destination_width = image.width - fixed_width_parts
+        
+        # Try to show as many characters as possible by testing different truncation lengths
+        destination_text_width = None
+        destination_column = None
+        
+        # Start with no truncation and work our way down
+        for truncate_at in range(5, 3, -1):
+            new_width, new_col_text = calculate_destination_col_width(truncate_at=truncate_at)
+            if new_width <= max_destination_width:
                 destination_text_width = new_width
                 destination_column = new_col_text
+                break
+        
+        # If even the shortest truncation doesn't fit, just use the shortest
+        if destination_text_width is None:
+            destination_text_width, destination_column = calculate_destination_col_width(truncate_at=3)
 
-        destination_col_x = image.width - (
-            destination_text_width + GUIConstants.EDGE_PADDING * ssf
+        # Calculate total content width for centering
+        total_content_width = (
+            max_inputs_text_width
+            + int(GUIConstants.COMPONENT_PADDING * ssf / 4)
+            + curve_width
+            + (2 * GUIConstants.COMPONENT_PADDING * ssf)  # Center bar
+            + curve_width
+            + int(GUIConstants.COMPONENT_PADDING * ssf / 4)
+            + destination_text_width
         )
 
-        # Now we can finalize our center bar values
+        # Calculate the start x position to center everything
+        content_start_x = (image.width - total_content_width) // 2
+
+        # Now calculate all positions from the centered start
+        inputs_x = content_start_x
         center_bar_x = (
-            GUIConstants.EDGE_PADDING * ssf
+            content_start_x
             + max_inputs_text_width
             + int(GUIConstants.COMPONENT_PADDING * ssf / 4)
             + curve_width
         )
 
-        # Center bar stretches to fill any excess width
-        center_bar_width = (
-            destination_col_x
-            - int(GUIConstants.COMPONENT_PADDING * ssf / 4)
-            - curve_width
-            - center_bar_x
+        # Center bar has a fixed width (not stretched)
+        center_bar_width = 2 * GUIConstants.COMPONENT_PADDING * ssf
+
+        destination_col_x = (
+            center_bar_x
+            + center_bar_width
+            + curve_width
+            + int(GUIConstants.COMPONENT_PADDING * ssf / 4)
         )
 
         # Position each input row
         num_rendered_inputs = len(inputs_column)
         if self.num_inputs == 1:
             inputs_y = vertical_center - int(chart_text_height / 2)
-            inputs_y_spacing = 0  # Not used
+            inputs_y_spacing = 0
         else:
             inputs_y = int(
                 (image.height - num_rendered_inputs * chart_text_height)
@@ -399,7 +391,6 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
             inputs_y_spacing += 1
 
         inputs_conjunction_x = center_bar_x
-        inputs_x = GUIConstants.EDGE_PADDING * ssf
 
         input_curves = []
         for input in inputs_column:
@@ -416,7 +407,6 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
             )
 
             # Render the association line to the conjunction point
-            # First calculate a bezier curve to an inflection point
             start_pt = (
                 inputs_x
                 + max_inputs_text_width
@@ -430,7 +420,6 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
             )
 
             if len(inputs_column) == 1:
-                # Use fewer segments for single input straight line
                 bezier_points = [
                     start_pt,
                     linear_interp(start_pt, conjunction_pt, 0.33),
@@ -441,10 +430,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
                 bezier_points = calc_bezier_curve(
                     start_pt, (mid_pt[0], start_pt[1]), mid_pt, curve_steps
                 )
-                # We don't need the "final" point as it's repeated below
                 bezier_points.pop()
-
-                # Now render the second half after the inflection point
                 bezier_points += calc_bezier_curve(
                     mid_pt, (mid_pt[0], conjunction_pt[1]), conjunction_pt, curve_steps
                 )
@@ -507,7 +493,6 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
             )
 
             # Render the association line from the conjunction point
-            # First calculate a bezier curve to an inflection point
             conjunction_pt = (destination_conjunction_x, vertical_center)
             end_pt = (
                 conjunction_pt[0] + curve_width,
@@ -521,10 +506,8 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
             bezier_points = calc_bezier_curve(
                 conjunction_pt, (mid_pt[0], conjunction_pt[1]), mid_pt, curve_steps
             )
-            # We don't need the "final" point as it's repeated below
             bezier_points.pop()
 
-            # Now render the second half after the inflection point
             curve_bias = 1.0
             bezier_points += calc_bezier_curve(
                 mid_pt,
@@ -576,7 +559,6 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         ):
             super().__init__()
             self.pulse_color = pulse_color
-            # Translate the point coords into renderer space
             ssf = supersampling_factor
             self.inputs = [
                 [(int(i[0] / ssf), int(i[1] / ssf + offset_y)) for i in curve]
@@ -595,12 +577,9 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
             pulses = []
 
-            # The center bar needs to be segmented to support animation across it
             start_pt = self.inputs[0][-1]
             end_pt = self.outputs[0][0]
             if start_pt == end_pt:
-                # In single input the center bar width can be zeroed out.
-                # Ugly hack: Insert this line segment that will be skipped otherwise.
                 center_bar_pts = [end_pt, self.outputs[0][1]]
             else:
                 center_bar_pts = [
@@ -622,12 +601,9 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
             prev_color = reset_color
             while self.keep_running:
                 with self.renderer.lock:
-                    # Only generate one new pulse at a time; trailing "reset_color" pulse
-                    # erases the most recent pulse.
                     if not pulses or (
                         prev_color == pulse_color and pulses[-1][0] == 10
                     ):
-                        # Create a new pulse
                         if prev_color == pulse_color:
                             pulses.append([0, reset_color])
                         else:
@@ -638,10 +614,8 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
                         i = pulse[0]
                         color = pulse[1]
                         if i < len(self.inputs[0]) - 1:
-                            # We're in the input curves
                             draw_line_segment(self.inputs, i, i + 1, color)
                         elif i < len(self.inputs[0]) + len(center_bar_pts) - 2:
-                            # We're in the center bar
                             index = i - len(self.inputs[0]) + 1
                             draw_line_segment([center_bar_pts], index, index + 1, color)
                         elif (
@@ -655,7 +629,6 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
                             index = i - (len(self.inputs[0]) + len(center_bar_pts) - 2)
                             draw_line_segment(self.outputs, index, index + 1, color)
                         else:
-                            # This pulse is done
                             del pulses[pulse_num]
                             continue
 
@@ -663,9 +636,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
                     self.renderer.show_image()
 
-                # No need to CPU limit when running in its own thread?
                 time.sleep(0.02)
-
 
 @dataclass
 class PSBTMathScreen(PSBTButtonListScreen):
@@ -684,12 +655,12 @@ class PSBTMathScreen(PSBTButtonListScreen):
 
         super().__post_init__()
 
-        if self.input_amount > 1e6:
+        if self.input_amount >= 1e6:
             denomination = _("bch")
-            self.input_amount /= 1e8
-            self.spend_amount /= 1e8
-            self.input_amount = f"{self.input_amount:,.8f}"
-            self.spend_amount = f"{self.spend_amount:,.8f}"
+            self.input_amount /= 1e6
+            self.spend_amount /= 1e6
+            self.input_amount = f"{self.input_amount:,.6f}"
+            self.spend_amount = f"{self.spend_amount:,.6f}"
 
             # Note: We keep the fee denominated in sats; just left pad it so it still
             # lines up properly.

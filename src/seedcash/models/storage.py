@@ -63,10 +63,6 @@ class SeedStorage:
             self.scheme.generate_wallet()
             self.wallet = self.scheme._wallet
 
-    def discard_after_create_wallet(self):
-        self.discard_scheme()
-        self.discard_seed()
-
     def discard_wallet(self):
         """
         Discard the current wallet.
@@ -127,6 +123,11 @@ class SeedStorage:
             raise InvalidSeedException("Seed has not been initialized")
         return self.seed
 
+    def set_seed(self, seed: Seed):
+        if not isinstance(seed, Seed):
+            raise InvalidSeedException("Provided seed is not a valid Seed instance")
+        self.seed = seed
+        
     def convert_mnemonic_to_seed(self) -> Seed:
         self.seed = Seed(mnemonic=self._mnemonic)
         self.discard_mnemonic()

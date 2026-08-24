@@ -1,5 +1,6 @@
 import logging
 import hashlib
+import math
 
 from seedcash.models.bip39 import Bip39
 from typing import List
@@ -45,9 +46,50 @@ class Seed:
 
     def get_mnemonic_list(self) -> List[str]:
         return self.mnemonic
-
+    
     def set_passphrase(self, passphrase: str):
         self.passphrase = passphrase
+
+    def get_encoded(self) -> str:
+        # Get the entropy (raw data without checksum)
+        entropy_bytes = self.get_entropy_bytes()
+
+        # Convert entropy bytes to a binary string
+        binary_str = ""
+        for byte in entropy_bytes:
+            binary_str += format(byte, '08b')
+
+        # Convert back to bytes
+        as_bytes = bytearray()
+        for i in range(0, len(binary_str), 8):
+            chunk = binary_str[i:i+8]
+            if len(chunk) < 8:
+                chunk = chunk.ljust(8, '0')
+            as_bytes.append(int(chunk, 2))
+
+        return bytes(as_bytes)
+
+    def get_entropy_bytes(self) -> bytes:
+        """Extract entropy bytes from the mnemonic (without checksum)"""
+        binary_str = ""
+
+        for word in self.mnemonic:
+            index = self.wordlist.index(word)
+            binary_str += format(index, '011b')
+
+        # Remove the checksum bits (last 4 bits for 12-word mnemonic)
+        checksum_length = len(self.mnemonic) // 3  # 4 bits for 12 words, 5 bits for 15 words, etc.
+        entropy_bits = binary_str[:-checksum_length]
+
+        as_bytes = bytearray()
+        for i in range(0, len(entropy_bits), 8):
+            chunk = entropy_bits[i:i+8]
+            if len(chunk) < 8:
+                chunk = chunk.ljust(8, '0')
+            as_bytes.append(int(chunk, 2))
+
+        return bytes(as_bytes)
+
 
     def validate_mnemonic(self) -> bool:
         try:
@@ -120,3 +162,8 @@ class Seed:
             self._mnemonic, self.passphrase
         )
         self.wallet = Wallet(master_private_key, master_private_code)
+
+    @staticmethod
+    def get_wordlist() -> List[str]:
+        return load_txt("bip39.txt")
+        
