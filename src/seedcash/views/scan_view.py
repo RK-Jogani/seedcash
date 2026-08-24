@@ -1,5 +1,6 @@
 from gettext import gettext as _
 from seedcash.gui.screens import RET_CODE__BACK_BUTTON
+from seedcash.models.settings_definition import SettingsConstants
 from seedcash.views.view import (
     BackStackView,
     ErrorView,
@@ -114,6 +115,7 @@ class ScanView(View):
 
         # Handle the results
         if self.decoder.is_complete:
+            print(f"QR code decoded successfully! Type: {self.decoder.qr_type}")
             if not self.is_valid_qr_type:
                 # We recognized the QR type but it was not the type expected for the
                 # current flow.
@@ -134,6 +136,25 @@ class ScanView(View):
                     ),
                 )
 
+            if self.decoder.is_seed:
+                print("Found a SeedQR! Attempting to decode...")
+                seed_mnemonic = self.decoder.get_seed_phrase()
+                print(f"Decoded SeedQR mnemonic: {seed_mnemonic}")
+
+                if not seed_mnemonic:
+                    # seed is not valid, Exit if not valid with message
+                    return Destination(NotYetImplementedView)
+                else:
+                    # Found a valid mnemonic seed! All new seeds should be considered
+                    #   pending (might set a passphrase, SeedXOR, etc) until finalized.
+                    from seedcash.models.seed import Seed
+                    from .wallet_views import WalletFinalizeView
+                    seed = Seed(mnemonic=seed_mnemonic)
+                    self.controller._storage.set_seed(seed)
+                    self.controller.switch_seed_protocol(SettingsConstants.SEED_PROTOCOL__BIP39)
+                    self.controller._storage.create_wallet()
+                    return Destination(WalletFinalizeView, skip_current_view=True)
+            
             elif self.decoder.is_psbt:
                 from seedcash.views.psbt_views import LoadingPSBTView
                 self.controller.psbt_bytes = self.decoder.get_psbt()
@@ -155,3 +176,11 @@ class ScanPSBTView(ScanView):
     @property
     def is_valid_qr_type(self):
         return self.decoder.is_psbt
+
+class ScanSeedQRView(ScanView):
+    instructions_text = "Scan SeedQR"
+    invalid_qr_type_message = "Expected a SeedQR"
+
+    @property
+    def is_valid_qr_type(self):
+        return self.decoder.is_seed

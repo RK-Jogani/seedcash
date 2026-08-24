@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 from base58 import b58decode, b58encode
+import base58
 from ecdsa import SECP256k1, SigningKey, VerifyingKey
 from ecdsa.util import string_to_number, number_to_string
 
@@ -95,55 +96,11 @@ class Bip44:
 
         return child_public_key_bytes, child_chain_code
 
-    # Legacy address generator
+    # Cashtoken address generator
     @staticmethod
-    def public_key_to_legacy_address(public_key_bytes):
-
-        # SHA-256 hash
-        sha256 = hashlib.sha256(public_key_bytes).digest()
-
-        # RIPEMD-160 hash
-        ripemd160 = hashlib.new("ripemd160")
-        ripemd160.update(sha256)
-        ripemd160_hash = ripemd160.digest()
-
-        # Add version byte (0x00 for Bitcoin addresses)
-        versioned_hash = b"\x00" + ripemd160_hash
-
-        # Compute checksum
-        checksum = hashlib.sha256(hashlib.sha256(versioned_hash).digest()).digest()[:4]
-
-        # Create final address
-        address_bytes = versioned_hash + checksum
-        bitcoin_address = b58encode(address_bytes).decode("utf-8")
-
-        return bitcoin_address
-
-    @staticmethod
-    def xpub_to_legacy_address(xpub, address_index):
-
-        (
-            version,
-            depth,
-            fingerprint,
-            child_number,
-            chain_code_chain,
-            public_key_chain,
-        ) = Bip44.xpub_decode(
-            xpub
-        )  # m/44'/145'/0'
-
-        child_public_chain, child_chain_chain = Bip44.derive_public_child_key(
-            public_key_chain, chain_code_chain, 0
-        )  # m/44'/145'/0'/0
-        child_public_address_index, child_chain_address_index = (
-            Bip44.derive_public_child_key(
-                child_public_chain, child_chain_chain, address_index
-            )
-        )  # m/44'/0'/0'/0/0
-        address = Bip44.public_key_to_legacy_address(child_public_address_index)
-
-        return address
+    def xpub_to_cashtoken_address(xpub, address_index):
+        addr = Bip44.xpub_to_cashaddr_address(xpub, address_index)
+        return addr.replace("q", "z", 1)
 
     @staticmethod
     def hmac_sha512(key, data):

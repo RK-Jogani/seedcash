@@ -172,13 +172,9 @@ class Controller(Singleton):
             time.sleep(0.001)
         return self._storage
 
-    def get_seed(self, seed_num: int) -> Seed:
-        if seed_num < len(self.storage.seeds):
-            return self.storage.seeds[seed_num]
-        else:
-            raise Exception(
-                f"There is no seed_num {seed_num}; only {len(self.storage.seeds)} in memory."
-            )
+    def get_seed(self) -> Seed:
+        if self.storage:
+            return self.storage._seed
 
     def discard_wallet(self):
         self.storage.wallet = None

@@ -887,16 +887,17 @@ class LargeButtonScreen(BaseScreen):
         
         total_padding = GUIConstants.COMPONENT_PADDING
         # Maximize 2-across width
-        button_width = int((self.canvas_width - GUIConstants.TOP_NAV_HEIGHT - 2 * GUIConstants.COMPONENT_PADDING) / 2)
+        button_width = int((self.canvas_width - 3 * GUIConstants.COMPONENT_PADDING) / 2)
 
         # Maximize 2-row height
-        button_height = int((self.canvas_height - GUIConstants.TOP_NAV_HEIGHT - 3 * GUIConstants.COMPONENT_PADDING) / 2)
+        button_height = int((self.canvas_height - 3 * GUIConstants.COMPONENT_PADDING) / 2)
 
         # Center the column of buttons
-        button_start_y = int((self.canvas_height - (2 * button_height)) / 2) - 3 * GUIConstants.COMPONENT_PADDING
+        button_start_y = GUIConstants.EDGE_PADDING
         
 
         self.buttons = []
+
         for i, button_option in enumerate(self.button_data):
             # Support both ButtonOption and dict for button_data
             if isinstance(button_option, ButtonOption):
@@ -909,9 +910,9 @@ class LargeButtonScreen(BaseScreen):
                 raise Exception("button_data must be ButtonOption or dict")
 
             if i % 2 == 0:
-                button_start_x = 3 * GUIConstants.EDGE_PADDING
+                button_start_x = GUIConstants.EDGE_PADDING
             else:
-                button_start_x = GUIConstants.EDGE_PADDING + button_width + 4 * GUIConstants.COMPONENT_PADDING
+                button_start_x = GUIConstants.EDGE_PADDING + button_width + GUIConstants.COMPONENT_PADDING
             
             button_args = {
                 "text": _(button_label),
@@ -923,6 +924,7 @@ class LargeButtonScreen(BaseScreen):
                 "font_name": self.button_font_name,
                 "font_size": self.button_font_size,
                 "selected_color": self.button_selected_color,
+                "icon_y_offset": 2 * GUIConstants.COMPONENT_PADDING,
             }
             if icon_name:
                 button_args["icon_name"] = icon_name
@@ -941,23 +943,23 @@ class LargeButtonScreen(BaseScreen):
             if i == 1:
                 button_start_y += button_height + GUIConstants.COMPONENT_PADDING
 
-        self.buttons[self.selected_button].is_selected = True
-
         # Add the small setting button at the bottom left
         self.settings_button = IconButton(
             icon_name=SeedCashIconsConstants.SETTINGS,
             icon_size=GUIConstants.ICON_INLINE_FONT_SIZE,
-            screen_x=GUIConstants.EDGE_PADDING,
-            screen_y=self.canvas_height
-            - GUIConstants.TOP_NAV_BUTTON_SIZE
+            screen_x=self.canvas_width
+            - 2 * GUIConstants.EDGE_PADDING
+            - 2 * GUIConstants.TOP_NAV_BUTTON_SIZE,
+            screen_y=self.canvas_height 
+            - GUIConstants.TOP_NAV_BUTTON_SIZE 
             - GUIConstants.EDGE_PADDING,
             width=GUIConstants.TOP_NAV_BUTTON_SIZE,
             height=GUIConstants.TOP_NAV_BUTTON_SIZE,
-        )
-
+            )
+        
         self.buttons.append(self.settings_button)  # Now selectable
         self.components.append(self.settings_button)
-
+        
         # Add the small power button at the bottom right as a selectable button
         self.bottom_button = IconButton(
             icon_name=SeedCashIconsConstants.POWER,
@@ -965,15 +967,18 @@ class LargeButtonScreen(BaseScreen):
             screen_x=self.canvas_width
             - GUIConstants.TOP_NAV_BUTTON_SIZE
             - GUIConstants.EDGE_PADDING,
-            screen_y=self.canvas_height
-            - GUIConstants.TOP_NAV_BUTTON_SIZE
+            screen_y=self.canvas_height 
+            - GUIConstants.TOP_NAV_BUTTON_SIZE 
             - GUIConstants.EDGE_PADDING,
             width=GUIConstants.TOP_NAV_BUTTON_SIZE,
             height=GUIConstants.TOP_NAV_BUTTON_SIZE,
-        )
-
+            )
+        
         self.buttons.append(self.bottom_button)  # Now selectable
         self.components.append(self.bottom_button)
+
+        self.buttons[self.selected_button].is_selected = True
+
 
     def _run(self):
         def swap_selected_button(new_selected_button: int):

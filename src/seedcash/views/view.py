@@ -233,7 +233,7 @@ class MainMenuView(View):
 class LoadSeedView(View):
     BIP39 = ButtonOption("BIP39")
     SLIP39 = ButtonOption("SLIP39")
-    SEEDCASHCARD = ButtonOption("SeedCashCard")
+    SEEDCASHCARD = ButtonOption("SeedCash Card")
     SEEDQR = ButtonOption("SeedQR")
 
     def run(self):
@@ -263,8 +263,8 @@ class LoadSeedView(View):
             return Destination(SeedCashChooseWordsView, view_args={"is_random_seed": False})
 
         elif button_data[selected_menu_num] == self.SEEDQR:
-            from seedcash.views.load_seed_views import SeedQRScanView
-            return Destination(SeedQRScanView)
+            from seedcash.views.scan_view import ScanSeedQRView
+            return Destination(ScanSeedQRView)
 
 class GenerateSeedView(View):
     BIP39 = ButtonOption("BIP39")

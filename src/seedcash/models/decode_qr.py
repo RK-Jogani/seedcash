@@ -5,12 +5,15 @@ import zlib
 
 from binascii import a2b_base64, b2a_base64
 from enum import IntEnum
+from typing import List
 from pyzbar import pyzbar
 from pyzbar.pyzbar import ZBarSymbol
 from base64 import b32decode
 
 from seedcash.helpers.ur2.ur_decoder import URDecoder
+from seedcash.models.bip39 import Bip39
 from seedcash.models.qr_type import QRType
+from seedcash.models.seed import Seed
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,7 @@ class DecodeQR:
 
     def add_image(self, image):
         data = DecodeQR.extract_qr_data(image, is_binary=True)
+        print(f"Extracted QR data: {data}")
         if data == None:
             return DecodeQRStatus.FALSE
 
@@ -49,6 +53,7 @@ class DecodeQR:
             return DecodeQRStatus.FALSE
 
         qr_type = DecodeQR.detect_segment_type(data)
+        print(f"Detected QR type: {qr_type}")
 
         if self.qr_type == None:
             self.qr_type = qr_type
@@ -63,6 +68,8 @@ class DecodeQR:
                 self.decoder = Base43PsbtQrDecoder()
             elif self.qr_type == QRType.PSBT__BBQR:
                 self.decoder = BBQRPsbtQrDecoder()
+            elif self.qr_type in [QRType.SEED__SEEDQR, QRType.SEED__COMPACTSEEDQR, QRType.SEED__MNEMONIC, QRType.SEED__FOUR_LETTER_MNEMONIC, QRType.SEED__UR2]:
+                self.decoder = SeedQrDecoder()
 
         elif self.qr_type != qr_type:
             raise Exception("QR Fragment Unexpected Type Change")
@@ -121,6 +128,10 @@ class DecodeQR:
             return b64_psbt.decode("utf-8")
         return None
 
+    def get_seed_phrase(self):
+        if self.is_seed:
+            return self.decoder.get_seed_phrase()
+
     def get_qr_data(self) -> dict:
         """
         This provides a single access point for external code to retrieve the QR data,
@@ -176,6 +187,16 @@ class DecodeQR:
             QRType.PSBT__BBQR,
         ]
 
+    @property
+    def is_seed(self):
+        return self.qr_type in [
+            QRType.SEED__SEEDQR,
+            QRType.SEED__COMPACTSEEDQR,
+            QRType.SEED__UR2,
+            QRType.SEED__MNEMONIC, 
+            QRType.SEED__FOUR_LETTER_MNEMONIC,
+        ]
+
     @staticmethod
     def extract_qr_data(image, is_binary: bool = False) -> str | None:
         if image is None:
@@ -196,7 +217,7 @@ class DecodeQR:
                 # Should always be bytes, but the test suite has some manual datasets that
                 # are strings.
                 # TODO: Convert the test suite rather than handle here?
-                s = s.decode("utf-8")
+                s = s.decode('utf-8')
 
             logger.debug(f"segment string: {s}")
             logger.debug(f"segment string length: {len(s)}")
@@ -208,9 +229,10 @@ class DecodeQR:
             elif re.search("^UR:CRYPTO-OUTPUT/", s, re.IGNORECASE):
                 return QRType.OUTPUT__UR
 
-            elif re.search(
-                r"^p(\d+)of(\d+) ([A-Za-z0-9+\/=]+$)", s, re.IGNORECASE
-            ):  # must be base64 characters only in segment
+            elif re.search("^UR:CRYPTO-ACCOUNT/", s, re.IGNORECASE):
+                return QRType.ACCOUNT__UR
+
+            elif re.search(r'^p(\d+)of(\d+) ([A-Za-z0-9+\/=]+$)', s, re.IGNORECASE): #must be base64 characters only in segment
                 return QRType.PSBT__SPECTER
 
             elif re.search("^UR:BYTES/", s, re.IGNORECASE):
@@ -219,10 +241,52 @@ class DecodeQR:
             elif DecodeQR.is_base64_psbt(s):
                 return QRType.PSBT__BASE64
 
-            elif re.search(
-                r"^B\$[2HZ]P[0-9A-Z]{4}", s
-            ):  # https://github.com/coinkite/BBQr/blob/master/BBQr.md#spliting-the-data
+            elif re.search(r"^B\$[2HZ]P[0-9A-Z]{4}", s): # https://github.com/coinkite/BBQr/blob/master/BBQr.md#spliting-the-data
                 return QRType.PSBT__BBQR
+
+            # Wallet Descriptor
+            desc_str = s.replace("\n","").replace(" ","")
+            if re.search(r'^p(\d+)of(\d+) ', s, re.IGNORECASE):
+                # when not a SPECTER Base64 PSBT from above, assume it's json
+                return QRType.WALLET__SPECTER
+
+            elif re.search(r'^\{\"label\".*\"descriptor\"\:.*', desc_str, re.IGNORECASE):
+                # if json starting with label and contains descriptor, assume specter wallet json
+                return QRType.WALLET__SPECTER
+
+            elif "multisig setup file" in s.lower():
+                return QRType.WALLET__CONFIGFILE
+
+            elif "sortedmulti" in s:
+                return QRType.WALLET__GENERIC
+
+            # Seed
+            if re.search(r'\d{48,96}', s):
+                return QRType.SEED__SEEDQR
+
+            # message signing
+            elif s.startswith("signmessage"):
+                return QRType.SIGN_MESSAGE
+
+            # config data
+            if s.startswith("settings::"):
+                return QRType.SETTINGS
+
+            # Seed
+            # create 4 letter wordlist only if not PSBT (performance gain)
+            wordlist: List[str] = Seed.get_wordlist()
+            try:
+                _4LETTER_WORDLIST = [word[:4].strip() for word in wordlist]
+            except:
+                _4LETTER_WORDLIST = []
+
+            if all(x in wordlist for x in s.strip().split(" ")):
+                # checks if all words in list are in BIP-39 word list
+                return QRType.SEED__MNEMONIC
+
+            elif all(x in _4LETTER_WORDLIST for x in s.strip().split(" ")):
+                # checks if all 4 letter words are in list are in 4 letter BIP-39 word list
+                return QRType.SEED__FOUR_LETTER_MNEMONIC
 
             elif DecodeQR.is_base43_psbt(s):
                 return QRType.PSBT__BASE43
@@ -241,8 +305,22 @@ class DecodeQR:
                 # Couldn't convert back to bytes; shouldn't happen
                 raise Exception("Conversion to bytes failed")
 
+        # 32 bytes for 24-word CompactSeedQR; 16 bytes for 12-word CompactSeedQR
+        if len(s) == 32 or len(s) == 16:
+            try:
+                bitstream = ""
+                for b in s:
+                    bitstream += bin(b).lstrip('0b').zfill(8)
+                # print(bitstream)
+
+                return QRType.SEED__COMPACTSEEDQR
+            except Exception as e:
+                # Couldn't extract byte data; assume it's not a byte format
+                pass
+
         return QRType.INVALID
 
+    
     @staticmethod
     def is_base64(s):
         try:
@@ -499,3 +577,117 @@ class Base43PsbtQrDecoder(BaseSingleFrameQrDecoder):
 
     def get_data(self):
         return self.data
+
+
+class SeedQrDecoder(BaseSingleFrameQrDecoder):
+    """
+        Decodes single frame representing a seed.
+        Supports SeedSigner SeedQR numeric (wordlist indices) representation of a seed.
+        Supports SeedSigner CompactSeedQR entropy byte representation of a seed.
+        Supports mnemonic seed phrase string data.
+    """
+    def __init__(self):
+        super().__init__()
+        self.seed_phrase = []
+        self.wordlist = Seed.get_wordlist()
+
+
+    def add(self, segment, qr_type=QRType.SEED__SEEDQR):
+        # `segment` data will either be bytes or str, depending on the qr_type
+        if qr_type == QRType.SEED__SEEDQR:
+            try:
+                self.seed_phrase = []
+
+                # Parse 12 QR code
+                num_words = int(len(segment) / 4)
+                for i in range(0, num_words):
+                    index = int(segment[i * 4: (i*4) + 4])
+                    word = self.wordlist[index]
+                    self.seed_phrase.append(word)
+                if len(self.seed_phrase) > 0:
+                    if self.is_12_word_phrase() == False:
+                        return DecodeQRStatus.INVALID
+                    self.complete = True
+                    self.collected_segments = 1
+                    return DecodeQRStatus.COMPLETE
+                else:
+                    return DecodeQRStatus.INVALID
+            except Exception as e:
+                return DecodeQRStatus.INVALID
+
+        if qr_type == QRType.SEED__COMPACTSEEDQR:
+            try:
+                if isinstance(segment, str):
+                    # If it's a hex string, convert to byte
+                    try:
+                        segment_bytes = bytes.fromhex(segment)
+                    except ValueError:
+                        # If it's not hex, encode as bytes
+                        segment_bytes = segment.encode('latin-1')
+                else:
+                    segment_bytes = segment
+
+                self.seed_phrase = Bip39.mnemonic_from_bytes(segment_bytes).split()
+                self.complete = True
+                self.collected_segments = 1
+                return DecodeQRStatus.COMPLETE
+            except Exception as e:
+                logger.exception(repr(e))
+                return DecodeQRStatus.INVALID
+
+        elif qr_type == QRType.SEED__MNEMONIC:
+            try:
+                seed_phrase_list = self.seed_phrase = segment.strip().split(" ")
+
+                # embit mnemonic code to validate
+                seed = Seed(seed_phrase_list, passphrase="", wordlist_language_code=self.wordlist_language_code)
+                if not seed:
+                    # seed is not valid, return invalid
+                    return DecodeQRStatus.INVALID
+                self.seed_phrase = seed_phrase_list
+                if self.is_12_word_phrase() == False:
+                        return DecodeQRStatus.INVALID
+                self.complete = True
+                self.collected_segments = 1
+                return DecodeQRStatus.COMPLETE
+            except Exception as e:
+                return DecodeQRStatus.INVALID
+
+        elif qr_type == QRType.SEED__FOUR_LETTER_MNEMONIC:
+            try:
+                seed_phrase_list = segment.strip().split(" ")
+                words = []
+                for s in seed_phrase_list:
+                    # TODO: Pre-calculate this once on startup
+                    _4LETTER_WORDLIST = [word[:4].strip() for word in self.wordlist]
+                    words.append(self.wordlist[_4LETTER_WORDLIST.index(s)])
+
+                # embit mnemonic code to validate
+                seed = Seed(words, passphrase="", wordlist_language_code=self.wordlist_language_code)
+                if not seed:
+                    # seed is not valid, return invalid
+                    return DecodeQRStatus.INVALID
+                self.seed_phrase = words
+                if self.is_12_word_phrase() == False:
+                        return DecodeQRStatus.INVALID
+                self.complete = True
+                self.collected_segments = 1
+                return DecodeQRStatus.COMPLETE
+            except Exception as e:
+                return DecodeQRStatus.INVALID
+
+        else:
+            return DecodeQRStatus.INVALID
+
+
+    def get_seed_phrase(self):
+        if self.complete:
+            return self.seed_phrase[:]
+        return []
+
+
+    def is_12_word_phrase(self):
+        if len(self.seed_phrase) == 12:
+            return True
+        return False
+

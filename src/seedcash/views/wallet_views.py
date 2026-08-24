@@ -1,14 +1,20 @@
 import logging
 import time
 from gettext import gettext as _
+from seedcash.gui.components import SeedCashIconsConstants
+from seedcash.gui.screens import screen
+from seedcash.gui.screens.slip_screens import GroupShareListScreen
 from seedcash.models.bip44 import Bip44
 from seedcash.gui.screens import (
     RET_CODE__BACK_BUTTON,
     WarningScreen,
     load_seed_screens
 )
-from seedcash.gui.screens.screen import ButtonOption
+from seedcash.gui.screens.screen import RET_CODE__CHECK_BUTTON, ButtonOption
+from seedcash.models.seed import Seed
+from seedcash.models.settings_definition import SettingsConstants
 from seedcash.models.wallet import Wallet
+from seedcash.views.generate_slip_views import ListOfSharesView
 from seedcash.views.view import (
     View,
     Destination,
@@ -45,7 +51,6 @@ class WalletFinalizeView(View):
 
         if button_data[selected_menu_num] == self.CONFIRM:
             if self.controller.storage.wallet:
-                self.controller.storage.discard_after_create_wallet()
                 return Destination(WalletOptionsView)
 
             self.controller.storage.discard_mnemonic()
@@ -164,11 +169,8 @@ class SeedReviewPassphraseView(View):
         elif button_data[selected_menu_num] == self.DONE:
             if self.controller.storage.wallet:
                 self.controller.storage.create_wallet()
-                self.controller.storage.discard_after_create_wallet()
-                self.controller.storage.set_passphrase("")
                 return Destination(SeedReviewPassphraseExitDialogView)
             wallet = self.controller.storage.get_seed_wallet()
-            self.controller.storage.set_passphrase("")
             return Destination(
                 SeedReviewPassphraseExitDialogView,
                 view_args={"wallet": wallet},
@@ -206,7 +208,7 @@ class SeedReviewPassphraseExitDialogView(View):
 
 # Final Possible Load Seed View
 class WalletOptionsView(View):
-    EXPORT_XPRIV = ButtonOption("Export Xpriv")
+    VIEW_SEED = ButtonOption("View Seed")
     EXPORT_XPUB = ButtonOption("Export Xpub")
     GENERATE_ADDRESS = ButtonOption("Generate Address")
     SIGN_TRANSACTION = ButtonOption("Sign Transaction")
@@ -220,7 +222,7 @@ class WalletOptionsView(View):
     def run(self):
 
         button_data = [
-            self.EXPORT_XPRIV,
+            self.VIEW_SEED,
             self.EXPORT_XPUB,
             self.GENERATE_ADDRESS,
             self.SIGN_TRANSACTION,
@@ -232,11 +234,14 @@ class WalletOptionsView(View):
             button_data=button_data,
             fingerprint=self.wallet._fingerprint,
         )
+        is_slip = (SettingsConstants.SEED_PROTOCOL__SLIP39 == 
+                   self.controller.settings.get_instance().get_value(
+                       SettingsConstants.SETTING__SEED_PROTOCOL))
 
-        if button_data[selected_menu_num] == self.EXPORT_XPRIV:
-            return Destination(
-                SeedCashQRView, view_args=dict(address=self.wallet._xpriv)
-            )
+        if button_data[selected_menu_num] == self.VIEW_SEED:
+            if is_slip:
+                return Destination(Slip39SeedViewView)
+            return Destination(Bip39SeedViewView)
         elif button_data[selected_menu_num] == self.EXPORT_XPUB:
             return Destination(
                 SeedCashQRView, view_args=dict(address=self.wallet._xpub)
@@ -248,7 +253,6 @@ class WalletOptionsView(View):
             return Destination(ScanPSBTView)
         elif button_data[selected_menu_num] == self.EXPEL_WALLET:
             return Destination(SeedDiscardView)
-
 
 class SeedGenerateAddressView(View):
     def __init__(self):
@@ -265,13 +269,12 @@ class SeedGenerateAddressView(View):
 
         addr_type, addr_index = menu
 
-        if addr_type == "legacy":
-            address = Bip44.xpub_to_legacy_address(self.xpub, addr_index)
+        if addr_type == "cashtoken":
+            address = Bip44.xpub_to_cashtoken_address(self.xpub, addr_index)
             return Destination(SeedCashQRView, view_args=dict(address=address))
-        elif addr_type == "cashaddr":
+        elif addr_type == "standard":
             address = Bip44.xpub_to_cashaddr_address(self.xpub, addr_index)
             return Destination(SeedCashQRView, view_args=dict(address=address))
-
 
 class SeedCashQRView(View):
     def __init__(self, address: str = ""):
@@ -296,7 +299,6 @@ class SeedCashQRView(View):
                 view_args=dict(address=self.address),
                 skip_current_view=True,
             )
-
 
 class SeedCashAddressView(View):
     def __init__(self, address: str = ""):
@@ -354,3 +356,148 @@ class SeedDiscardView(View):
         elif button_data[selected_menu_num] == self.DISCARD:
             self.controller.discard_wallet()
             return Destination(MainMenuView, clear_history=True)
+
+class Bip39SeedViewView(View):
+    CONFIRM = ButtonOption("Confirm")
+    EXPORT_QR = ButtonOption("Export SeedQR")
+    def __init__(self):
+        super().__init__()
+        self.mnemonic: list[str] = self.controller.storage.seed.get_mnemonic_list()
+
+    def run(self):
+        
+
+        from seedcash.gui.screens.load_seed_screens import SeedCashSeedWordsScreen
+
+        self.run_screen(
+            SeedCashSeedWordsScreen,
+            seed_words=self.mnemonic,
+        )
+
+        if self.controller.storage.passphrase:
+            self.run_screen(
+                load_seed_screens.SeedReviewPassphraseScreen,
+                passphrase=self.controller.storage.passphrase,
+                button_data=[self.CONFIRM],
+            )
+
+        if len(self.mnemonic) == 12:
+            button_data=[self.EXPORT_QR, self.CONFIRM]
+        else:
+            button_data=[self.CONFIRM]
+
+        ret = self.run_screen(
+            load_seed_screens.SeedFinalizeScreen,
+            fingerprint=self.controller.storage.wallet._fingerprint,
+            button_data=button_data,
+        )
+
+        if button_data[ret] == self.CONFIRM:
+            return Destination(WalletOptionsView, clear_history=True)
+        elif button_data[ret] == self.EXPORT_QR:
+
+            self.run_screen(
+                screen.WarningScreen,
+                title="",
+                status_headline=_("Passphrase NOT included."),
+                text=_("SeedQR contains only the mnemonic phrase.")
+            )
+
+            self.run_screen(
+                screen.WarningScreen,
+                title="",
+                text=_("Exposing your SeedQR gives full control of your funds")
+            )
+
+            return Destination(SeedTranscribeSeedQRWholeQRView)
+
+
+
+        
+
+        print(f"ret: {ret}")
+
+class Slip39SeedViewView(View):
+    """
+    View to display the list of groups.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.fingerprint: str = None
+        self.groups = self.controller.storage.scheme.groups
+        
+        # create button options for each group
+        self.button_data = [ButtonOption(f"Group {i}") for i in range(len(self.groups))]
+
+        if self.controller.storage.scheme:
+            self.fingerprint = self.controller.storage._scheme._wallet.fingerprint
+
+    def run(self):
+        """
+        Run the view to display the list of groups.
+        """
+
+        if self.controller.storage.passphrase:
+            self.run_screen(
+                load_seed_screens.SeedReviewPassphraseScreen,
+                passphrase=self.controller.storage.passphrase,
+                button_data=[ButtonOption("Confirm")],
+            )
+
+        ret = self.run_screen(
+            GroupShareListScreen,
+            title=("Groups"),
+            fingerprint=self.fingerprint,
+            button_data=self.button_data,
+        )
+
+        if ret == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+        if ret == RET_CODE__CHECK_BUTTON:
+            # If in view mode, finalize the groups
+            return Destination(MainMenuView)
+        
+        return Destination(ListOfSharesView, view_args={"group_index": ret})
+
+class SeedTranscribeSeedQRWholeQRView(View):
+    def __init__(self):
+        super().__init__()
+    
+    def run(self):
+        from seedcash.gui.screens.load_seed_screens import SeedTranscribeSeedQRWholeQRScreen
+        ret = self.run_screen(
+            SeedTranscribeSeedQRWholeQRScreen,
+            button_data=[ButtonOption("View Zoomed")],
+            qr_data=self.controller.storage.seed.get_encoded(),
+        )
+
+        if ret == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+        elif ret == 0:
+            return Destination(SeedTranscribeSeedQRZoomedInView)
+    
+class SeedTranscribeSeedQRZoomedInView(View):
+    """
+    intial_zone_x, initial_zone_y: Used by the screenshot generator to shift the view
+    to a more interesting part of the QR code template.
+    """
+    def __init__(self, initial_zone_x: int = 0, initial_zone_y: int = 0):
+        super().__init__()
+        self.seed: Seed = self.controller.storage.seed
+        self.initial_zone_x = initial_zone_x
+        self.initial_zone_y = initial_zone_y
+        self.is_screensaver_allowed = False
+
+
+    def run(self):
+        self.run_screen(
+            load_seed_screens.SeedTranscribeSeedQRZoomedInScreen,
+            qr_data=self.seed.get_encoded(),
+            num_modules=21,
+            initial_zone_x=self.initial_zone_x,
+            initial_zone_y=self.initial_zone_y,
+        )
+
+        return Destination(MainMenuView, clear_history=True)
+
