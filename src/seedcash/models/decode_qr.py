@@ -79,10 +79,11 @@ class DecodeQR:
             return DecodeQRStatus.INVALID
 
         # Convert to string data
-        if type(data) == bytes:
+        if self.qr_type == QRType.SEED__COMPACTSEEDQR:
+            # CompactSeedQR is a binary format, so we don't want to convert to string
+            qr_str = data
+        elif type(data) == bytes:
             # Should always be bytes, but the test suite has some manual datasets that
-            # are strings.
-            # TODO: Convert the test suite rather than handle here?
             qr_str = data.decode("utf-8")
         else:
             # it's already str data
