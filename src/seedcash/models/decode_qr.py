@@ -42,7 +42,6 @@ class DecodeQR:
 
     def add_image(self, image):
         data = DecodeQR.extract_qr_data(image, is_binary=True)
-        print(f"Extracted QR data: {data}")
         if data == None:
             return DecodeQRStatus.FALSE
 
@@ -53,7 +52,6 @@ class DecodeQR:
             return DecodeQRStatus.FALSE
 
         qr_type = DecodeQR.detect_segment_type(data)
-        print(f"Detected QR type: {qr_type}")
 
         if self.qr_type == None:
             self.qr_type = qr_type
@@ -199,7 +197,7 @@ class DecodeQR:
         ]
 
     @staticmethod
-    def extract_qr_data(image, is_binary: bool = False) -> str | None:
+    def extract_qr_data(image, is_binary: bool = False) -> str:
         if image is None:
             return None
 
@@ -230,9 +228,6 @@ class DecodeQR:
             elif re.search("^UR:CRYPTO-OUTPUT/", s, re.IGNORECASE):
                 return QRType.OUTPUT__UR
 
-            elif re.search("^UR:CRYPTO-ACCOUNT/", s, re.IGNORECASE):
-                return QRType.ACCOUNT__UR
-
             elif re.search(r'^p(\d+)of(\d+) ([A-Za-z0-9+\/=]+$)', s, re.IGNORECASE): #must be base64 characters only in segment
                 return QRType.PSBT__SPECTER
 
@@ -244,50 +239,6 @@ class DecodeQR:
 
             elif re.search(r"^B\$[2HZ]P[0-9A-Z]{4}", s): # https://github.com/coinkite/BBQr/blob/master/BBQr.md#spliting-the-data
                 return QRType.PSBT__BBQR
-
-            # Wallet Descriptor
-            desc_str = s.replace("\n","").replace(" ","")
-            if re.search(r'^p(\d+)of(\d+) ', s, re.IGNORECASE):
-                # when not a SPECTER Base64 PSBT from above, assume it's json
-                return QRType.WALLET__SPECTER
-
-            elif re.search(r'^\{\"label\".*\"descriptor\"\:.*', desc_str, re.IGNORECASE):
-                # if json starting with label and contains descriptor, assume specter wallet json
-                return QRType.WALLET__SPECTER
-
-            elif "multisig setup file" in s.lower():
-                return QRType.WALLET__CONFIGFILE
-
-            elif "sortedmulti" in s:
-                return QRType.WALLET__GENERIC
-
-            # Seed
-            if re.search(r'\d{48,96}', s):
-                return QRType.SEED__SEEDQR
-
-            # message signing
-            elif s.startswith("signmessage"):
-                return QRType.SIGN_MESSAGE
-
-            # config data
-            if s.startswith("settings::"):
-                return QRType.SETTINGS
-
-            # Seed
-            # create 4 letter wordlist only if not PSBT (performance gain)
-            wordlist: List[str] = Seed.get_wordlist()
-            try:
-                _4LETTER_WORDLIST = [word[:4].strip() for word in wordlist]
-            except:
-                _4LETTER_WORDLIST = []
-
-            if all(x in wordlist for x in s.strip().split(" ")):
-                # checks if all words in list are in BIP-39 word list
-                return QRType.SEED__MNEMONIC
-
-            elif all(x in _4LETTER_WORDLIST for x in s.strip().split(" ")):
-                # checks if all 4 letter words are in list are in 4 letter BIP-39 word list
-                return QRType.SEED__FOUR_LETTER_MNEMONIC
 
             elif DecodeQR.is_base43_psbt(s):
                 return QRType.PSBT__BASE43
@@ -307,12 +258,11 @@ class DecodeQR:
                 raise Exception("Conversion to bytes failed")
 
         # 32 bytes for 24-word CompactSeedQR; 16 bytes for 12-word CompactSeedQR
-        if len(s) == 32 or len(s) == 16:
+        if len(s) == 16:
             try:
                 bitstream = ""
                 for b in s:
                     bitstream += bin(b).lstrip('0b').zfill(8)
-                # print(bitstream)
 
                 return QRType.SEED__COMPACTSEEDQR
             except Exception as e:

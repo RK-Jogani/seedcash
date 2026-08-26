@@ -169,7 +169,6 @@ class Settings(Singleton):
         """
         if attr_name not in self._data:
             # Outdated settings
-            print(f"Setting {attr_name} not recognized. Ignoring.")
             return
 
         if (

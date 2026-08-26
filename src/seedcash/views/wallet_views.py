@@ -239,6 +239,11 @@ class WalletOptionsView(View):
                        SettingsConstants.SETTING__SEED_PROTOCOL))
 
         if button_data[selected_menu_num] == self.VIEW_SEED:
+            self.run_screen(
+                screen.WarningScreen,
+                title="",
+                text=_("Exposing your Seed gives full control of your funds")
+                )
             if is_slip:
                 return Destination(Slip39SeedViewView)
             return Destination(Bip39SeedViewView)
@@ -403,19 +408,7 @@ class Bip39SeedViewView(View):
                 text=_("SeedQR contains only the mnemonic phrase.")
             )
 
-            self.run_screen(
-                screen.WarningScreen,
-                title="",
-                text=_("Exposing your SeedQR gives full control of your funds")
-            )
-
             return Destination(SeedTranscribeSeedQRWholeQRView)
-
-
-
-        
-
-        print(f"ret: {ret}")
 
 class Slip39SeedViewView(View):
     """

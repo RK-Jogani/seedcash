@@ -115,7 +115,6 @@ class ScanView(View):
 
         # Handle the results
         if self.decoder.is_complete:
-            print(f"QR code decoded successfully! Type: {self.decoder.qr_type}")
             if not self.is_valid_qr_type:
                 # We recognized the QR type but it was not the type expected for the
                 # current flow.
@@ -137,10 +136,8 @@ class ScanView(View):
                 )
 
             if self.decoder.is_seed:
-                print("Found a SeedQR! Attempting to decode...")
                 seed_mnemonic = self.decoder.get_seed_phrase()
-                print(f"Decoded SeedQR mnemonic: {seed_mnemonic}")
-
+                
                 if not seed_mnemonic:
                     # seed is not valid, Exit if not valid with message
                     return Destination(NotYetImplementedView)
