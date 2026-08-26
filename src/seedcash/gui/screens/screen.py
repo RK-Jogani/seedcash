@@ -1004,22 +1004,32 @@ class LargeButtonScreen(BaseScreen):
             )
 
             with self.renderer.lock:
-                if (
-                    user_input == HardwareButtonsConstants.KEY_UP
-                    or user_input == HardwareButtonsConstants.KEY_LEFT
-                ):
+                if user_input == HardwareButtonsConstants.KEY_UP:
+                    # Navigation wraps through all buttons, including the power button at the bottom.
+                    if self.selected_button == 0 or self.selected_button == 1:
+                        pass
+                    elif self.selected_button == 2:
+                        swap_selected_button(0)
+                    elif self.selected_button == 3 or self.selected_button == 4:
+                        swap_selected_button(1)
+                elif user_input == HardwareButtonsConstants.KEY_LEFT:
                     # Navigation wraps through all buttons, including the power button at the bottom.
                     if self.selected_button == 0:
-                        pass  # Already at top button
+                        pass
                     else:
                         swap_selected_button(self.selected_button - 1)
 
-                elif (
-                    user_input == HardwareButtonsConstants.KEY_DOWN
-                    or user_input == HardwareButtonsConstants.KEY_RIGHT
-                ):
+                elif user_input == HardwareButtonsConstants.KEY_DOWN:
+                    if self.selected_button == 0:
+                        swap_selected_button(2)
+                    if self.selected_button == 1:
+                        swap_selected_button(3)
+
+                elif user_input == HardwareButtonsConstants.KEY_RIGHT:
                     # After the last main button, next down selects the power button.
-                    if self.selected_button < len(self.buttons) - 1:
+                    if self.selected_button == len(self.buttons) - 1:
+                        pass
+                    else:
                         swap_selected_button(self.selected_button + 1)
 
                 elif user_input in HardwareButtonsConstants.KEYS__ANYCLICK:
