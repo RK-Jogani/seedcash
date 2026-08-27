@@ -1,11 +1,8 @@
-import math
 from dataclasses import dataclass
-from typing import List
 from seedcash.helpers.ur2.ur_encoder import UREncoder
 from seedcash.helpers.ur2.ur import UR
 from seedcash.helpers.qr import QR
 from seedcash.models.seed import Seed
-from seedcash.models.settings import SettingsConstants
 
 
 @dataclass
@@ -73,7 +70,6 @@ class BaseStaticQrEncoder(BaseQrEncoder):
         return True
 
 
-
 @dataclass
 class GenericStaticQrEncoder(BaseStaticQrEncoder):
     data: str = None
@@ -93,103 +89,9 @@ class BaseXpubQrEncoder(BaseQrEncoder):
     sig_type: str = None
 
 
-class StaticXpubQrEncoder(BaseXpubQrEncoder, BaseStaticQrEncoder):
-    def __post_init__(self):
-        super().__post_init__()
-        self.prep_xpub()
-
-    def next_part(self):
-        self.prep_xpub()
-        return self.xpubstring
-
-
-"""**************************************************************************************
-    Simple animated QR encoders
-**************************************************************************************"""
-
-
-@dataclass
-class BaseSimpleAnimatedQREncoder(BaseQrEncoder):
-    def __post_init__(self):
-        super().__post_init__()
-        self.parts = []
-        self.part_num_sent = 0
-        self.sent_complete = False
-        self._create_parts()
-
-    @property
-    def is_complete(self):
-        return self.sent_complete
-
-    def seq_len(self):
-        return len(self.parts)
-
-    def next_part(self) -> str:
-        # if part num sent is gt number of parts, start at 0
-        if self.part_num_sent > (len(self.parts) - 1):
-            self.part_num_sent = 0
-
-        part = self.parts[self.part_num_sent]
-
-        # when parts sent eq num of parts in list
-        if self.part_num_sent == (len(self.parts) - 1):
-            self.sent_complete = True
-
-        # increment to next part
-        self.part_num_sent += 1
-
-        return part
-
-    def cur_part(self) -> str:
-        if self.part_num_sent == 0:
-            # Rewind all the way back to the end
-            self.part_num_sent = len(self.parts) - 1
-        else:
-            self.part_num_sent -= 1
-        return self.next_part()
-
-    def restart(self) -> str:
-        self.part_num_sent = 0
-
-
-@dataclass
-class SpecterXPubQrEncoder(BaseSimpleAnimatedQREncoder, BaseXpubQrEncoder):
-    @property
-    def qr_max_fragment_size(self):
-        return 50
-
-    def _create_parts(self):
-        self.prep_xpub()
-        start = 0
-        stop = self.qr_max_fragment_size
-        qr_cnt = ((len(self.xpubstring) - 1) // self.qr_max_fragment_size) + 1
-
-        if qr_cnt == 1:
-            self.parts.append(self.xpubstring[start:stop])
-
-        cnt = 0
-        while cnt < qr_cnt and qr_cnt != 1:
-            part = (
-                "p"
-                + str(cnt + 1)
-                + "of"
-                + str(qr_cnt)
-                + " "
-                + self.xpubstring[start:stop]
-            )
-            self.parts.append(part)
-
-            start = start + self.qr_max_fragment_size
-            stop = stop + self.qr_max_fragment_size
-            if stop > len(self.xpubstring):
-                stop = len(self.xpubstring)
-            cnt += 1
-
-
 """**************************************************************************************
     Fountain encoded animated QR encoders
 **************************************************************************************"""
-
 
 @dataclass
 class BaseFountainQrEncoder(BaseQrEncoder):

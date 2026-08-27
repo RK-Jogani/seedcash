@@ -105,10 +105,6 @@ class SeedMnemonicEntryView(View):
             )
 
             if confirm == "CONFIRM":
-                # User confirmed the seed words
-                logger.info(
-                    "User confirmed the seed words.", self.controller.storage._mnemonic
-                )
                 try:
                     self.controller.storage.convert_mnemonic_to_seed()
                     self.controller.storage.create_wallet()
