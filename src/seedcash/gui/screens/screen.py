@@ -943,18 +943,14 @@ class LargeButtonScreen(BaseScreen):
             if i == 1:
                 button_start_y += button_height + GUIConstants.COMPONENT_PADDING
 
-        # Add the small setting button at the bottom left
+        # Add the small setting button at the bottom left 
         self.settings_button = IconButton(
             icon_name=SeedCashIconsConstants.SETTINGS,
             icon_size=GUIConstants.ICON_INLINE_FONT_SIZE,
-            screen_x=self.canvas_width
-            - 2 * GUIConstants.EDGE_PADDING
-            - 2 * GUIConstants.TOP_NAV_BUTTON_SIZE,
-            screen_y=self.canvas_height 
-            - GUIConstants.TOP_NAV_BUTTON_SIZE 
-            - GUIConstants.EDGE_PADDING,
-            width=GUIConstants.TOP_NAV_BUTTON_SIZE,
-            height=GUIConstants.TOP_NAV_BUTTON_SIZE,
+            screen_x=button_width + 2 * GUIConstants.COMPONENT_PADDING,
+            screen_y=button_start_y,
+            width=(button_width - GUIConstants.COMPONENT_PADDING) // 2,
+            height=button_height,
             )
         
         self.buttons.append(self.settings_button)  # Now selectable
@@ -964,14 +960,10 @@ class LargeButtonScreen(BaseScreen):
         self.bottom_button = IconButton(
             icon_name=SeedCashIconsConstants.POWER,
             icon_size=GUIConstants.ICON_INLINE_FONT_SIZE,
-            screen_x=self.canvas_width
-            - GUIConstants.TOP_NAV_BUTTON_SIZE
-            - GUIConstants.EDGE_PADDING,
-            screen_y=self.canvas_height 
-            - GUIConstants.TOP_NAV_BUTTON_SIZE 
-            - GUIConstants.EDGE_PADDING,
-            width=GUIConstants.TOP_NAV_BUTTON_SIZE,
-            height=GUIConstants.TOP_NAV_BUTTON_SIZE,
+            screen_x=button_width + 2 * GUIConstants.COMPONENT_PADDING + (button_width + GUIConstants.COMPONENT_PADDING) // 2,
+            screen_y=button_start_y,
+            width=(button_width - GUIConstants.COMPONENT_PADDING) // 2,
+            height=button_height,
             )
         
         self.buttons.append(self.bottom_button)  # Now selectable

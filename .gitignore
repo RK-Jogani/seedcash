@@ -10,5 +10,6 @@ __pycache__/
 *.log
 *.codex
 *.venv
+.python-version
 
 src/tests/*
