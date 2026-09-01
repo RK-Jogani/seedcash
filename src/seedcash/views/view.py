@@ -194,6 +194,7 @@ class MainMenuView(View):
     LOAD_SEED = ButtonOption("Load seed", SeedCashIconsConstants.LOAD_SEED)
     GENERATE_SEED = ButtonOption("Generate seed", SeedCashIconsConstants.GENERATE_SEED)
     SEED_STORAGE = ButtonOption("Store seed", SeedCashIconsConstants.STORE_SEED)
+    SETTINGS = ButtonOption("Settings", SeedCashIconsConstants.SETTINGS)
 
     def run(self):
         from seedcash.gui.screens.screen import MainMenuScreen
@@ -207,13 +208,13 @@ class MainMenuView(View):
             self.LOAD_SEED,
             self.GENERATE_SEED,
             self.SEED_STORAGE,
+            self.SETTINGS,
         ]
         selected_menu_num = self.run_screen(
             MainMenuScreen,
             button_data=button_data,
         )
 
-        button_data.append("Settings")
         button_data.append("Power Off")
 
         if button_data[selected_menu_num] == self.LOAD_SEED:
@@ -222,7 +223,7 @@ class MainMenuView(View):
         elif button_data[selected_menu_num] == self.GENERATE_SEED:
             return Destination(GenerateSeedView)
 
-        elif button_data[selected_menu_num] == "Settings":
+        elif button_data[selected_menu_num] == self.SETTINGS:
             from seedcash.views.setting_views import SettingOptionsView
 
             return Destination(SettingOptionsView)

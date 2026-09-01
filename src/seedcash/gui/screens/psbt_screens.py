@@ -788,7 +788,7 @@ class PSBTMathScreen(PSBTButtonListScreen):
                 info_text=ngettext("output", "outputs", self.num_outputs),
             )
 
-        cur_y += digits_height + GUIConstants.BODY_LINE_SPACING
+        cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
         draw.line((0, cur_y, image.width, cur_y), fill=GUIConstants.BODY_FONT_COLOR, width=1)
 
         cur_y += ssf

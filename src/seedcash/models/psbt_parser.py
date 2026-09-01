@@ -476,18 +476,13 @@ class PSBTParser:
     def address_from_script(script_pubkey: bytes, is_token_tx: bool = False) -> Optional[str]:
         if script_pubkey.startswith(b"\x76\xa9\x14") and script_pubkey.endswith(b"\x88\xac"):
             hash160 = script_pubkey[3:23]
-            addr = Bip44.hash160_to_cashaddr(hash160, version_byte=0x00).strip()
-            if is_token_tx and addr.startswith("bitcoincash:q"):
-                return addr.replace("q", "z", 1)
-            return addr
+            version_byte = 0x00 if not is_token_tx else 0x08    
+            return Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte).strip()
 
         if script_pubkey.startswith(b"\xa9\x14") and script_pubkey.endswith(b"\x87"):
             hash160 = script_pubkey[2:22]
-            addr = Bip44.hash160_to_cashaddr(hash160, version_byte=0x08).strip()
-            if is_token_tx and addr.startswith("bitcoincash:p"):
-                return addr.replace("p", "r", 1)
-            return addr
-
+            version_byte = 0x05 if not is_token_tx else 0x09
+            return Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte).strip()
         return None
     
     def _build_transaction(self) -> Transaction:

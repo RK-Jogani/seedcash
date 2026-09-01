@@ -890,7 +890,7 @@ class LargeButtonScreen(BaseScreen):
         button_width = int((self.canvas_width - 3 * GUIConstants.COMPONENT_PADDING) / 2)
 
         # Maximize 2-row height
-        button_height = int((self.canvas_height - 3 * GUIConstants.COMPONENT_PADDING) / 2)
+        button_height = int((self.canvas_height - 4 * GUIConstants.COMPONENT_PADDING - GUIConstants.TOP_NAV_BUTTON_SIZE) / 2)
 
         # Center the column of buttons
         button_start_y = GUIConstants.EDGE_PADDING
@@ -923,8 +923,7 @@ class LargeButtonScreen(BaseScreen):
                 "is_text_centered": True,
                 "font_name": self.button_font_name,
                 "font_size": self.button_font_size,
-                "selected_color": self.button_selected_color,
-                "icon_y_offset": 2 * GUIConstants.COMPONENT_PADDING,
+                "selected_color": self.button_selected_color
             }
             if icon_name:
                 button_args["icon_name"] = icon_name
@@ -942,28 +941,15 @@ class LargeButtonScreen(BaseScreen):
             # set the button as selected if it's the first one
             if i == 1:
                 button_start_y += button_height + GUIConstants.COMPONENT_PADDING
-
-        # Add the small setting button at the bottom left 
-        self.settings_button = IconButton(
-            icon_name=SeedCashIconsConstants.SETTINGS,
-            icon_size=GUIConstants.ICON_INLINE_FONT_SIZE,
-            screen_x=button_width + 2 * GUIConstants.COMPONENT_PADDING,
-            screen_y=button_start_y,
-            width=(button_width - GUIConstants.COMPONENT_PADDING) // 2,
-            height=button_height,
-            )
-        
-        self.buttons.append(self.settings_button)  # Now selectable
-        self.components.append(self.settings_button)
-        
+    
         # Add the small power button at the bottom right as a selectable button
         self.bottom_button = IconButton(
             icon_name=SeedCashIconsConstants.POWER,
             icon_size=GUIConstants.ICON_INLINE_FONT_SIZE,
-            screen_x=button_width + 2 * GUIConstants.COMPONENT_PADDING + (button_width + GUIConstants.COMPONENT_PADDING) // 2,
-            screen_y=button_start_y,
-            width=(button_width - GUIConstants.COMPONENT_PADDING) // 2,
-            height=button_height,
+            screen_x=self.canvas_width - GUIConstants.TOP_NAV_BUTTON_SIZE - GUIConstants.EDGE_PADDING,
+            screen_y=self.canvas_height - GUIConstants.TOP_NAV_BUTTON_SIZE - GUIConstants.EDGE_PADDING,
+            width=GUIConstants.TOP_NAV_BUTTON_SIZE,
+            height=GUIConstants.TOP_NAV_BUTTON_SIZE,
             )
         
         self.buttons.append(self.bottom_button)  # Now selectable
