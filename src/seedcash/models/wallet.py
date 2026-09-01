@@ -10,8 +10,6 @@ class Wallet:
             private_master_key, private_master_code
         )
 
-        self.seed_bits: Optional[str] = None
-
     @property
     def _xpriv(self) -> str:
         return self.xpriv
