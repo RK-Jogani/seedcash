@@ -321,14 +321,16 @@ def parse_psbt(buf) -> Dict[str, Any]:
     if output_count == 0:
         output_count = len(parsed_tx["outputs"])
 
-    input_starts = []
-    input_ends = []
+    input_starts: int = 0
+    input_ends: int = 0
     inputs = []
     for _ in range(input_count):
-        input_starts.append(pos)
+        if _ == 0:
+            input_starts = pos
         pairs, pos = parse_keypairs(buf, pos)
         inputs.append(pairs)
-        input_ends.append(pos)
+        if _ == input_count - 1:
+            input_ends = pos
 
     outputs = []
     for _ in range(output_count):
