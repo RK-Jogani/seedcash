@@ -404,9 +404,9 @@ class BitcoinCashSigner:
             input_maps[idx] = updated_pairs
 
         # Rebuild PSBT
-        psbt = bytearray(self.parser.psbt_bytes[:input_starts[0]])
+        psbt = bytearray(self.parser.psbt_bytes[:input_starts])
         for pairs in input_maps:
             psbt += _serialize_keypairs(pairs) + b"\x00"
-        psbt += self.parser.psbt_bytes[input_ends[0]:]
+        psbt += self.parser.psbt_bytes[input_ends:]
         return  psbt
 

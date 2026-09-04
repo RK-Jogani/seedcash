@@ -4,6 +4,7 @@ from typing import List, Tuple
 from seedcash.models.settings_definition import SettingsConstants as SC 
 from base58 import b58decode, b58encode
 from ecdsa import SECP256k1, SigningKey, VerifyingKey
+from ecdsa.ellipticcurve import INFINITY
 
 class Bip44:
 
@@ -175,7 +176,7 @@ class Bip44:
             parent_public_key = VerifyingKey.from_string(parent_key, curve=SECP256k1)
             child_point = (generator * IL_int) + parent_public_key.pubkey.point
             
-            if child_point == curve.infinity():
+            if child_point == INFINITY:
                 raise ValueError("Derived point is at infinity (try next index)")
             
             child_key = VerifyingKey.from_public_point(
