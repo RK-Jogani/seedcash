@@ -9,7 +9,6 @@ from PIL import Image, ImageDraw, ImageFilter
 from seedcash.gui.components import (
     BchAmount,
     Category,
-    categories,
     TokenAmount,
     Icon,
     FormattedAddress,
@@ -37,6 +36,9 @@ from .screen import (
 
 @dataclass
 class PSBTButtonListScreen(BaseTopNavScreen, ButtonListScreen):
+    def __post_init__(self):
+        super().__post_init__()
+
     def _run(self):
         while True:
             ret = self._run_callback()
@@ -159,7 +161,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
     num_inputs: int = 0
     destination_addresses: list[str] = None
     has_op_return: bool = False
-    category_id: str = None
+    category: Category = None
 
     def __post_init__(self):
 
@@ -168,20 +170,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         self.is_bottom_list = True
         self.is_button_text_centered = True
 
-        for category in categories:
-            if category.category_id == self.category_id:
-                self.category: Category = category
-                break        
-        else:
-            self.category: Category = Category(
-                category_id=self.category_id,
-                token_symbol="Unknown",
-                decimal=0,
-                icon_name=SeedCashIconsConstants.CASHTOKEN,
-                icon_color=GUIConstants.ACCENT_COLOR,
-            )
-
-        self.button_data = [ButtonOption("Next", button_color=self.category.icon_color)]
+        self.button_data = [ButtonOption("Next")]
 
         super().__post_init__()
 
@@ -191,7 +180,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         # Prep the headline amount being spent in large callout
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
-        if self.category_id:
+        if self.category:    
             self.components.append(
                 TokenAmount(
                     amount=self.spend_amount,
@@ -544,7 +533,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         # Pass input and output curves to the animation thread
         self.threads.append(
             PSBTOverviewScreen.TxExplorerAnimationThread(
-                pulse_color=self.category.icon_color,
+                pulse_color=self.selected_color,
                 inputs=input_curves,
                 outputs=output_curves,
                 supersampling_factor=ssf,
@@ -661,21 +650,22 @@ class PSBTMathScreen(PSBTButtonListScreen):
             self.spend_amount /= 1e6
             self.input_amount = f"{self.input_amount:,.6f}"
             self.spend_amount = f"{self.spend_amount:,.6f}"
-
-            # Note: We keep the fee denominated in sats; just left pad it so it still
-            # lines up properly.
-            self.fee_amount = f"{self.fee_amount:10}"
+            self.fee_amount = f"{self.fee_amount:,.6f}"
         else:
             denomination = _("sats")
             self.input_amount = f"{self.input_amount:,}"
             self.spend_amount = f"{self.spend_amount:,}"
             self.fee_amount = f"{self.fee_amount:,}"
 
+        # Align the digits - pad all amounts to same width
         longest_amount = max(
             len(self.input_amount),
             len(self.spend_amount),
             len(self.fee_amount),
         )
+        
+        # Right-pad amounts so they're all the same width
+        # This ensures digits align vertically
         if len(self.input_amount) < longest_amount:
             self.input_amount = (
                 " " * (longest_amount - len(self.input_amount)) + self.input_amount
@@ -692,7 +682,6 @@ class PSBTMathScreen(PSBTButtonListScreen):
             )
 
         # Render the info to temp Image
-        # TODO: Test rendering the numeric amounts without the supersampling
         body_width = self.canvas_width - 2 * GUIConstants.EDGE_PADDING
         body_height = (
             self.buttons[0].screen_y
@@ -710,68 +699,55 @@ class PSBTMathScreen(PSBTButtonListScreen):
             GUIConstants.FIXED_WIDTH_FONT_NAME,
             (GUIConstants.BODY_FONT_SIZE + 6) * ssf,
         )
-        left, top, right, bottom = fixed_width_font.getbbox(self.input_amount + "+")
+        
+        # Get dimensions for the amount text
+        left, top, right, bottom = fixed_width_font.getbbox("0" * longest_amount + "0")
         digits_width, digits_height = right - left, bottom - top
-
+        
+        # Get dimensions for the info text
+        info_texts = [
+            ngettext("input", "inputs", self.num_inputs),
+            ngettext("output", "outputs", self.num_outputs) if self.num_outputs > 0 else "",
+            _("fee")
+        ]
+        max_info_width = 0
+        for info in info_texts:
+            if info:
+                left, top, right, bottom = body_font.getbbox(info)
+                max_info_width = max(max_info_width, right - left)
+        
+        # Calculate total width of amount + info
+        spacing = 3 * ssf  # Space between amount and info
+        total_line_width = digits_width + spacing + max_info_width
+        
+        # Calculate starting X to center the entire block
+        block_start_x = (image.width - total_line_width) // 2
+        
         # Draw each line of the equation
         cur_y = 0
+        digit_group_spacing = 2 * ssf
 
         def render_amount(
             cur_y, amount_str, info_text, info_text_color=GUIConstants.BODY_FONT_COLOR
         ):
-            secondary_digit_color = "#888"
-            tertiary_digit_color = "#666"
-            digit_group_spacing = 2 * ssf
-            # secondary_digit_color = GUIConstants.BODY_FONT_COLOR
-            # tertiary_digit_color = GUIConstants.BODY_FONT_COLOR
-            # digit_group_spacing = 0
-            if denomination == _("bch"):
-                display_str = amount_str
-                main_zone = display_str[:-6]
-                mid_zone = display_str[-6:-3]
-                end_zone = display_str[-3:]
-                left, top, right, bottom = fixed_width_font.getbbox(main_zone)
-                main_zone_width, th = right - left, bottom - top
-                left, top, right, bottom = fixed_width_font.getbbox(end_zone)
-                mid_zone_width, th = right - left, bottom - top
-                draw.text(
-                    (0, cur_y),
-                    text=main_zone,
-                    font=fixed_width_font,
-                    fill=GUIConstants.BODY_FONT_COLOR,
-                )
-                draw.text(
-                    (main_zone_width + digit_group_spacing, cur_y),
-                    text=mid_zone,
-                    font=fixed_width_font,
-                    fill=secondary_digit_color,
-                )
-                draw.text(
-                    (
-                        main_zone_width
-                        + digit_group_spacing
-                        + mid_zone_width
-                        + digit_group_spacing,
-                        cur_y,
-                    ),
-                    text=end_zone,
-                    font=fixed_width_font,
-                    fill=tertiary_digit_color,
-                )
-            else:
-                draw.text(
-                    (0, cur_y),
-                    text=amount_str,
-                    font=fixed_width_font,
-                    fill=GUIConstants.BODY_FONT_COLOR,
-                )
+            # Draw amount at the same X position (aligned)
             draw.text(
-                (digits_width + 3 * digit_group_spacing, cur_y),
-                text=info_text,
-                font=body_font,
-                fill=info_text_color,
+                (block_start_x, cur_y),
+                text=amount_str,
+                font=fixed_width_font,
+                fill=GUIConstants.BODY_FONT_COLOR,
             )
+            
+            # Draw info text after the amount with spacing
+            if info_text:
+                draw.text(
+                    (block_start_x + digits_width + spacing, cur_y),
+                    text=info_text,
+                    font=body_font,
+                    fill=info_text_color,
+                )
 
+        # Render each line
         render_amount(
             cur_y,
             f" {self.input_amount}",
@@ -784,20 +760,25 @@ class PSBTMathScreen(PSBTButtonListScreen):
             cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
             render_amount(
                 cur_y,
-                f"-{self.spend_amount}",
+                f"-{self.spend_amount} ",
                 info_text=ngettext("output", "outputs", self.num_outputs),
             )
 
         cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
-        draw.line((0, cur_y, image.width, cur_y), fill=GUIConstants.BODY_FONT_COLOR, width=1)
+        # Draw separator line (centered)
+        line_y = cur_y
+        draw.line(
+            (block_start_x, line_y, block_start_x + total_line_width, line_y), 
+            fill=GUIConstants.BODY_FONT_COLOR, 
+            width=1
+        )
 
         cur_y += ssf
         render_amount(
             cur_y,
             f" {self.fee_amount}",
             info_text=_("fee"),
-            )
-
+        )
 
         # Resize to target and sharpen final image
         image = image.resize((body_width, body_height), Image.Resampling.LANCZOS)
@@ -815,25 +796,11 @@ class PSBTMathScreen(PSBTButtonListScreen):
 class PSBTAddressDetailsScreen(PSBTButtonListScreen):
     address: str = None
     amount: int = 0
-    button_title: str = _("Next")
-    category_id: str = None
+    category: Category = None 
 
     def __post_init__(self):
         # Customize defaults
         self.is_bottom_list = True
-        for category in categories:
-            if category.category_id == self.category_id:
-                self.category: Category = category
-                break
-        else:
-            self.category: Category = Category(
-                category_id=self.category_id,
-                token_symbol="Unknown",
-                decimal=0,
-                icon_name=SeedCashIconsConstants.CASHTOKEN,
-                icon_color=GUIConstants.ACCENT_COLOR,
-            )
-        self.button_data = [ButtonOption(self.button_title, button_color=self.category.icon_color)]
         super().__post_init__()
 
         center_img_height = self.buttons[0].screen_y - self.top_nav.height
@@ -845,7 +812,7 @@ class PSBTAddressDetailsScreen(PSBTButtonListScreen):
         )
         draw = ImageDraw.Draw(center_img)
 
-        if self.category_id:
+        if self.category:
             _amount = TokenAmount(
                 image_draw=draw,
                 canvas=center_img,
@@ -868,7 +835,7 @@ class PSBTAddressDetailsScreen(PSBTButtonListScreen):
             screen_x=GUIConstants.EDGE_PADDING,
             screen_y=_amount.height + GUIConstants.COMPONENT_PADDING,
             font_size=24,
-            font_accent_color=self.category.icon_color,
+            font_accent_color=self.selected_color,
             address=self.address,
         )
 
@@ -978,7 +945,7 @@ class PSBTFinalizeScreen(PSBTButtonListScreen):
 
         self.components.append(
             TextArea(
-                text=_("Click to approve this transaction"),
+                text=_("Click to sign PSBT"),
                 screen_y=icon.screen_y
                 + icon.height
                 + 2 * GUIConstants.COMPONENT_PADDING,
@@ -993,11 +960,10 @@ class PSBTNFTScreen(PSBTButtonListScreen):
         # Customize defaults
         self.title = _("Review PSBT")
         self.is_bottom_list = True
-        self.button_data = [ButtonOption("Next", button_color=GUIConstants.MUSD_BLUE)]
         super().__post_init__()
         
         # collection TODO: For now we have unkown we will add collection in future
-        y_offset = self.top_nav.height
+        y_offset = self.top_nav.height + GUIConstants.COMPONENT_PADDING
         
         self.components.append(
             TextArea(
@@ -1007,11 +973,11 @@ class PSBTNFTScreen(PSBTButtonListScreen):
                 screen_y=y_offset,
             )
         )
-        y_offset += GUIConstants.BODY_FONT_SIZE
+        y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
         self.components.append(
             RoundedTextArea(
                 text="Unknown",
-                font_size=GUIConstants.BODY_FONT_SIZE,
+                font_size=GUIConstants.BODY_FONT_SIZE - 2,
                 is_text_centered=False,
                 screen_x=GUIConstants.EDGE_PADDING,
                 screen_y=y_offset,
@@ -1029,11 +995,11 @@ class PSBTNFTScreen(PSBTButtonListScreen):
             )
         )
 
-        y_offset += GUIConstants.BODY_FONT_SIZE
+        y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
         self.components.append(
             RoundedTextArea(
                 text=self.category_id,
-                font_size=GUIConstants.BODY_FONT_SIZE,
+                font_size=GUIConstants.BODY_FONT_SIZE - 2,
                 is_text_centered=False,
                 treat_chars_as_words=True,
                 screen_x=GUIConstants.EDGE_PADDING,
@@ -1043,14 +1009,14 @@ class PSBTNFTScreen(PSBTButtonListScreen):
 @dataclass
 class PSBTNFTDetailsScreen(PSBTButtonListScreen):
     output_num: int = None
-    nft_commitment: str = None
     nft_capability: str = None
+    nft_commitment: str = None
+    
 
     def __post_init__(self):
         # Customize defaults
         self.title = _("Review PSBT")
         self.is_bottom_list = True
-        self.button_data = [ButtonOption("Next", button_color=GUIConstants.MUSD_BLUE)]
         super().__post_init__()
 
         # Type
@@ -1073,11 +1039,11 @@ class PSBTNFTDetailsScreen(PSBTButtonListScreen):
             )
         )
 
-        y_offset += GUIConstants.BODY_FONT_SIZE
+        y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
         self.components.append(
             RoundedTextArea(
                 text=self.nft_capability,
-                font_size=GUIConstants.BODY_FONT_SIZE,
+                font_size=GUIConstants.BODY_FONT_SIZE - 2,
                 is_text_centered=False,
                 treat_chars_as_words=True,
                 screen_x=GUIConstants.EDGE_PADDING,
@@ -1086,26 +1052,28 @@ class PSBTNFTDetailsScreen(PSBTButtonListScreen):
         )
 
         # Commitment
-        y_offset += GUIConstants.BODY_FONT_SIZE + 2 * GUIConstants.COMPONENT_PADDING
-        self.components.append(
-            TextArea(
+        # if str is empty, we don't want to show the commitment section at all
+        if self.nft_commitment != "":
+            y_offset += GUIConstants.BODY_FONT_SIZE + 2 * GUIConstants.COMPONENT_PADDING
+            self.components.append(
+                TextArea(
                     text="Commitment",
                     font_size=GUIConstants.BODY_FONT_SIZE - 4,
                     is_text_centered=False,
                     screen_y=y_offset,
                 )
             )
-        y_offset += GUIConstants.BODY_FONT_SIZE
-        self.components.append(
-            RoundedTextArea(
-                text=self.nft_commitment,
-                font_size=GUIConstants.BODY_FONT_SIZE,
-                is_text_centered=False,
-                treat_chars_as_words=True,
-                screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=y_offset,
+            y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
+            self.components.append(
+                RoundedTextArea(
+                    text=self.nft_commitment,
+                    font_size=GUIConstants.BODY_FONT_SIZE - 2,
+                    is_text_centered=False,
+                    treat_chars_as_words=True,
+                    screen_x=GUIConstants.EDGE_PADDING,
+                    screen_y=y_offset,
+                )
             )
-        )
 
 @dataclass
 class PSBTNFTAddressScreen(PSBTButtonListScreen):
@@ -1114,8 +1082,7 @@ class PSBTNFTAddressScreen(PSBTButtonListScreen):
 
     def __post_init__(self):
         self.title = _("Will Send")
-        self.is_bottom_list = True
-        self.button_data = [ButtonOption("Next", button_color=GUIConstants.MUSD_BLUE)]
+        self.is_bottom_list = True 
         super().__post_init__()
 
         center_img_height = self.buttons[0].screen_y - self.top_nav.height

@@ -267,12 +267,14 @@ class BaseTopNavScreen(BaseScreen):
     title_font_size: int = GUIConstants.TOP_NAV_TITLE_FONT_SIZE
     show_back_button: bool = True
     show_check_button: bool = False
+    selected_color: str = GUIConstants.ACCENT_COLOR
 
     def __post_init__(self):
         super().__post_init__()
         self.top_nav = TopNav(
             icon_name=self.top_nav_icon_name,
             icon_color=self.top_nav_icon_color,
+            selected_color=self.selected_color,
             text=_(self.title),  # Wrap here for just-in-time translations
             font_size=self.title_font_size,
             width=self.canvas_width,
@@ -334,10 +336,9 @@ class ButtonOption:
     right_icon_name: str = None
     button_label_color: str = None
     return_data: Any = None
-    button_color: str = GUIConstants.ACCENT_COLOR
-    active_button_label: str = (
-        None  # Changes displayed button label when button is active
-    )
+    button_color: str = None
+    active_button_label: str = None  # Changes displayed button label when button is active
+    
     font_name: str = None  # Optional override
     font_size: int = None  # Optional override
 
@@ -347,6 +348,7 @@ class ButtonListScreen(BaseScreen):
     # Class attributes with default values
     button_data: list[ButtonOption] = None  # List of button options to display
     selected_button: int = 0  # Currently selected button index
+    selected_color: str = GUIConstants.ACCENT_COLOR
     is_button_text_centered: bool = True  # Whether button text should be centered
     is_bottom_list: bool = False  # If True, aligns buttons to bottom of screen
     is_top_nav: bool = False  # If True, displays a top navigation bar
@@ -453,7 +455,7 @@ class ButtonListScreen(BaseScreen):
                 font_size=button_option.font_size or self.button_font_size,
                 font_color=button_option.button_label_color
                 or GUIConstants.BUTTON_FONT_COLOR,
-                selected_color=button_option.button_color,
+                selected_color=button_option.button_color if button_option.button_color else self.selected_color,
                 is_scrollable_text=True,  # Enables text scrolling for long labels
             )
 

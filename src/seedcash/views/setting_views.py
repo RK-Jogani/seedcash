@@ -26,6 +26,7 @@ class SettingOptionsView(View):
     TEST_CAMERA = ButtonOption("Test Camera")
     CAMERA_ROTATION = ButtonOption("Camera Rotation")
     QR_BRIGHTNESS = ButtonOption("QR Brightness")
+    QR_DENSITY = ButtonOption("QR Density")
 
     def __init__(self):
         super().__init__()
@@ -39,6 +40,7 @@ class SettingOptionsView(View):
             self.TEST_CAMERA,
             self.CAMERA_ROTATION,
             self.QR_BRIGHTNESS,
+            self.QR_DENSITY
         ]
 
         selected_menu_num = self.run_screen(
@@ -60,6 +62,8 @@ class SettingOptionsView(View):
             return Destination(CameraRotationOptionsView)
         elif button_data[selected_menu_num] == self.QR_BRIGHTNESS:
             return Destination(SettingQRBrightnessView)
+        elif button_data[selected_menu_num] == self.QR_DENSITY:
+            return Destination(SettingQRDensityView)
 
 
 class SettingLanguageView(View):
@@ -178,3 +182,42 @@ class SettingQRBrightnessView(View):
         self.controller.settings.set_value(SettingsConstants.SETTING__QR_BRIGHTNESS, brightness_counter.cur_count)
         
         return Destination(BackStackView)
+
+class SettingQRDensityView(View):
+    def __init__(self):
+        super().__init__()
+    
+        # Get Button Options for Camera Rotation
+        self.qr_densities = [
+                ButtonOption(rotation[1])
+                for rotation in SettingsConstants.ALL_QR_DENSITIES
+            ]
+    def run(self):
+        
+        button_data = self.qr_densities
+        selected_btn = [
+            SettingsConstants.QR_DENSITY_LOW,
+            SettingsConstants.QR_DENSITY_MEDIUM,
+            SettingsConstants.QR_DENSITY_HIGH
+        ].index(
+            self.controller.settings.get_value(
+                SettingsConstants.SETTING_QR_DENSITY
+            )
+        )
+
+        selected_menu_num = self.run_screen(
+            SeedCashButtonListWithNav,
+            title="QR Density",
+            button_data=button_data,
+            selected_button=selected_btn,
+        )
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+        elif button_data[selected_menu_num] in self.qr_densities:
+            selected_density = SettingsConstants.ALL_QR_DENSITIES[
+                selected_menu_num
+            ][0]
+            self.controller.settings.set_value(
+                SettingsConstants.SETTING_QR_DENSITY, selected_density
+            )
+            return Destination(BackStackView)

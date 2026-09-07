@@ -128,6 +128,7 @@ class BaseFountainQrEncoder(BaseQrEncoder):
 @dataclass
 class UrPsbtQrEncoder(BaseFountainQrEncoder):
     psbt: bytearray = None
+    qr_max_fragment_size: int = 65
 
     def __post_init__(self):
         super().__post_init__()
