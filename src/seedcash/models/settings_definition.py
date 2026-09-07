@@ -104,6 +104,16 @@ class SettingsConstants:
         (CAMERA_ROTATION__270, ("Rotation 270°")),
     ]
 
+    QR_DENSITY_LOW = 30
+    QR_DENSITY_MEDIUM = 65
+    QR_DENSITY_HIGH = 120
+
+    ALL_QR_DENSITIES = [
+        (QR_DENSITY_LOW, "Low"),
+        (QR_DENSITY_MEDIUM, "Medium"),
+        (QR_DENSITY_HIGH, "High"),
+    ]
+
     # Seed protocols
     SEED_PROTOCOL__BIP39 = "BIP39"
     SEED_PROTOCOL__SLIP39 = "SLIP39"
@@ -147,6 +157,7 @@ class SettingsConstants:
     SETTING__DISPLAY_COLOR_INVERTED = "color_inverted"
 
     SETTING__CAMERA_ROTATION = "camera_rotation"
+    SETTING_QR_DENSITY = "qr_density"
     SETTING__SEED_PROTOCOL = "seed_protocol"
     SETTING__CHOOSE_WORDS = "choose_words"
 
@@ -345,7 +356,7 @@ class SettingsDefinition:
             attr_name=SettingsConstants.SETTING__CAMERA_ROTATION,
             type=SettingsConstants.TYPE__SELECT_1,
             selection_options=SettingsConstants.ALL_CAMERA_ROTATIONS,
-            default_value=SettingsConstants.CAMERA_ROTATION__270,
+            default_value=SettingsConstants.CAMERA_ROTATION__180,
         ),
         # Seed Protocol Settings
         SettingsEntry(
@@ -359,6 +370,13 @@ class SettingsDefinition:
             attr_name=SettingsConstants.SETTING__CHOOSE_WORDS,
             type=SettingsConstants.TYPE__SELECT_1,
             default_value=SettingsConstants.CHOOSE_BIP39_WORDS,
+        ),
+        # QR Density Settings
+        SettingsEntry(
+            attr_name=SettingsConstants.SETTING_QR_DENSITY,
+            type=SettingsConstants.TYPE__SELECT_1,
+            selection_options=SettingsConstants.ALL_QR_DENSITIES,
+            default_value=SettingsConstants.QR_DENSITY_MEDIUM,
         ),
         # Hardware config
         SettingsEntry(

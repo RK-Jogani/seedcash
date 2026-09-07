@@ -1638,6 +1638,7 @@ class TopNav(BaseComponent):
     show_back_button: bool = True
     show_check_button: bool = False
     is_selected: bool = False
+    selected_color: str = GUIConstants.ACCENT_COLOR
 
     def __post_init__(self):
         if not self.font_name:
@@ -1654,23 +1655,25 @@ class TopNav(BaseComponent):
             self.left_button = IconButton(
                 icon_name=SeedCashIconsConstants.BACK,
                 icon_size=GUIConstants.ICON_INLINE_FONT_SIZE,
+                selected_color=self.selected_color,
                 screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=GUIConstants.EDGE_PADDING
-                - 1,  # Text can't perfectly vertically center relative to the button; shifting it down 1px looks better.
+                screen_y=GUIConstants.EDGE_PADDING- 1,  # Text can't perfectly vertically center relative to the button; shifting it down 1px looks better.
                 width=GUIConstants.TOP_NAV_BUTTON_SIZE,
-                height=GUIConstants.TOP_NAV_BUTTON_SIZE,
+                height=GUIConstants.TOP_NAV_BUTTON_SIZE
             )
 
         if self.show_check_button:
             self.right_button = IconButton(
                 icon_name=SeedCashIconsConstants.CHECK,
                 icon_size=GUIConstants.ICON_INLINE_FONT_SIZE,
+                selected_color=self.selected_color,
                 screen_x=self.width
                 - GUIConstants.TOP_NAV_BUTTON_SIZE
                 - GUIConstants.EDGE_PADDING,
                 screen_y=GUIConstants.EDGE_PADDING,
                 width=GUIConstants.TOP_NAV_BUTTON_SIZE,
                 height=GUIConstants.TOP_NAV_BUTTON_SIZE,
+
             )
 
         min_text_x = GUIConstants.EDGE_PADDING
@@ -1737,6 +1740,45 @@ class TopNav(BaseComponent):
             self.right_button.is_selected = self.is_selected
             self.right_button.render()
 
+
+@dataclass
+class Category:
+    category_id: str
+    token_symbol: str
+    decimal: int
+    icon_name: str
+    icon_color: str
+
+# Define the list of categories
+categories: List[Category] = [
+    Category(
+        category_id="2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544",
+        token_symbol="PUSD",
+        decimal=2,
+        icon_name=SeedCashIconsConstants.PUSD,
+        icon_color=GUIConstants.PUSD_PURPLE,
+    ),
+    Category(
+        category_id="b38a33f750f84c5c169a6f23cb873e6e79605021585d4f3408789689ed87f366",
+        token_symbol="MUSD",
+        decimal=2,
+        icon_name=SeedCashIconsConstants.MUSD,
+        icon_color=GUIConstants.MUSD_BLUE,
+    ),
+]
+
+def get_category(category_id: str) -> Category:
+    for category in categories:
+        if category.category_id == category_id:
+            return category
+        else:
+            return Category(
+                category_id=category_id,
+                token_symbol="[?]",
+                decimal=0,
+                icon_name=SeedCashIconsConstants.CASHTOKEN,
+                icon_color=GUIConstants.MUSD_BLUE,
+            )
 
 @dataclass
 class BchAmount(BaseComponent):
@@ -1880,37 +1922,6 @@ class BchAmount(BaseComponent):
         self.canvas.paste(self.paste_image, self.paste_coords)
 
 @dataclass
-class Category:
-    category_id: str
-    token_symbol: str
-    decimal: int
-    icon_name: str
-    icon_color: str
-
-# Define the list of categories
-categories: List[Category] = [
-    Category(
-        category_id="2469acc5afa4b10cb5b5c04afb89c3a3ffd61c5da9c01e26d00951cae2a02544",
-        token_symbol="PUSD",
-        decimal=2,
-        icon_name=SeedCashIconsConstants.PUSD,
-        icon_color=GUIConstants.PUSD_PURPLE,
-    ),
-    Category(
-        category_id="b38a33f750f84c5c169a6f23cb873e6e79605021585d4f3408789689ed87f366",
-        token_symbol="MUSD",
-        decimal=2,
-        icon_name=SeedCashIconsConstants.MUSD,
-        icon_color=GUIConstants.MUSD_BLUE,
-    ),
-]
-
-def get_category_color(category_id: str) -> str:
-    for category in categories:
-        if category.category_id == category_id:
-            return category.icon_color
-    return GUIConstants.MUSD_BLUE  # Default color if not found
-@dataclass
 class TokenAmount(BaseComponent):
     category: Category = None
     amount: int = 0
@@ -1925,9 +1936,7 @@ class TokenAmount(BaseComponent):
         digit_font = Fonts.get_font(
             font_name=GUIConstants.BODY_FONT_NAME, size=self.font_size
         )
-        smaller_digit_font = Fonts.get_font(
-            font_name=GUIConstants.BODY_FONT_NAME, size=self.font_size - 2
-        )
+    
         unit_font_size = GUIConstants.BODY_FONT_SIZE + 2
 
         # Render to a temp surface
@@ -1954,17 +1963,17 @@ class TokenAmount(BaseComponent):
         self.amount = self.amount / (10 ** self.category.decimal)
         amount_text = f"{self.amount}"
 
-        font = digit_font
-        if self.amount > 1e9:
-            font = smaller_digit_font
-        left, top, text_width, bottom = font.getbbox(amount_text, anchor="ls")
+        if self.amount > 1e8:
+            amount_text = amount_text[:8] + "e" + str(len(amount_text) - 8)
+
+        left, top, text_width, bottom = digit_font.getbbox(amount_text, anchor="ls")
         text_height = -1 * top + bottom
         text_y = self.paste_image.height - int(
             (self.paste_image.height - text_height) / 2
         )
         draw.text(
             xy=(cur_x, text_y),
-            font=font,
+            font=digit_font,
             text=amount_text,
             fill=GUIConstants.BODY_FONT_COLOR,
             anchor="ls",
@@ -1989,6 +1998,7 @@ class TokenAmount(BaseComponent):
             font_color=GUIConstants.BODY_FONT_COLOR,
             supersampling_factor=2,
             is_text_centered=False,
+            allow_text_overflow=True,
             edge_padding=0,
             screen_x=cur_x,
             screen_y=text_y - unit_font_height,

@@ -140,25 +140,67 @@ class BitcoinCashSigner:
         return priv, pub
 
     def _resolve_utxo_for_hash(self, tx_data: dict, input_index: int) -> Optional[bytes]:
-        """Get the full UTXO data for SIGHASH_UTXOS (CashTokens feature)."""
+        """Return serialized UTXO including the CashTokens prefix."""
         input_pairs = self.parser.parsed["inputs"][input_index]
 
         for key, value in input_pairs:
             if key[0] == PSBT_IN_NON_WITNESS_UTXO:
                 prev_tx = parse_transaction(value)
-                prev_index = int.from_bytes(tx_data["inputs"][input_index]["prev_index"], "little")
+                prev_index = int.from_bytes(
+                    tx_data["inputs"][input_index]["prev_index"], "little"
+                )
+
                 if prev_index < len(prev_tx["outputs"]):
                     out = prev_tx["outputs"][prev_index]
-                    return out["value"] + serialize_varint(len(out["script"])) + out["script"]
 
-        # Fallback: use from parser's tx if available
+                    # parse_transaction() uses None when the output has no
+                    # CashToken prefix. Normalize it to bytes before
+                    # constructing the exact serialized locking script.
+                    token_prefix = out.get("token_prefix") or b""
+                    script_pubkey = out.get("script_pubkey", out["script"])
+                    full_script = token_prefix + script_pubkey
+
+                    return (
+                        out["value"]
+                        + serialize_varint(len(full_script))
+                        + full_script
+                    )
+
         if input_index < len(self.parser.tx.inputs):
             spent = self.parser.tx.inputs[input_index].spent_output
             if spent:
-                return spent.value_satoshis.to_bytes(8, "little") + \
-                       serialize_varint(len(spent.full_script)) + spent.full_script
+                # full_script is the exact on-chain script and already
+                # contains token_prefix for a CashToken UTXO.
+                full_script = spent.full_script
+                return (
+                    spent.value_satoshis.to_bytes(8, "little")
+                    + serialize_varint(len(full_script))
+                    + full_script
+                )
 
         return None
+
+    def _get_token_prefix_for_input(self, tx_data: dict, input_index: int) -> bytes:
+        """Return the CashTokens prefix for the input being signed."""
+        input_pairs = self.parser.parsed["inputs"][input_index]
+        prev_index = int.from_bytes(
+            tx_data["inputs"][input_index]["prev_index"], "little"
+        )
+
+        for key, value in input_pairs:
+            if key[0] == PSBT_IN_NON_WITNESS_UTXO:
+                prev_tx = parse_transaction(value)
+                if prev_index < len(prev_tx["outputs"]):
+                    return prev_tx["outputs"][prev_index].get("token_prefix") or b""
+
+        if input_index < len(self.parser.tx.inputs):
+            spent = self.parser.tx.inputs[input_index].spent_output
+            if spent and spent.token is not None:
+                script_pubkey = spent.script_pubkey
+                if script_pubkey and spent.full_script.endswith(script_pubkey):
+                    return spent.full_script[:-len(script_pubkey)]
+
+        return b""
 
     def _get_sighash_type(self, input_pairs: List[Tuple[bytes, bytes]]) -> int:
         hash_type = SIGHASH_BCH
@@ -226,6 +268,7 @@ class BitcoinCashSigner:
             hash_outputs = double_sha256(out_bytes)
 
         txin = tx_data["inputs"][input_index]
+        token_prefix = self._get_token_prefix_for_input(tx_data, input_index)
 
         # BIP-143 preimage (no witness data)
         preimage = (
@@ -235,6 +278,7 @@ class BitcoinCashSigner:
             + hash_sequence                         # 32 bytes
             + txin["prev_txid"]                     # 32 bytes
             + txin["prev_index"]                    # 4 bytes
+            + token_prefix                            # CashTokens prefix, if present
             + serialize_varint(len(script_code))    # varint
             + script_code                           # variable
             + amount_sats.to_bytes(8, "little")     # 8 bytes
@@ -362,7 +406,8 @@ class BitcoinCashSigner:
                     script_code = value
                     break
             if script_code is None:
-                script_code = tx_input.spent_output.full_script
+                # token_prefix belongs in hashUTXOs, not in scriptCode.
+                script_code = tx_input.spent_output.script_pubkey
     
             hash_type = self._get_sighash_type(input_pairs)
             amount = tx_input.spent_output.value_satoshis
