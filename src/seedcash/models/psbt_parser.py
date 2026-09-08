@@ -476,14 +476,15 @@ class PSBTParser:
 
     @staticmethod
     def address_from_script(script_pubkey: bytes, is_token_tx: bool = False) -> Optional[str]:
-        if script_pubkey.startswith(b"\x76\xa9\x14") and script_pubkey.endswith(b"\x88\xac"):
+        if len(script_pubkey) == 25 and script_pubkey.startswith(b"\x76\xa9\x14") and script_pubkey.endswith(b"\x88\xac"):
             hash160 = script_pubkey[3:23]
-            version_byte = 0x00 if not is_token_tx else 0x08    
+            version_byte = 0x00 if not is_token_tx else 0x10    
             return Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte).strip()
 
-        if script_pubkey.startswith(b"\xa9\x14") and script_pubkey.endswith(b"\x87"):
+
+        if len(script_pubkey) == 22 and script_pubkey.startswith(b"\xa9\x14") and script_pubkey.endswith(b"\x87"):
             hash160 = script_pubkey[2:22]
-            version_byte = 0x05 if not is_token_tx else 0x09
+            version_byte = 0x08 if not is_token_tx else 0x18
             return Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte).strip()
         return None
     

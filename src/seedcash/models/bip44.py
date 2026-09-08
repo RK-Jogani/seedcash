@@ -318,13 +318,6 @@ class Bip44:
         
         return xpriv, xpub, wallet_fingerprint
 
-    # Cashaddr address generation
-    @staticmethod
-    def xpub_to_cashtoken_address(xpub, address_index):
-        """Convert xpub to CashToken address (z-prefixed)"""
-        addr = Bip44.xpub_to_cashaddr_address(xpub, address_index)
-        return addr.replace("q", "z", 1)
-
     @staticmethod
     def convert_bits(data, from_bits, to_bits, pad=True):
         acc = 0
@@ -377,15 +370,6 @@ class Bip44:
         return ripemd160_hash
 
     @staticmethod
-    def public_key_to_cashaddr_address(pubkey):
-        version_byte = 0x00  # P2PKH
-        payload = bytes([version_byte]) + Bip44.hash160(pubkey)
-        payload_5bit = Bip44.convert_bits(payload, 8, 5)
-        checksum = Bip44.create_checksum("bitcoincash", payload_5bit)
-        address = "bitcoincash:" + Bip44.encode_base32(payload_5bit + checksum)
-        return address
-
-    @staticmethod
     def hash160_to_cashaddr(hash160: bytes, version_byte: int = 0x00) -> str:
         """Convert a 20-byte HASH160 to a cashaddr string.
         - version_byte: 0x00 for P2PKH (q...), 0x08 for P2SH (p...).
@@ -398,7 +382,7 @@ class Bip44:
         return "bitcoincash:" + Bip44.encode_base32(payload_5bit + checksum)
 
     @staticmethod
-    def xpub_to_cashaddr_address(xpub, address_index):
+    def xpub_to_cashaddr_address(xpub, address_index, version_byte=0x00):
         """Convert xpub to cashaddr address for a given index"""
         (
             version,
@@ -426,8 +410,9 @@ class Bip44:
             is_private=False,
             hardened=False
         )
-        
-        address = Bip44.public_key_to_cashaddr_address(child_public_address_index)
+
+        hash160 = Bip44.hash160(child_public_address_index)
+        address = Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte)
         return address
 
     @staticmethod
