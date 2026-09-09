@@ -7,8 +7,6 @@ from dataclasses import dataclass, field
 
 from seedcash.models.bip44 import Bip44
 
-logger = logging.getLogger(__name__)
-
 
 
 # Data Classes Used for Display
@@ -389,17 +387,16 @@ class PSBTParser:
             self._outputs = self.tx.arrange_outputs_by_type_and_category()
             self._inputs = self.tx.arrange_inputs_by_type_and_category()
         except Exception:
-            logger.error(f"CRASHING PSBT BYTES HEX: {bytes(self.psbt_bytes).hex()}")
-            raise
+            raise ValueError("Failed to parse PSBT bytes")
     
     @property
     def token_categories(self) -> List[str]:
         return sorted(self.tx.categories_type("ft")) if self.tx else []
 
     def ft_burning(self, category_id: str) -> bool:
-        input_count = len(self.inputs[1].get(category_id, []))
-        output_count = len(self.outputs[1].get(category_id, []))
-        return input_count > 0 and output_count < input_count
+        input_amount = self.ft_input_amount(category_id) or 0
+        output_amount = self.ft_output_amount(category_id) or 0
+        return input_amount > 0 and output_amount < input_amount
 
     @property
     def nft_categories(self) -> List[str]:
@@ -436,6 +433,14 @@ class PSBTParser:
                 total_ft_amount += out.token.ft_amount
         return total_ft_amount if total_ft_amount > 0 else None
 
+    def ft_input_amount(self, category_id: str) -> Optional[int]:
+        total_ft_amount = 0
+        for inp in self.inputs[1].get(category_id, []):
+            spent = inp.spent_output
+            if spent and spent.token and spent.token.ft_amount is not None:
+                total_ft_amount += spent.token.ft_amount
+        return total_ft_amount if total_ft_amount > 0 else None
+
     @property
     def destination_addresses(self) -> List[str]:
         return [out.address for out in self.tx.outputs if out.address]
@@ -464,7 +469,7 @@ class PSBTParser:
             if out.token.nft_data.capability == "minting":
                 return NFTWarning.MINTING.value
             
-        if len(self.inputs[0].get(category_id, [])) < len(self.outputs[0].get(category_id, [])):
+        if len(self.inputs[0].get(category_id, [])) > len(self.outputs[0].get(category_id, [])):
             return NFTWarning.BURNING.value
 
         if len(self.inputs[0].get(category_id, [])) == len(self.outputs[0].get(category_id, [])):
@@ -482,7 +487,7 @@ class PSBTParser:
             return Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte).strip()
 
 
-        if len(script_pubkey) == 22 and script_pubkey.startswith(b"\xa9\x14") and script_pubkey.endswith(b"\x87"):
+        if len(script_pubkey) == 23 and script_pubkey.startswith(b"\xa9\x14") and script_pubkey.endswith(b"\x87"):
             hash160 = script_pubkey[2:22]
             version_byte = 0x08 if not is_token_tx else 0x18
             return Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte).strip()
