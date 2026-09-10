@@ -1,4 +1,3 @@
-import logging
 import struct
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any
@@ -88,7 +87,7 @@ class Transaction:
                         self.categories["nft"].append(category)
                         nft_dict[category] = []
                     nft_dict[category].append(inp)
-                elif inp.spent_output.token.ft_amount is not None:
+                if inp.spent_output.token.ft_amount is not None:
                     category = inp.spent_output.token.category_id
                     if category not in ft_dict:
                         self.categories["ft"].append(category)
@@ -113,7 +112,7 @@ class Transaction:
                     if category not in nft_dict:
                         nft_dict[category] = []
                     nft_dict[category].append(out)
-                elif out.token.ft_amount is not None:
+                if out.token.ft_amount is not None:
                     category = out.token.category_id
                     if category not in ft_dict:
                         ft_dict[category] = []
