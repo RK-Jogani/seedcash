@@ -1,11 +1,11 @@
+# NEW
 import hashlib
 import ecdsa
 from typing import List, Tuple, Optional
 
 from seedcash.models.psbt_parser import (
     PSBTParser,
-    parse_transaction,
-)
+    ParseTransactionResult)
 from seedcash.models.bip44 import Bip44
 
 # ----------------------------------------------------------------------
@@ -139,69 +139,6 @@ class BitcoinCashSigner:
         self._key_cache[cache_key] = (priv, pub)
         return priv, pub
 
-    def _resolve_utxo_for_hash(self, tx_data: dict, input_index: int) -> Optional[bytes]:
-        """Return serialized UTXO including the CashTokens prefix."""
-        input_pairs = self.parser.parsed["inputs"][input_index]
-
-        for key, value in input_pairs:
-            if key[0] == PSBT_IN_NON_WITNESS_UTXO:
-                prev_tx = parse_transaction(value)
-                prev_index = int.from_bytes(
-                    tx_data["inputs"][input_index]["prev_index"], "little"
-                )
-
-                if prev_index < len(prev_tx["outputs"]):
-                    out = prev_tx["outputs"][prev_index]
-
-                    # parse_transaction() uses None when the output has no
-                    # CashToken prefix. Normalize it to bytes before
-                    # constructing the exact serialized locking script.
-                    token_prefix = out.get("token_prefix") or b""
-                    script_pubkey = out.get("script_pubkey", out["script"])
-                    full_script = token_prefix + script_pubkey
-
-                    return (
-                        out["value"]
-                        + serialize_varint(len(full_script))
-                        + full_script
-                    )
-
-        if input_index < len(self.parser.tx.inputs):
-            spent = self.parser.tx.inputs[input_index].spent_output
-            if spent:
-                # full_script is the exact on-chain script and already
-                # contains token_prefix for a CashToken UTXO.
-                full_script = spent.full_script
-                return (
-                    spent.value_satoshis.to_bytes(8, "little")
-                    + serialize_varint(len(full_script))
-                    + full_script
-                )
-
-        return None
-
-    def _get_token_prefix_for_input(self, tx_data: dict, input_index: int) -> bytes:
-        """Return the CashTokens prefix for the input being signed."""
-        input_pairs = self.parser.parsed["inputs"][input_index]
-        prev_index = int.from_bytes(
-            tx_data["inputs"][input_index]["prev_index"], "little"
-        )
-
-        for key, value in input_pairs:
-            if key[0] == PSBT_IN_NON_WITNESS_UTXO:
-                prev_tx = parse_transaction(value)
-                if prev_index < len(prev_tx["outputs"]):
-                    return prev_tx["outputs"][prev_index].get("token_prefix") or b""
-
-        if input_index < len(self.parser.tx.inputs):
-            spent = self.parser.tx.inputs[input_index].spent_output
-            if spent and spent.token is not None:
-                script_pubkey = spent.script_pubkey
-                if script_pubkey and spent.full_script.endswith(script_pubkey):
-                    return spent.full_script[:-len(script_pubkey)]
-
-        return b""
-
     def _get_sighash_type(self, input_pairs: List[Tuple[bytes, bytes]]) -> int:
         hash_type = SIGHASH_BCH
         for key, value in input_pairs:
@@ -213,78 +150,83 @@ class BitcoinCashSigner:
                 break
         return hash_type
 
-    def _create_sighash(self, tx: bytes, input_index: int, script_code: bytes,
-                        amount_sats: int, hash_type: int = SIGHASH_BCH) -> bytes:
+    def create_sighash(self, tx_data: ParseTransactionResult, input_index: int, hash_type: int = SIGHASH_BCH, script_code: bytes = None) -> bytes:
         """Create BIP-143 sighash for Bitcoin Cash with CashToken support."""
-        tx_data = parse_transaction(tx)
         anyone_can_pay = hash_type & SIGHASH_ANYONECANPAY
         mode = hash_type & 0x1F
         utxos_flag = hash_type & SIGHASH_UTXOS
 
-        if input_index >= len(tx_data["inputs"]):
-            raise ValueError("input_index out of range")
-
-        # hashPrevouts
+        
         if not anyone_can_pay:
-            prevouts = b"".join(txin["prev_txid"] + txin["prev_index"] for txin in tx_data["inputs"])
+            prevouts = b"".join(
+                txin.prev_txid 
+                + txin.prev_index.to_bytes(4, "little") 
+                for txin in tx_data.inputs)
             hash_prevouts = double_sha256(prevouts)
+            if mode != SIGHASH_NONE:
+                sequences = b"".join(txin.sequence.to_bytes(4, "little") for txin in tx_data.inputs)
+                hash_sequence = double_sha256(sequences)
+            else:
+                hash_sequence = b"\x00" * 32
         else:
             hash_prevouts = b"\x00" * 32
+            hash_sequence = b"\x00" * 32
 
         # hashUTXOs (CashTokens feature)
         if utxos_flag:
-            utxo_data = b""
-            for i in range(len(tx_data["inputs"])):
-                utxo = self._resolve_utxo_for_hash(tx_data, i)
-                if utxo is None:
-                    raise ValueError(f"Cannot resolve UTXO for input {i} with SIGHASH_UTXOS")
+            utxo_data = b''
+            for i in range(len(tx_data.inputs)):
+                spent = tx_data.inputs[i].spent_output
+                if spent is not None:
+                    utxo = b"" + (
+                        spent.value_satoshis.to_bytes(8, "little")
+                        + serialize_varint(len(spent.full_script))
+                        + spent.full_script)
                 utxo_data += utxo
-            hash_utxos = double_sha256(utxo_data)
+            hash_utxos = double_sha256(utxo_data)  
         else:
             hash_utxos = b''
 
-        # hashSequence
-        if not anyone_can_pay and mode != SIGHASH_NONE:
-            sequences = b"".join(txin["sequence"] for txin in tx_data["inputs"])
-            hash_sequence = double_sha256(sequences)
-        else:
-            hash_sequence = b"\x00" * 32
-
-        print(f"hash_utxos: {hash_utxos}")
 
         # hashOutputs
-        if mode == SIGHASH_SINGLE and input_index < len(tx_data["outputs"]):
-            out = tx_data["outputs"][input_index]
-            hash_outputs = double_sha256(
-                out["value"] + serialize_varint(len(out["script"])) + out["script"]
-            )
-        elif mode == SIGHASH_NONE:
+        if mode == SIGHASH_NONE:
             hash_outputs = b"\x00" * 32
-        else:  # SIGHASH_ALL
+        elif mode == SIGHASH_SINGLE and input_index < len(tx_data.outputs):
+            out = tx_data.outputs[input_index]
+            hash_outputs = double_sha256(
+                out.value_satoshis.to_bytes(8, "little") 
+                + serialize_varint(len(out.full_script)) 
+                + out.full_script
+            )
+        else:
             out_bytes = b"".join(
-                out["value"] + serialize_varint(len(out["script"])) + out["script"]
-                for out in tx_data["outputs"]
+                out.value_satoshis.to_bytes(8, "little") 
+                + serialize_varint(len(out.full_script)) 
+                + out.full_script
+                for out in tx_data.outputs
             )
             hash_outputs = double_sha256(out_bytes)
 
-        txin = tx_data["inputs"][input_index]
-        token_prefix = self._get_token_prefix_for_input(tx_data, input_index)
+        txin = tx_data.inputs[input_index]
+        token_prefix = txin.spent_output.token.prefix if txin.spent_output.token else b''
+        if script_code is None:
+            script_code = txin.spent_output.script_pubkey
 
         # BIP-143 preimage (no witness data)
         preimage = (
-            tx_data["version"]                      # 4 bytes
+            tx_data.version                         # 4 bytes
             + hash_prevouts                         # 32 bytes
             + hash_utxos                            # 32 bytes (CashTokens)
             + hash_sequence                         # 32 bytes
-            + txin["prev_txid"]                     # 32 bytes
-            + txin["prev_index"]                    # 4 bytes
-            + token_prefix                            # CashTokens prefix, if present
+            + txin.prev_txid                        # 32 bytes
+            + txin.prev_index.to_bytes(4, "little") # 4 bytes
+            + token_prefix                           # variable (CashTokens)
             + serialize_varint(len(script_code))    # varint
             + script_code                           # variable
-            + amount_sats.to_bytes(8, "little")     # 8 bytes
-            + txin["sequence"]                      # 4 bytes
+            + txin.spent_output.value_satoshis.to_bytes(8, "little")     # 8 bytes
+            + txin.sequence.to_bytes(4, "little")   # 4 bytes
             + hash_outputs                          # 32 bytes
-            + tx_data["locktime"]                   # 4 bytes
+            + tx_data.locktime                      # 4 bytes
             + hash_type.to_bytes(4, "little")       # 4 bytes
         )
         return double_sha256(preimage)
@@ -322,17 +264,7 @@ class BitcoinCashSigner:
 
         return r_bytes + s.to_bytes(32, "big")
 
-    def _validate_input_for_signing(self, input_pairs: List[Tuple[bytes, bytes]], tx_input, idx: int) -> None:
-        """Validate that an input is ready for signing."""
-        # Check UTXO data exists (BCH uses NON_WITNESS_UTXO)
-        has_utxo = any(key[0] == PSBT_IN_NON_WITNESS_UTXO for key, _ in input_pairs)
-        if not has_utxo:
-            raise ValueError(f"Input {idx} missing NON_WITNESS_UTXO data")
-
-        if tx_input.spent_output is None:
-            raise ValueError(f"Input {idx} has no spent_output")
-
-    def _find_derivation_path(self, input_pairs: List[Tuple[bytes, bytes]]) -> Optional[List[int]]:
+    def find_derivation_path(self, input_pairs: List[Tuple[bytes, bytes]]) -> Optional[List[int]]:
         """Find the derivation path for this input."""
         for key, value in input_pairs:
             if key[0] == PSBT_IN_BIP32_DERIVATION:
@@ -341,7 +273,6 @@ class BitcoinCashSigner:
                 if fp == self.master_fingerprint:
                     return path
                 
-                # Try deriving and checking pubkey
                 try:
                     pubkey_in_key = key[1:]
                     _, derived_pub = self._derive_path(path)
@@ -356,64 +287,47 @@ class BitcoinCashSigner:
     # ------------------------------------------------------------------
     def signed_psbt(self) -> bytearray:
         """Sign the PSBT with the wallet's private keys."""
-        parsed = self.parser.parsed
-        tx_bytes = parsed["unsigned_tx"]
-        if tx_bytes is None:
+        
+        tx_data = self.parser.tx
+        if tx_data is None:
             raise ValueError("No unsigned transaction in PSBT")
     
-        input_maps = [pairs.copy() for pairs in parsed["inputs"]]
+        input_maps = self.parser.parsed["inputs"]
         input_starts = self.parser.parsed["input_starts"]
         input_ends = self.parser.parsed["input_ends"]
     
         # Collect inputs to sign
         inputs_to_sign = []
-        for idx, tx_input in enumerate(self.parser.tx.inputs):
+        for idx, tx_input in enumerate(tx_data.inputs):
             if tx_input.spent_output is None:
                 continue
-    
-            input_pairs = input_maps[idx]
-    
-            try:
-                self._validate_input_for_signing(input_pairs, tx_input, idx)
-            except ValueError as e:
-                print(f"Input {idx} validation failed: {e}")
-                continue
-    
-            derivation_path = self._find_derivation_path(input_pairs)
+
+            derivation_path = self.find_derivation_path(input_maps[idx])
+
             if derivation_path is None:
-                print(f"Input {idx}: no matching derivation path")
                 continue
     
             priv, pub = self._derive_path(derivation_path)
             partial_key = bytes([PSBT_IN_PARTIAL_SIG]) + pub
-    
-            if any(k == partial_key for k, _ in input_pairs):
-                print(f"Input {idx}: already signed by this pubkey")
+
+            if any(k == partial_key for k, _ in input_maps[idx]):
                 continue
     
-            inputs_to_sign.append((idx, tx_input, input_pairs, derivation_path, priv, pub, partial_key))
+            inputs_to_sign.append((idx, tx_input, input_maps[idx], priv, pub, partial_key))
     
         if not inputs_to_sign:
-            print("No inputs to sign")
-            # Return the original PSBT
+            # No inputs to sign, return original PSBT
             return bytearray(self.parser.psbt_bytes)
     
         # Sign each input
-        for idx, tx_input, input_pairs, derivation_path, priv, pub, partial_key in inputs_to_sign:
-            script_code = None
+        for idx, tx_input, input_pairs, priv, pub, partial_key in inputs_to_sign:
+            hash_type = self._get_sighash_type(input_pairs)
             for key, value in input_pairs:
                 if key[0] == PSBT_IN_REDEEM_SCRIPT:
                     script_code = value
                     break
-            if script_code is None:
-                # token_prefix belongs in hashUTXOs, not in scriptCode.
-                script_code = tx_input.spent_output.script_pubkey
-    
-            hash_type = self._get_sighash_type(input_pairs)
-            amount = tx_input.spent_output.value_satoshis
-    
-            sighash = self._create_sighash(tx_bytes, idx, script_code, amount, hash_type)
-            print(f"Hash Type {hash_type}")
+
+            sighash = self.create_sighash(tx_data, idx, hash_type, script_code=script_code)
             sig = self._sign_schnorr(priv, sighash, pub) + bytes([hash_type & 0xFF])
     
             updated_pairs = []
@@ -454,4 +368,3 @@ class BitcoinCashSigner:
             psbt += _serialize_keypairs(pairs) + b"\x00"
         psbt += self.parser.psbt_bytes[input_ends:]
         return  psbt
-

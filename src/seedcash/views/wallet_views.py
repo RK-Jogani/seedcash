@@ -275,10 +275,10 @@ class SeedGenerateAddressView(View):
         addr_type, addr_index = menu
 
         if addr_type == "cashtoken":
-            address = Bip44.xpub_to_cashtoken_address(self.xpub, addr_index)
+            address = Bip44.xpub_to_cashaddr_address(self.xpub, addr_index, version_byte=0x10)
             return Destination(SeedCashQRView, view_args=dict(address=address))
         elif addr_type == "standard":
-            address = Bip44.xpub_to_cashaddr_address(self.xpub, addr_index)
+            address = Bip44.xpub_to_cashaddr_address(self.xpub, addr_index, version_byte=0x00)
             return Destination(SeedCashQRView, view_args=dict(address=address))
 
 class SeedCashQRView(View):

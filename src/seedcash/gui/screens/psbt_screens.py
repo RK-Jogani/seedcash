@@ -158,7 +158,7 @@ class PSBTButtonListScreen(BaseTopNavScreen, ButtonListScreen):
 class PSBTOverviewScreen(PSBTButtonListScreen):
     spend_amount: int = 0
     fee_amount: int = 0
-    num_inputs: int = 0
+    input_count: int = 0
     destination_addresses: list[str] = None
     has_op_return: bool = False
     category: Category = None
@@ -238,16 +238,16 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
         # First calculate how wide the inputs col will be
         inputs_column = []
-        if self.num_inputs == 1:
-            inputs_column.append(_("1 input"))
-        elif self.num_inputs > 5:
+        if self.input_count == 1:
+            inputs_column.append(_("1 input" if self.spend_amount > 0 else "Genesis"))
+        elif self.input_count > 5:
             inputs_column.append(_("input 1"))
             inputs_column.append(_("input 2"))
             inputs_column.append(_("[ ... ]"))
-            inputs_column.append(_("input {}").format(self.num_inputs - 1))
-            inputs_column.append(_("input {}").format(self.num_inputs))
+            inputs_column.append(_("input {}").format(self.input_count - 1))
+            inputs_column.append(_("input {}").format(self.input_count))
         else:
-            for i in range(0, self.num_inputs):
+            for i in range(0, self.input_count):
                 inputs_column.append(_("input {}").format(i + 1))
 
         max_inputs_text_width = 0
@@ -363,7 +363,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
         # Position each input row
         num_rendered_inputs = len(inputs_column)
-        if self.num_inputs == 1:
+        if self.input_count == 1:
             inputs_y = vertical_center - int(chart_text_height / 2)
             inputs_y_spacing = 0
         else:
@@ -630,9 +630,9 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 @dataclass
 class PSBTMathScreen(PSBTButtonListScreen):
     input_amount: int = 0
-    num_inputs: int = 0
+    input_count: int = 0
     spend_amount: int = 0
-    num_outputs: int = 0
+    output_count: int = 0
     fee_amount: int = 0
 
     def __post_init__(self):
@@ -706,8 +706,8 @@ class PSBTMathScreen(PSBTButtonListScreen):
         
         # Get dimensions for the info text
         info_texts = [
-            ngettext("input", "inputs", self.num_inputs),
-            ngettext("output", "outputs", self.num_outputs) if self.num_outputs > 0 else "",
+            ngettext("input", "inputs", self.input_count),
+            ngettext("output", "outputs", self.output_count) if self.output_count > 0 else "",
             _("fee")
         ]
         max_info_width = 0
@@ -751,17 +751,17 @@ class PSBTMathScreen(PSBTButtonListScreen):
         render_amount(
             cur_y,
             f" {self.input_amount}",
-            info_text=ngettext("input", "inputs", self.num_inputs),
+            info_text=ngettext("input", "inputs", self.input_count),
         )
 
         # spend_amount will be zero on self-transfers; only display when there's an
         # external recipient.
-        if self.num_outputs > 0:
+        if self.output_count > 0:
             cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
             render_amount(
                 cur_y,
                 f"-{self.spend_amount} ",
-                info_text=ngettext("output", "outputs", self.num_outputs),
+                info_text=ngettext("output", "outputs", self.output_count),
             )
 
         cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
