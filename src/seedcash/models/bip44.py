@@ -20,7 +20,7 @@ class Bip44:
     @staticmethod
     def xpriv_encode(
         depth, father_fingerprint, child_index, account_chain_code, account_key
-    ):
+    ) -> bytearray:
         version = b"\x04\x88\xad\xe4"  # xpriv
         data = (
             version
@@ -32,10 +32,10 @@ class Bip44:
             + account_key
         )
         checksum = Bip44.double_sha256(data)[:4]
-        return b58encode(data + checksum).decode("utf-8")
+        return bytearray(b58encode(data + checksum))
 
     @staticmethod
-    def xpriv_decode(xpriv):
+    def xpriv_decode(xpriv: bytearray):
         decoded = b58decode(xpriv)
         if len(decoded) != 82:
             raise ValueError("not an extended private key")
@@ -60,7 +60,7 @@ class Bip44:
     @staticmethod
     def xpub_encode(
         depth, father_fingerprint, child_index, account_chain_code, account_public_key
-    ):
+    ) -> bytearray:
         version = b"\x04\x88\xb2\x1e"  # xpub
         data = (
             version
@@ -71,7 +71,7 @@ class Bip44:
             + account_public_key
         )
         checksum = Bip44.double_sha256(data)[:4]
-        return b58encode(data + checksum).decode("utf-8")
+        return bytearray(b58encode(data + checksum))
 
     @staticmethod
     def xpub_decode(xpub):
@@ -224,7 +224,7 @@ class Bip44:
         )
 
     @staticmethod
-    def fingerprint_hex(account_key):
+    def fingerprint_hex(account_key) -> str:
         """Given a private key, return the master fingerprint in hex"""
         sk = SigningKey.from_string(account_key, curve=SECP256k1)
         vk = sk.verifying_key
@@ -377,6 +377,16 @@ class Bip44:
         if len(hash160) != 20:
             raise ValueError("hash160 must be 20 bytes")
         payload = bytes([version_byte]) + hash160
+        payload_5bit = Bip44.convert_bits(payload, 8, 5)
+        checksum = Bip44.create_checksum("bitcoincash", payload_5bit)
+        return "bitcoincash:" + Bip44.encode_base32(payload_5bit + checksum)
+
+    @staticmethod
+    def hash256_to_cashaddr(hash256: bytes, version_byte: int = 0x0B) -> str:
+        """Convert a 32-byte HASH256 to a cashaddr string."""
+        if len(hash256) != 32:
+            raise ValueError("hash256 must be 32 bytes")
+        payload = bytes([version_byte]) + hash256
         payload_5bit = Bip44.convert_bits(payload, 8, 5)
         checksum = Bip44.create_checksum("bitcoincash", payload_5bit)
         return "bitcoincash:" + Bip44.encode_base32(payload_5bit + checksum)
