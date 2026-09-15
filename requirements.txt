@@ -1,0 +1,7 @@
+base58==2.1.1
+ecdsa==0.19.2
+numpy==2.2.6
+opencv-python==5.0.0.93
+pillow==12.3.0
+pyzbar==0.1.9
+qrcode==8.2

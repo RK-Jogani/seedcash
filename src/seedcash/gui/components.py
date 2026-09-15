@@ -1810,15 +1810,12 @@ class BchAmount(BaseComponent):
         digit_font = Fonts.get_font(
             font_name=GUIConstants.BODY_FONT_NAME, size=self.font_size
         )
-        smaller_digit_font = Fonts.get_font(
-            font_name=GUIConstants.BODY_FONT_NAME, size=self.font_size - 2
-        )
         unit_font_size = GUIConstants.BODY_FONT_SIZE + 2
 
         # Render to a temp surface
         self.paste_image = Image.new(
             mode="RGB",
-            size=(self.canvas_width, self.icon_size),
+            size=(self.canvas_width, self.icon_size + 2),
             color=GUIConstants.BACKGROUND_COLOR,
         )
         draw = ImageDraw.Draw(self.paste_image)
@@ -1836,16 +1833,12 @@ class BchAmount(BaseComponent):
         bch_icon.render()
         cur_x = bch_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
 
-        if self.total_sats > 1e6:
-            decimal_bch = Decimal(self.total_sats / 1e6).quantize(Decimal("0.1234"))
+        if self.total_sats > 1e8: # If the amount is greater than 1 BCH, display in BCH with 4 decimal places
+            decimal_bch = Decimal(self.total_sats / 1e8).quantize(Decimal("0.1234"))
             bch_text = f"{decimal_bch:,}"
 
             # Draw the bch side
-            font = digit_font
-            # if self.total_sats > 1e9:
-            #     font = smaller_digit_font
-
-            left, top, text_width, bottom = font.getbbox(bch_text, anchor="ls")
+            left, top, text_width, bottom = digit_font.getbbox(bch_text, anchor="ls")
             text_height = -1 * top + bottom
             text_y = self.paste_image.height - int(
                 (self.paste_image.height - text_height) / 2
@@ -1853,7 +1846,7 @@ class BchAmount(BaseComponent):
 
             draw.text(
                 xy=(cur_x, text_y),
-                font=font,
+                font=digit_font,
                 text=bch_text,
                 fill=GUIConstants.BODY_FONT_COLOR,
                 anchor="ls",
@@ -1863,20 +1856,15 @@ class BchAmount(BaseComponent):
             unit_text = bch_unit
 
         else:
-            # Draw the sats side
-            sats_text = f"{self.total_sats:,}"
-
-            font = digit_font
-            if self.total_sats > 1e9:
-                font = smaller_digit_font
-            left, top, text_width, bottom = font.getbbox(sats_text, anchor="ls")
+            sats_text = f"{self.total_sats:,}"   
+            left, top, text_width, bottom = digit_font.getbbox(sats_text, anchor="ls")
             text_height = -1 * top + bottom
             text_y = self.paste_image.height - int(
                 (self.paste_image.height - text_height) / 2
             )
             draw.text(
                 xy=(cur_x, text_y),
-                font=font,
+                font=digit_font,
                 text=sats_text,
                 fill=GUIConstants.BODY_FONT_COLOR,
                 anchor="ls",
@@ -1942,7 +1930,7 @@ class TokenAmount(BaseComponent):
         # Render to a temp surface
         self.paste_image = Image.new(
             mode="RGB",
-            size=(self.canvas_width, self.icon_size),
+            size=(self.canvas_width, self.icon_size + 2),
             color=GUIConstants.BACKGROUND_COLOR,
         )
         draw = ImageDraw.Draw(self.paste_image)
@@ -2005,12 +1993,12 @@ class TokenAmount(BaseComponent):
         )
         unit_textarea.render()
 
-        final_x = cur_x + GUIConstants.COMPONENT_PADDING + unit_text_width
+        cur_x = cur_x + GUIConstants.COMPONENT_PADDING + unit_text_width
 
         self.paste_image = self.paste_image.crop(
-            (0, 0, final_x, self.paste_image.height)
+            (0, 0, cur_x, self.paste_image.height)
         )
-        self.paste_coords = (int((self.canvas_width - final_x) / 2), self.screen_y)
+        self.paste_coords = (int((self.canvas_width - cur_x) / 2), self.screen_y)
 
         self.width = self.canvas_width
         self.height = self.paste_image.height
