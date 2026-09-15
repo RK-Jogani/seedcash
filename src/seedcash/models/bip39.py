@@ -78,11 +78,11 @@ class Bip39:
         return mnemonic
 
     @staticmethod
-    def generate_hexa_seed(seed, passphrase):
+    def generate_hexa_seed(seed: list[str], passphrase):
         """mnemonic + passprhrase --> seed   (512bits=64bytes)"""
 
         # Convertim a bytes els inputs
-        mnemonic_bytes = seed.encode("utf-8")
+        mnemonic_bytes = " ".join(seed).encode("utf-8")
         passphrase_bytes = passphrase.encode("utf-8")
 
         # PBKDF2
@@ -98,7 +98,7 @@ class Bip39:
         return hexa_final_seed
 
     @staticmethod
-    def bip39_protocol(seed: str, passphrase: str):
+    def bip39_protocol(seed: list[str], passphrase: str):
         # Replacing this part from get private_and_code method
         """Genera la clave privada maestra y el código de cadena a partir de una semilla en hexadecimal"""
 

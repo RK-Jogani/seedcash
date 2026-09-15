@@ -177,7 +177,9 @@ class Controller(Singleton):
             return self.storage._seed
 
     def discard_wallet(self):
-        self.storage.wallet = None
+        self.storage.discard_wallet()
+        import gc
+        gc.collect()
 
     def discard_psbt(self):
         self.psbt_bytes = b""

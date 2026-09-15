@@ -1,9 +1,8 @@
 import logging
 import hashlib
-import math
 
 from seedcash.models.bip39 import Bip39
-from typing import List
+from typing import List, Optional
 from seedcash.gui.components import load_txt
 from seedcash.models.wallet import Wallet
 
@@ -18,37 +17,46 @@ class Seed:
     def __init__(self, mnemonic: List[str] = None) -> None:
 
         if not mnemonic:
-            raise Exception(
+            raise InvalidSeedException(
                 "Must initialize a Seed with a mnemonic List[str] or a master_secret"
             )
 
         self.mnemonic = mnemonic
-        self.passphrase: str = ""
+        self.passphrase: str = None
         self.wallet: Wallet = None
-
         self.validate_mnemonic()
 
     @property
     def _mnemonic(self) -> str:
-        return " ".join(self.mnemonic)
+        if self.mnemonic is None:
+            raise InvalidSeedException("Mnemonic has not been initialized")
+        return self.mnemonic
 
     @property
     def _passphrase(self):
+        if self.passphrase is None:
+            raise InvalidSeedException("Passphrase not initialized")
         return self.passphrase
+
+    def set_passphrase(self, passphrase: str):
+        self.passphrase = passphrase
 
     @property
     def _wallet(self) -> Wallet:
+        if self.wallet is None:
+            raise InvalidSeedException("Wallet has not been initialized")
         return self.wallet
-
-    @property
-    def wordlist(self) -> List[str]:
-        return load_txt("bip39.txt")
+    
+    def set_wallet(self, wallet: Optional[Wallet]):
+        self.wallet = wallet
 
     def get_mnemonic_list(self) -> List[str]:
         return self.mnemonic
-    
-    def set_passphrase(self, passphrase: str):
-        self.passphrase = passphrase
+
+    def discard_mnemonic(self):
+        if self.mnemonic:
+            del self.mnemonic
+        
 
     def get_encoded(self) -> str:
         # Get the entropy (raw data without checksum)
@@ -94,10 +102,11 @@ class Seed:
     def validate_mnemonic(self) -> bool:
         try:
             # Validate wordlist membership first
+            wordlist = self.get_wordlist()
             list_index_bi = []
             for word in self.get_mnemonic_list():
                 try:
-                    index = self.wordlist.index(word)
+                    index = wordlist.index(word)
                     list_index_bi.append(bin(index)[2:].zfill(11))
                 except ValueError:
                     raise InvalidSeedException(f"Word '{word}' not in wordlist")
@@ -166,4 +175,14 @@ class Seed:
     @staticmethod
     def get_wordlist() -> List[str]:
         return load_txt("bip39.txt")
+
+    def discard_seed(self):
+        if self.mnemonic:
+            self.discard_mnemonic()
+        if self.wallet:
+            self.wallet.discard_wallet()
+        if self.passphrase:
+            self.passphrase = None
+        import gc
+        gc.collect()
         

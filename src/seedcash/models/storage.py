@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from seedcash.models.wallet import Wallet
 from seedcash.models.seed import Seed, InvalidSeedException
 from seedcash.models.scheme import Scheme, SchemeParameters
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class SeedStorage:
     def __init__(self) -> None:
-        self._mnemonic: List[str] = None
+        self.mnemonic: List[str] = None
         self.scheme_params: SchemeParameters = None
         self.passphrase: str = ""
         self.scheme: Scheme = None
@@ -64,33 +64,65 @@ class SeedStorage:
             self.wallet = self.scheme._wallet
 
     def discard_wallet(self):
-        """
-        Discard the current wallet.
-        """
+        # 1. Clear nested objects first (if they exist)
+        if self.seed is not None:
+            self.seed.discard_seed()
+        self.seed = None
+    
+        if self.scheme is not None:
+            self.scheme.discard_scheme()
+        self.scheme = None
+        if self.scheme_params is not None:
+            self.scheme_params.dicard_params()
+        self.scheme_params = None
+    
+        if self.wallet is not None:
+            self.wallet.discard_wallet()
         self.wallet = None
-        logger.info("Wallet discarded.")
+
+        self.passphrase = ""
+        self.discard_mnemonic()
+    
+        # 3. Force a collection attempt
+        import gc
+        gc.collect()
+    
+        logger.info("Wallet discarded (best-effort clear).")
 
     # Mnemonic management
     @property
-    def mnemonic(self) -> List[str]:
-        # Always return a copy so that the internal List can't be altered
-        return list(self._mnemonic)
+    def _mnemonic(self) -> List[str]:
+        if self.mnemonic is None:
+            raise InvalidSeedException("Mnemonic has not been initialized")
+        return self.mnemonic
 
     @property
     def mnemonic_length(self) -> int:
         return len(self._mnemonic)
+
+    def set_mnemonic(self, mnemonic: List[Optional[str]]):
+        if not isinstance(mnemonic, list):
+            raise InvalidSeedException("Mnemonic must be a list")
+        # Allow None entries so we can clear the list
+        if not all(word is None or isinstance(word, str) for word in mnemonic):
+            raise InvalidSeedException("Mnemonic entries must be str or None")
+        self.mnemonic = mnemonic
 
     def set_mnemonic_length(self, length: int):
         if length not in [12, 15, 18, 20, 21, 24, 33]:
             raise ValueError(
                 "Invalid mnemonic length. Must be one of [12, 15, 18, 20, 21, 24, 33]."
             )
-        self._mnemonic = [None] * length
+        self.set_mnemonic([None] * length)
         logger.info(f"Mnemonic length set to {length} words.")
 
+    def discard_mnemonic(self):
+        if self.mnemonic is not None:
+            self.set_mnemonic([None] * len(self.mnemonic))
+
     def get_mnemonic_word(self, index: int) -> str:
-        if index < len(self._mnemonic):
-            return self._mnemonic[index]
+        if index < len(self.mnemonic):
+            return self.mnemonic[index]
         return None
 
     def update_mnemonic(self, word: str, index: int):
@@ -99,18 +131,15 @@ class SeedStorage:
 
         * may specify a negative `index` (e.g. -1 is the last word).
         """
-        if index >= len(self._mnemonic):
-            raise Exception(f"index {index} is too high")
-        self._mnemonic[index] = word
-
-    def discard_mnemonic(self):
-        self._mnemonic = None
+        if index >= len(self.mnemonic):
+            raise InvalidSeedException(f"index {index} is too high")
+        self.mnemonic[index] = word
 
     # Passphrase management
     @property
     def _passphrase(self):
         if not self.passphrase:
-            raise ("Passphrase not initialize")
+            raise InvalidSeedException("Passphrase not initialize")
         return self.passphrase
 
     def set_passphrase(self, passphrase: str):
@@ -187,10 +216,10 @@ class SeedStorage:
         """
         Generate a scheme based on the current mnemonic.
         """
-        if not self._mnemonic:
+        if self.mnemonic is None:
             raise InvalidSeedException("Mnemonic has not been initialized")
 
-        if not self.scheme:
+        if self.scheme is not None:
             try:
                 self.scheme = Scheme(mnemonics=self._mnemonic)
             except Exception as e:
@@ -212,7 +241,7 @@ class SeedStorage:
         """
         Discard the current mnemonic used for SLIP39 scheme.
         """
-        self._mnemonic = [None] * len(self._mnemonic) if self._mnemonic else None
+        self.discard_mnemonic()
         logger.info("SLIP39 mnemonic discarded.")
 
     def discard_scheme(self):
