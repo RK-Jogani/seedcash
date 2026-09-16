@@ -320,7 +320,7 @@ class SchemeFinalizeView(View):
             if self.controller.storage.wallet:
                 from seedcash.views.wallet_views import WalletOptionsView
 
-                return Destination(WalletOptionsView)
+                return Destination(WalletOptionsView, clear_history=True)
 
             self.controller.storage.discard_mnemonic()
             return Destination(MainMenuView)

@@ -162,6 +162,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
     destination_addresses: list[str] = None
     has_op_return: bool = False
     category: Category = None
+    is_genesis: bool = False
 
     def __post_init__(self):
 
@@ -180,7 +181,9 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         # Prep the headline amount being spent in large callout
         icon_text_lines_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
 
-        if self.category:    
+        if self.is_genesis:
+            pass
+        elif self.category:    
             self.components.append(
                 TokenAmount(
                     amount=self.spend_amount,
@@ -198,11 +201,14 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
 
         # Prep the transaction flow chart
         self.chart_x = 0
-        self.chart_y = (
-            self.components[-1].screen_y
-            + self.components[-1].height
-            + int(GUIConstants.COMPONENT_PADDING / 2)
-        )
+        if self.is_genesis:
+            self.chart_y = (self.canvas_height) // 2 - self.top_nav.height - 3 * GUIConstants.COMPONENT_PADDING
+        else:
+            self.chart_y = (
+                self.components[-1].screen_y
+                + self.components[-1].height
+                + int(GUIConstants.COMPONENT_PADDING / 2))
+        
         chart_height = (
             self.buttons[0].screen_y - self.chart_y - GUIConstants.COMPONENT_PADDING
         )
@@ -644,15 +650,14 @@ class PSBTMathScreen(PSBTButtonListScreen):
 
         super().__post_init__()
 
-        if self.input_amount >= 1e6:
-            denomination = _("bch")
-            self.input_amount /= 1e6
-            self.spend_amount /= 1e6
+        if self.input_amount >= 1e8:
+            self.input_amount /= 1e8
+            self.spend_amount /= 1e8
+            self.fee_amount /= 1e8
             self.input_amount = f"{self.input_amount:,.6f}"
             self.spend_amount = f"{self.spend_amount:,.6f}"
             self.fee_amount = f"{self.fee_amount:,.6f}"
         else:
-            denomination = _("sats")
             self.input_amount = f"{self.input_amount:,}"
             self.spend_amount = f"{self.spend_amount:,}"
             self.fee_amount = f"{self.fee_amount:,}"
@@ -706,7 +711,7 @@ class PSBTMathScreen(PSBTButtonListScreen):
         
         # Get dimensions for the info text
         info_texts = [
-            ngettext("input", "inputs", self.input_count),
+            ngettext("input", "inputs", self.input_count) if self.input_count > 0 else "",
             ngettext("output", "outputs", self.output_count) if self.output_count > 0 else "",
             _("fee")
         ]
@@ -715,7 +720,7 @@ class PSBTMathScreen(PSBTButtonListScreen):
             if info:
                 left, top, right, bottom = body_font.getbbox(info)
                 max_info_width = max(max_info_width, right - left)
-        
+
         # Calculate total width of amount + info
         spacing = 3 * ssf  # Space between amount and info
         total_line_width = digits_width + spacing + max_info_width
@@ -725,7 +730,6 @@ class PSBTMathScreen(PSBTButtonListScreen):
         
         # Draw each line of the equation
         cur_y = 0
-        digit_group_spacing = 2 * ssf
 
         def render_amount(
             cur_y, amount_str, info_text, info_text_color=GUIConstants.BODY_FONT_COLOR
@@ -760,7 +764,7 @@ class PSBTMathScreen(PSBTButtonListScreen):
             cur_y += digits_height + GUIConstants.BODY_LINE_SPACING * ssf
             render_amount(
                 cur_y,
-                f"-{self.spend_amount} ",
+                f"-{self.spend_amount}",
                 info_text=ngettext("output", "outputs", self.output_count),
             )
 

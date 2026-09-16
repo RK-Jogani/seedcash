@@ -24,9 +24,19 @@ class Token:
     ft_amount: Optional[int] = None
     nft_data: Optional[NFTData] = None
 
+class ScriptType(Enum):
+    P2PKH = "p2pkh"
+    P2SH20 = "p2sh20"
+    P2SH32 = "p2sh32"
+    OP_RETURN = "op_return"
+    P2PK = "p2pk"
+    UNKNOWN = "unknown"
+
 @dataclass
 class TxOutput:
     value_satoshis: int
+    index: int = -1
+    script_type: ScriptType = ScriptType.UNKNOWN
     full_script: bytes = field(repr=False, default=b"")  # exact on-chain script
     token: Optional[Token] = None
     address: Optional[str] = None
@@ -57,23 +67,32 @@ class Inputs:
 
     
     # FT functions
-    def get_ft_inputs_category(self, category_id: str) -> List[TxInput]:
+    @property
+    def get_ft_category_ids(self) -> List[str]:
+            return list(self.ft.keys())
+    
+    def get_ft(self, category_id: str) -> List[TxInput]:
         return self.ft.get(category_id, [])
 
-    def get_ft_inputs_count(self, category_id: str) -> int:
+    def get_ft_count(self, category_id: str) -> int:
         return len(self.ft.get(category_id, []))
 
-    def get_ft_inputs_total_amount(self, category_id: str) -> int:
+    def get_ft_total_amount(self, category_id: str) -> int:
         total_amount = 0
         for tx_in in self.ft.get(category_id, []):
             total_amount += tx_in.spent_output.token.ft_amount
         return total_amount
+
     
     # NFT functions
-    def get_nft_inputs_category(self, category_id: str) -> List[TxInput]:
+    @property
+    def get_nft_category_ids(self) -> List[str]:
+            return list(self.nft.keys())
+    
+    def get_nft(self, category_id: str) -> List[TxInput]:
             return self.nft.get(category_id, [])
 
-    def get_nft_inputs_count(self, category_id: str) -> int:
+    def get_nft_count(self, category_id: str) -> int:
         return len(self.nft.get(category_id, []))
 
     def has_minting_nft(self, category_id: str) -> bool:
@@ -89,17 +108,8 @@ class Outputs:
     ft: Dict[str, List[TxOutput]] = field(default_factory=dict)
     nft: Dict[str, List[TxOutput]] = field(default_factory=dict)
 
-    def get_ft_data_category(self, category_id: str) -> Dict[str, int|List[TxOutput]|List[str]]:
-        outputs = self.ft.get(category_id, [])
-        addresses = []
-        for out in outputs:
-            if out.token and out.token.ft_amount is not None:
-                if out.address:
-                    addresses.append(out.address)
-        return {
-            "outputs": outputs,
-            "addresses": addresses
-        }
+    def get_ft(self, category_id: str) -> List[TxOutput]:
+        return self.ft.get(category_id, [])
 
     def get_ft_total_amount(self, category_id: str) -> int:
         total_amount = 0
@@ -109,18 +119,9 @@ class Outputs:
         return total_amount
       
     # NFT functions
-    def get_nft_data_category(self, category_id: str) -> Dict[str, List[TxOutput]|List[str]]:
-        outputs = self.nft.get(category_id, [])
-        addresses = []
-
-        for out in outputs:
-            if out.address:
-                addresses.append(out.address)
-
-        return {
-            "outputs": outputs,
-            "addresses": addresses
-        }
+    def get_nft(self, category_id: str) -> List[TxOutput]:
+        return self.nft.get(category_id, [])
+    
     def get_nft_count(self, category_id: str) -> int:
         return len(self.nft.get(category_id, []))
 
@@ -191,17 +192,42 @@ def parse_token_script(script: bytes) -> Optional[Token]:
         ft_amount=ft_amount,
         nft_data=nft_data)
 
-def address_from_script(script_pubkey: bytes, is_token_tx: bool = False) -> Optional[str]:
-    if len(script_pubkey) == 25 and script_pubkey.startswith(b"\x76\xa9\x14") and script_pubkey.endswith(b"\x88\xac"):
-        hash160 = script_pubkey[3:23]
-        version_byte = 0x00 if not is_token_tx else 0x10    
-        return Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte).strip()
+def classify_script(script_pubkey: bytes, is_token_tx: bool = False) -> Tuple[ScriptType, Optional[str]]:
+    if not script_pubkey:
+        return ScriptType.UNKNOWN, None
 
-    if len(script_pubkey) == 23 and script_pubkey.startswith(b"\xa9\x14") and script_pubkey.endswith(b"\x87"):
-        hash160 = script_pubkey[2:22]
-        version_byte = 0x08 if not is_token_tx else 0x18
-        return Bip44.hash160_to_cashaddr(hash160, version_byte=version_byte).strip()
-    return None
+    # Standard P2PKH
+    if (len(script_pubkey) == 25
+            and script_pubkey.startswith(b"\x76\xa9\x14")
+            and script_pubkey.endswith(b"\x88\xac")):
+        vb = 0x10 if is_token_tx else 0x00
+        addr = Bip44.hash160_to_cashaddr(script_pubkey[3:23], vb)
+        return ScriptType.P2PKH, addr
+
+    # Standard P2SH20
+    if (len(script_pubkey) == 23
+            and script_pubkey.startswith(b"\xa9\x14")
+            and script_pubkey.endswith(b"\x87")):
+        vb = 0x18 if is_token_tx else 0x08
+        addr = Bip44.hash160_to_cashaddr(script_pubkey[2:22], vb)
+        return ScriptType.P2SH20, addr
+
+    # Standard P2SH32
+    if (len(script_pubkey) == 35
+            and script_pubkey.startswith(b"\xaa\x20")
+            and script_pubkey.endswith(b"\x87")):
+        vb = 0x1B if is_token_tx else 0x0B
+        addr = Bip44.hash256_to_cashaddr(script_pubkey[2:34], vb)
+        return ScriptType.P2SH32, addr
+
+    if script_pubkey[0] == 0x6a:
+        return ScriptType.OP_RETURN, None
+
+    if (len(script_pubkey) in (35, 67)     # compressed / uncompressed
+            and script_pubkey[-1] == 0xac):  # OP_CHECKSIG
+        return ScriptType.P2PK, None
+
+    return ScriptType.UNKNOWN, None
 
 def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
     """
@@ -233,7 +259,7 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
 
     output_count, pos = read_varint(tx_bytes, pos)
     outputs: List[TxOutput] = []
-    for _ in range(output_count):
+    for vout in range(output_count):
         value = tx_bytes[pos:pos + 8]
         pos += 8
         script_len, pos = read_varint(tx_bytes, pos)
@@ -241,11 +267,14 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
         pos += script_len
 
         token: Optional[Token] = parse_token_script(script)
+        script_type, address = classify_script(token.script_pubkey if token else script, is_token_tx=bool(token))
         outputs.append(TxOutput(
             value_satoshis=int.from_bytes(value, "little"),
+            index=vout,
+            script_type=script_type,
             full_script=script,
             token=token,
-            address=address_from_script(token.script_pubkey if token else script, is_token_tx=bool(token)),
+            address=address,
         ))
 
     locktime = tx_bytes[pos:pos + 4]
@@ -365,13 +394,35 @@ class PSBTParser:
     def output_count(self) -> int:
         return len(self.tx.outputs)
 
+    
     @property
-    def destination_addresses(self) -> List[str]:
-        addresses = []
-        for tx_out in self.tx.outputs:
-            if tx_out.address:
-                addresses.append(tx_out.address)
-        return addresses
+    def bch_outputs(self) -> List[TxOutput]:
+        return [tx_out for tx_out in self.tx.outputs if tx_out.address]
+
+    @property
+    def has_op_return(self) -> bool:
+        return any(tx_out.script_type == ScriptType.OP_RETURN for tx_out in self.tx.outputs)
+    
+    @property
+    def op_return_outputs(self) -> List[TxOutput]:
+        return [tx_out for tx_out in self.tx.outputs if tx_out.script_type == ScriptType.OP_RETURN]
+
+    @property
+    def p2pk_outputs(self) -> List[TxOutput]:
+        return [tx_out for tx_out in self.tx.outputs if tx_out.script_type == ScriptType.P2PK]
+
+    @property
+    def has_p2pk(self) -> bool:
+        return any(tx_out.script_type == ScriptType.P2PK for tx_out in self.tx.outputs)
+    
+    @property
+    def unknown_outputs(self) -> List[TxOutput]:
+        return [tx_out for tx_out in self.tx.outputs if tx_out.script_type == ScriptType.UNKNOWN]
+
+    @property
+    def has_unknown_outputs(self) -> bool:
+        return any(tx_out.script_type == ScriptType.UNKNOWN for tx_out in self.tx.outputs)
+
     
     # Math
     @property
@@ -399,18 +450,30 @@ class PSBTParser:
 
     # NON GENESIS
     # FT functions
-    def is_ft_burning(self, category_id: str) -> bool:
-        ft_in_amount = self.inputs.get_ft_inputs_total_amount(category_id)
-        ft_out_amount = self.outputs.get_ft_total_amount(category_id)
-        if ft_in_amount > ft_out_amount:
-            return True
+    def is_ft_burned(self, category_id: str) -> bool:
+        return self.inputs.get_ft_total_amount(category_id) > self.outputs.get_ft_total_amount(category_id)
 
     # NFT functions
-    def get_nft_warning(self, category_id: str) -> Optional[str]:
-        if self.inputs.has_minting_nft(category_id):
-            return Token.Warning.MINTING.value
-        elif self.inputs.get_nft_inputs_count(category_id) > self.outputs.get_nft_count(category_id):
-            return Token.Warning.BURNING.value
+    def is_nft_minting(self, category_id: str) -> bool:
+        return self.inputs.has_minting_nft(category_id)
+
+    def is_nft_burned(self, category_id: str) -> bool:
+        def bag(items, get_token):
+            result = {}
+            for item in items:
+                nft = get_token(item).nft_data
+                if nft:
+                    key = (nft.capability, nft.commitment)
+                    result[key] = result.get(key, 0) + 1
+            return result
+
+        inputs = bag(self.inputs.get_nft(category_id), lambda item: item.spent_output.token)
+        outputs = bag(self.outputs.get_nft(category_id), lambda item: item.token)
+        if self.genesis:
+            for key, count in bag(self.genesis.outputs.nft.get(category_id, []), lambda item: item.token).items():
+                outputs[key] = outputs.get(key, 0) + count
+
+        return any(outputs.get(key, 0) < count for key, count in inputs.items())
 
     def resolve_spent_output(
         self,
@@ -432,11 +495,14 @@ class PSBTParser:
                 script_len, spos = read_varint(value, 8)
                 script = value[spos:spos + script_len]
                 token = parse_token_script(script)
-                return TxOutput(                            # TxOutput, not dict
+                script_type, address = classify_script(token.script_pubkey if token else script, is_token_tx=bool(token))
+                return TxOutput(
                     value_satoshis=int.from_bytes(out_value, "little"),
+                    index=prev_index,
+                    script_type=script_type,
                     full_script=script,
                     token=token,
-                    address=address_from_script(token.script_pubkey if token else script, is_token_tx=bool(token)),
+                    address=address,
                 )
         return None
 
@@ -455,17 +521,13 @@ class PSBTParser:
         # Candidate funding inputs for a genesis category (non-token, prev_index == 0)
         in_genesis_catId: Dict[str, List[str]] = {}
 
-        # Fees
-        unresolved_inputs: List[int] = []
-
         # ---------------- INPUTS ----------------
         for i, tx_in in enumerate(self.tx.inputs):
             spent = self.resolve_spent_output(tx_in.prev_index, self.parsed["inputs"][i])
             tx_in.spent_output = spent
 
             if spent is None:
-                unresolved_inputs.append(i)
-                continue
+                raise ValueError(f"input {i} has no UTXO in the PSBT; cannot verify what is being spent")
 
             self.total_input_amount += spent.value_satoshis
 
@@ -497,7 +559,11 @@ class PSBTParser:
             is_new_nft = (tx_out.token.nft_data is not None and category not in self.categories["nft"])
             is_new_ft  = (tx_out.token.ft_amount is not None and category not in self.categories["ft"])
 
-            # --- NFT side ---
+            if is_new_nft and category not in in_genesis_catId:
+                raise ValueError(f"category {category} appears in outputs with no genesis input and no matching token input")
+            if is_new_ft and category not in in_genesis_catId:
+                raise ValueError(f"category {category} appears in outputs with no genesis input and no matching token input")
+
             if tx_out.token.nft_data is not None:
                 if is_new_nft:
                     is_genesis_tx = True

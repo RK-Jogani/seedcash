@@ -5,8 +5,14 @@ from typing import List, Tuple, Optional
 
 from seedcash.models.psbt_parser import (
     PSBTParser,
-    ParseTransactionResult)
+    ParseTransactionResult,
+    parse_psbt,
+    parse_transaction,
+)
 from seedcash.models.bip44 import Bip44
+
+import logging
+logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------
 # PSBT key constants (BIP‑174)
@@ -37,10 +43,20 @@ SIGHASH_UTXOS                = 0x20
 
 SIGHASH_BCH = SIGHASH_ALL | SIGHASH_FORKID
 
+ALLOWED_SIGHASH = frozenset({
+    SIGHASH_ALL | SIGHASH_FORKID,
+    SIGHASH_ALL | SIGHASH_FORKID | SIGHASH_UTXOS,
+})
+
 
 # ----------------------------------------------------------------------
 # Serialization helpers
 # ----------------------------------------------------------------------
+
+class BCHSignerExpectation(Exception):
+    """Raised when the PSBT signer encounters an unexpected condition."""
+    pass
+
 def serialize_varint(n: int) -> bytes:
     if n < 0xfd:
         return n.to_bytes(1, "little")
@@ -67,7 +83,7 @@ def double_sha256(data: bytes) -> bytes:
 # ----------------------------------------------------------------------
 def parse_bip32_derivation_value(value: bytes) -> Tuple[bytes, List[int]]:
     if len(value) < 4 or (len(value) - 4) % 4 != 0:
-        raise ValueError("Invalid BIP32 derivation value length")
+        raise BCHSignerExpectation("Invalid BIP32 derivation value length")
     master_fingerprint = value[:4]
     path = [int.from_bytes(value[i:i+4], 'little') for i in range(4, len(value), 4)]
     return master_fingerprint, path
@@ -91,7 +107,7 @@ def path_to_string(path: List[int]) -> str:
 # Bitcoin Cash Signer
 # ----------------------------------------------------------------------
 class BitcoinCashSigner:
-    def __init__(self, xpriv: str, parser: PSBTParser):
+    def __init__(self, xpriv: bytearray, parser: PSBTParser):
         self.parser = parser
         decoded = Bip44.xpriv_decode(xpriv)
 
@@ -99,7 +115,7 @@ class BitcoinCashSigner:
         self.account_path = Bip44.parse_derivation_path()
 
         if Bip44.check_depth(decoded["depth"]) is False:
-            raise ValueError(f"xpriv depth {decoded['depth']} does not match account_path length {len(self.account_path)}")
+            raise BCHSignerExpectation(f"xpriv depth {decoded['depth']} does not match account_path length {len(self.account_path)}")
 
         self.depth = decoded["depth"]
         self.private_key = decoded["private_key"]
@@ -143,15 +159,22 @@ class BitcoinCashSigner:
         hash_type = SIGHASH_BCH
         for key, value in input_pairs:
             if key[0] == PSBT_IN_SIGHASH_TYPE:
-                ht = int.from_bytes(value, "little")
-                if not (ht & SIGHASH_FORKID):
-                    raise ValueError(f"Sighash type 0x{ht:02x} missing FORKID bit (required on Bitcoin Cash)")
-                hash_type = ht
+                hash_type = int.from_bytes(value, "little")
                 break
+        if hash_type not in ALLOWED_SIGHASH:
+            raise BCHSignerExpectation(
+                f"refusing to sign with sighash 0x{hash_type:02x}; "
+                f"only ALL|FORKID (optionally |UTXOS) is supported"
+            )
         return hash_type
 
     def create_sighash(self, tx_data: ParseTransactionResult, input_index: int, hash_type: int = SIGHASH_BCH, script_code: bytes = None) -> bytes:
         """Create BIP-143 sighash for Bitcoin Cash with CashToken support."""
+        if hash_type not in ALLOWED_SIGHASH:
+            raise BCHSignerExpectation(
+                f"refusing to create sighash 0x{hash_type:02x}; "
+                f"only ALL|FORKID (optionally |UTXOS) is supported"
+            )
         anyone_can_pay = hash_type & SIGHASH_ANYONECANPAY
         mode = hash_type & 0x1F
         utxos_flag = hash_type & SIGHASH_UTXOS
@@ -175,14 +198,15 @@ class BitcoinCashSigner:
         # hashUTXOs (CashTokens feature)
         if utxos_flag:
             utxo_data = b''
-            for i in range(len(tx_data.inputs)):
-                spent = tx_data.inputs[i].spent_output
-                if spent is not None:
-                    utxo = b"" + (
-                        spent.value_satoshis.to_bytes(8, "little")
-                        + serialize_varint(len(spent.full_script))
-                        + spent.full_script)
-                utxo_data += utxo
+            for txin in tx_data.inputs:
+                spent = txin.spent_output
+                if spent is None:
+                    raise BCHSignerExpectation("SIGHASH_UTXOS requires every input UTXO to be resolved")
+                utxo_data += (
+                    spent.value_satoshis.to_bytes(8, "little")
+                    + serialize_varint(len(spent.full_script))
+                    + spent.full_script
+                )
             hash_utxos = double_sha256(utxo_data)  
         else:
             hash_utxos = b''
@@ -238,13 +262,13 @@ class BitcoinCashSigner:
         field_prime = ecdsa.SECP256k1.curve.p()
 
         if d <= 0 or d >= order:
-            raise ValueError("invalid private key scalar")
+            raise BCHSignerExpectation("invalid private key scalar")
         if len(msg_hash) != 32:
-            raise ValueError("msg_hash must be 32 bytes")
+            raise BCHSignerExpectation("msg_hash must be 32 bytes")
         if len(public_key) != 33:
-            raise ValueError("public_key must be compressed (33 bytes)")
+            raise BCHSignerExpectation("public_key must be compressed (33 bytes)")
 
-        k = ecdsa.rfc6979.generate_k(order, d, hashlib.sha256, msg_hash, extra_entropy=b"")
+        k = ecdsa.rfc6979.generate_k(order, d, hashlib.sha256, msg_hash, extra_entropy=b"Schnorr+SHA256 ")
         G = ecdsa.SECP256k1.generator
         R = k * G
 
@@ -254,13 +278,13 @@ class BitcoinCashSigner:
 
         r_int = R.x()
         if r_int == 0:
-            raise ValueError("invalid nonce: r is zero")
+            raise BCHSignerExpectation("invalid nonce: r is zero")
 
         r_bytes = r_int.to_bytes(32, "big")
         e = int.from_bytes(hashlib.sha256(r_bytes + public_key + msg_hash).digest(), "big") % order
         s = (k + e * d) % order
         if s == 0:
-            raise ValueError("invalid signature: s is zero")
+            raise BCHSignerExpectation("invalid signature: s is zero")
 
         return r_bytes + s.to_bytes(32, "big")
 
@@ -278,9 +302,30 @@ class BitcoinCashSigner:
                     _, derived_pub = self._derive_path(path)
                     if derived_pub == pubkey_in_key:
                         return path
-                except Exception as e:
-                    print(f"  ❌ Derivation error: {e}")
+                except BCHSignerExpectation as e:
+                    logger.debug(f"Error deriving path {path}: {e}")
+                    continue
         return None
+
+    def validate_signed_psbt(self, psbt: bytes):
+        """Validate the signed PSBT against the original transaction."""
+        reparsed = parse_psbt(bytes(psbt))
+
+        if reparsed["unsigned_tx"] != self.parser.parsed["unsigned_tx"]:
+            raise BCHSignerExpectation("signed PSBT changed the unsigned transaction under review")
+
+        reviewed_tx = parse_transaction(reparsed["unsigned_tx"])
+        if len(reviewed_tx.outputs) != len(self.parser.tx.outputs):
+            raise BCHSignerExpectation("signed PSBT output count differs from the reviewed transaction")
+        for reviewed_output, reparsed_output in zip(self.parser.tx.outputs, reviewed_tx.outputs):
+            if (reviewed_output.value_satoshis != reparsed_output.value_satoshis
+                    or reviewed_output.full_script != reparsed_output.full_script):
+                raise BCHSignerExpectation("signed PSBT output differs from the reviewed value or script")
+
+    def clear(self):
+        self.private_key = None
+        self.chain_code = None
+        self._key_cache.clear()
 
     # ------------------------------------------------------------------
     # Main signing method
@@ -288,9 +333,8 @@ class BitcoinCashSigner:
     def signed_psbt(self) -> bytearray:
         """Sign the PSBT with the wallet's private keys."""
         
-        tx_data = self.parser.tx
-        if tx_data is None:
-            raise ValueError("No unsigned transaction in PSBT")
+        if self.parser.tx is None:
+            raise BCHSignerExpectation("No unsigned transaction in PSBT")
     
         input_maps = self.parser.parsed["inputs"]
         input_starts = self.parser.parsed["input_starts"]
@@ -298,7 +342,7 @@ class BitcoinCashSigner:
     
         # Collect inputs to sign
         inputs_to_sign = []
-        for idx, tx_input in enumerate(tx_data.inputs):
+        for idx, tx_input in enumerate(self.parser.tx.inputs):
             if tx_input.spent_output is None:
                 continue
 
@@ -316,18 +360,18 @@ class BitcoinCashSigner:
             inputs_to_sign.append((idx, tx_input, input_maps[idx], priv, pub, partial_key))
     
         if not inputs_to_sign:
-            # No inputs to sign, return original PSBT
-            return bytearray(self.parser.psbt_bytes)
+            raise BCHSignerExpectation("PSBT does not contain any inputs that can be signed with the provided wallet keys")
     
         # Sign each input
         for idx, tx_input, input_pairs, priv, pub, partial_key in inputs_to_sign:
             hash_type = self._get_sighash_type(input_pairs)
+            script_code = None
             for key, value in input_pairs:
                 if key[0] == PSBT_IN_REDEEM_SCRIPT:
                     script_code = value
                     break
 
-            sighash = self.create_sighash(tx_data, idx, hash_type, script_code=script_code)
+            sighash = self.create_sighash(self.parser.tx, idx, hash_type, script_code=script_code)
             sig = self._sign_schnorr(priv, sighash, pub) + bytes([hash_type & 0xFF])
     
             updated_pairs = []
@@ -367,4 +411,12 @@ class BitcoinCashSigner:
         for pairs in input_maps:
             psbt += _serialize_keypairs(pairs) + b"\x00"
         psbt += self.parser.psbt_bytes[input_ends:]
-        return  psbt
+
+        try:
+            self.validate_signed_psbt(psbt)
+            return psbt
+        except BCHSignerExpectation as e:
+            logger.error(f"Signed PSBT validation failed: {e}")
+            raise
+        finally:
+            self.clear()
