@@ -126,6 +126,16 @@ class SchemeParameters:
         # returns the bits, group threshold, and groups
         return self.bits, self.group_threshold, self.groups
 
+    def discard_parameters(self):
+        """
+        Discards the current scheme parameters and resets them.
+        """
+        self.bits = b""
+        self.group_threshold = 1
+        self.groups = [None]
+        import gc
+        gc.collect()
+
 
 class Scheme:
     """
@@ -240,9 +250,21 @@ class Scheme:
         """
         Discards the current scheme and resets the manager.
         """
+        
+        if self.scheme_parameters is not None:
+            self.scheme_parameters.discard_parameters()
+        if self.wallet is not None:
+            self.wallet.discard_wallet()
+
         self.groups.clear()
         self.common_params.clear()
         self.master_secret = None
+        self.scheme_parameters = None
+        self.wallet = None
+        self.passphrase = None
+
+        import gc
+        gc.collect()
 
     def discard_group(self, group_id: int):
         """

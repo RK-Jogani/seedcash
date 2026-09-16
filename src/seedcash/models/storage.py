@@ -73,7 +73,7 @@ class SeedStorage:
             self.scheme.discard_scheme()
         self.scheme = None
         if self.scheme_params is not None:
-            self.scheme_params.dicard_params()
+            self.scheme_params.discard_parameters()
         self.scheme_params = None
     
         if self.wallet is not None:
