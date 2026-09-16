@@ -61,7 +61,10 @@ class GenesisWarningView(View):
         if result == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         if result == 0:
-            return Destination(PSBTGenesisFTDetailsView, view_args={"category_num": 0})
+            if len(self.controller.psbt_parser.genesis.categories["ft"]) > 0:
+                return Destination(PSBTGenesisFTDetailsView, view_args={"category_num": 0})
+            else:
+                return Destination(PSBTNFTView, view_args={"category_num": 0, "is_genesis": True})
 
 class PSBTGenesisFTDetailsView(View):
     def __init__(self, category_num: int = 0):
@@ -74,16 +77,6 @@ class PSBTGenesisFTDetailsView(View):
         if not psbt_parser:
             return Destination(MainMenuView)
         category_ids = self.controller.psbt_parser.genesis.categories["ft"]
-
-        if not category_ids or self.category_num >= len(category_ids):
-            return Destination(
-                PSBTNFTView,
-                view_args={
-                    "category_num": 0,
-                    "is_genesis": True},
-                skip_current_view=True
-            )
-
         category_id = category_ids[self.category_num]
         category: Category = get_category(category_id)
 
