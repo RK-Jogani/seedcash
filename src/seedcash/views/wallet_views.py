@@ -51,7 +51,7 @@ class WalletFinalizeView(View):
 
         if button_data[selected_menu_num] == self.CONFIRM:
             if self.controller.storage.wallet:
-                return Destination(WalletOptionsView)
+                return Destination(WalletOptionsView, clear_history=True)
 
             self.controller.storage.discard_mnemonic()
             return Destination(MainMenuView)
@@ -200,7 +200,7 @@ class SeedReviewPassphraseExitDialogView(View):
 
         if button_data[selected_menu_num] == self.CONFIRM:
             if self.controller.storage.wallet:
-                return Destination(WalletOptionsView)
+                return Destination(WalletOptionsView, clear_history=True)
 
             self.controller.storage.discard_mnemonic()
             return Destination(MainMenuView)

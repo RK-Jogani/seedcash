@@ -412,8 +412,17 @@ class PSBTParser:
         return [tx_out for tx_out in self.tx.outputs if tx_out.script_type == ScriptType.P2PK]
 
     @property
+    def has_p2pk(self) -> bool:
+        return any(tx_out.script_type == ScriptType.P2PK for tx_out in self.tx.outputs)
+    
+    @property
     def unknown_outputs(self) -> List[TxOutput]:
         return [tx_out for tx_out in self.tx.outputs if tx_out.script_type == ScriptType.UNKNOWN]
+
+    @property
+    def has_unknown_outputs(self) -> bool:
+        return any(tx_out.script_type == ScriptType.UNKNOWN for tx_out in self.tx.outputs)
+
     
     # Math
     @property
@@ -441,19 +450,14 @@ class PSBTParser:
 
     # NON GENESIS
     # FT functions
-    def is_ft_burning(self, category_id: str) -> bool:
+    def is_ft_burned(self, category_id: str) -> bool:
         return self.inputs.get_ft_total_amount(category_id) > self.outputs.get_ft_total_amount(category_id)
 
     # NFT functions
-    def get_nft_warnings(self, category_id: str) -> List[str]:
-        warnings = []
-        if self.inputs.has_minting_nft(category_id):
-            warnings.append(Token.Warning.MINTING.value)
-        if self._nft_burned(category_id):
-            warnings.append(Token.Warning.BURNING.value)
-        return warnings
+    def is_nft_minting(self, category_id: str) -> bool:
+        return self.inputs.has_minting_nft(category_id)
 
-    def _nft_burned(self, category_id: str) -> bool:
+    def is_nft_burned(self, category_id: str) -> bool:
         def bag(items, get_token):
             result = {}
             for item in items:
