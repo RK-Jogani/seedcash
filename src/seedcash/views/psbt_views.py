@@ -36,7 +36,8 @@ class LoadingPSBTView(View):
 
     def run(self):
         if self.controller.psbt_parser.is_genesis:
-            return Destination(GenesisWarningView, skip_current_view=True)
+            is_ft = len(self.controller.psbt_parser.genesis.categories["ft"]) > 0
+            return Destination(GenesisWarningView, view_args={"is_ft": is_ft}, skip_current_view=True)
         elif self.controller.psbt_parser.inputs.ft:
             return Destination(PSBTFungibleTokenDetailsView, skip_current_view=True, view_args={"is_last": True})
         elif self.controller.psbt_parser.inputs.nft:
@@ -46,22 +47,40 @@ class LoadingPSBTView(View):
 
 # GENESIS View
 class GenesisWarningView(View):
+    def __init__(self, is_ft: bool = False):
+        super().__init__()
+        self.loading_screen = None
+        self.is_ft = is_ft
+
     def run(self):
-        result = self.run_screen(
-            WarningScreen,
-            title=_("Genesis Transaction"),
-            show_back_button=True,
-            status_icon_name=SeedCashIconsConstants.WARNING,
-            status_headline=_("New Fungible Token"),
-            text=_("This transaction will create a new token category."),
-            button_data=[ButtonOption("Confirm")],
-            selected_color=GUIConstants.MUSD_BLUE
-        )
+        if self.is_ft:
+            result = self.run_screen(
+                WarningScreen,
+                title=_("Genesis Transaction"),
+                show_back_button=True,
+                status_icon_name=SeedCashIconsConstants.WARNING,
+                status_headline=_("New Fungible Token"),
+                text=_("This transaction will create a new token category."),
+                button_data=[ButtonOption("Confirm")],
+                selected_color=GUIConstants.MUSD_BLUE
+                )
+
+        else:
+            result = self.run_screen(
+                WarningScreen,
+                title=_("Genesis Transaction"),
+                show_back_button=True,
+                status_icon_name=SeedCashIconsConstants.WARNING,
+                status_headline=_("New Non-Fungible Token"),
+                text=_("This transaction will create a new NFT category."),
+                button_data=[ButtonOption("Confirm")],
+                selected_color=GUIConstants.MUSD_BLUE
+                )
 
         if result == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
+            return Destination(PSBTDiscardWarningView)
         if result == 0:
-            if len(self.controller.psbt_parser.genesis.categories["ft"]) > 0:
+            if self.is_ft:
                 return Destination(PSBTGenesisFTDetailsView, view_args={"category_num": 0})
             else:
                 return Destination(PSBTNFTView, view_args={"category_num": 0, "is_genesis": True})
@@ -92,7 +111,7 @@ class PSBTGenesisFTDetailsView(View):
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(PSBTDiscardWarningView)
+            return Destination(BackStackView)
         if selected_menu_num == 0:
             return Destination(PSBTAddressDetailsView, view_args={"output_num": 0, "outputs": outputs, "category_id": category_id, "category_num": self.category_num, "is_genesis": True})
 
@@ -140,6 +159,11 @@ class PSBTFungibleTokenDetailsView(View):
                 return Destination(PSBTDiscardWarningView)
             return Destination(BackStackView)
         if selected_menu_num == 0:
+            if len(outputs) == 0:
+                return Destination(
+                    PSBTFungibleTokenDetailsView,
+                    view_args={"category_num": self.category_num + 1}
+                )
             return Destination(PSBTAddressDetailsView, view_args={"output_num": 0, "outputs": outputs, "category_id": category_id, "category_num": self.category_num})
 
 class PSBTFungibleWarningView(View):
@@ -237,8 +261,10 @@ class PSBTNFTView(View):
     def run(self):
         if self.is_genesis:
             nft_category_ids = self.controller.psbt_parser.genesis.inputs.get_nft_category_ids
-        else:
-            nft_category_ids = self.controller.psbt_parser.inputs.get_nft_category_ids
+            if nft_category_ids is not None or len(nft_category_ids) > 0:
+                return Destination(GenesisWarningView, view_args={"is_ft": False}, skip_current_view=True)
+        
+        nft_category_ids = self.controller.psbt_parser.inputs.get_nft_category_ids
 
         if nft_category_ids is None or len(nft_category_ids) == 0:
             return Destination(BCHPSBTOverviewView, skip_current_view=True)
@@ -362,6 +388,15 @@ class PSBTNFTDetailsView(View):
         else:
             outputs = psbt_parser.outputs.get_nft(self.category_id)
 
+        if not outputs or self.output_num >= len(outputs):
+            return Destination(
+                PSBTNFTView,
+                view_args={
+                    "category_num": self.category_num + 1,
+                    "is_genesis": self.is_genesis},
+                skip_current_view=True
+            )
+        
         selected_menu_num = self.run_screen(
             PSBTNFTDetailsScreen,
             button_data=[ButtonOption("Next")],

@@ -82,7 +82,7 @@ class Seed:
         binary_str = ""
 
         for word in self.mnemonic:
-            index = self.wordlist.index(word)
+            index = self.get_wordlist().index(word)
             binary_str += format(index, '011b')
 
         # Remove the checksum bits (last 4 bits for 12-word mnemonic)
