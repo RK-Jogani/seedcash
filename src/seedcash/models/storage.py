@@ -239,14 +239,7 @@ class SeedStorage:
             raise InvalidSchemeException("Invalid mnemonic provided for scheme") from e
         finally:
             # Always clear the temporary slip mnemonic after attempt
-            self.discard_slip_mnemonic()
-
-    def discard_slip_mnemonic(self):
-        """
-        Discard the current mnemonic used for SLIP39 scheme.
-        """
-        self.discard_mnemonic()
-        logger.info("SLIP39 mnemonic discarded.")
+            self.discard_mnemonic()
 
     def discard_scheme(self):
         """
@@ -259,5 +252,5 @@ class SeedStorage:
             self.scheme_params.discard_parameters()
         self.scheme_params = None
         self.passphrase = ""
-        self.discard_slip_mnemonic()
+        self.discard_mnemonic()
         logger.info("Scheme and parameters discarded.")
