@@ -219,7 +219,7 @@ class SeedStorage:
         if self.mnemonic is None:
             raise InvalidSeedException("Mnemonic has not been initialized")
 
-        if self.scheme is not None:
+        if self.scheme is None:
             try:
                 self.scheme = Scheme(mnemonics=self._mnemonic)
             except Exception as e:

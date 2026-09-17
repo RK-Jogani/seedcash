@@ -27,7 +27,7 @@ class Seed:
         self.validate_mnemonic()
 
     @property
-    def _mnemonic(self) -> str:
+    def _mnemonic(self) -> List[str]:
         if self.mnemonic is None:
             raise InvalidSeedException("Mnemonic has not been initialized")
         return self.mnemonic
