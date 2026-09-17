@@ -1,7 +1,7 @@
 from typing import List, Optional
 from seedcash.models.wallet import Wallet
 from seedcash.models.seed import Seed, InvalidSeedException
-from seedcash.models.scheme import Scheme, SchemeParameters
+from seedcash.models.scheme import Scheme, SchemeParameters, InvalidShareException, InvalidSchemeException
 from seedcash.models.settings import Settings
 from seedcash.models.settings_definition import SettingsConstants
 
@@ -58,7 +58,7 @@ class SeedStorage:
             == "SLIP39"
         ):
             if not self.scheme:
-                raise InvalidSeedException("Scheme must be initialized for SLIP39.")
+                raise InvalidSchemeException("Scheme must be initialized for SLIP39.")
             self.scheme.set_passphrase(self.passphrase)
             self.scheme.generate_wallet()
             self.wallet = self.scheme._wallet
@@ -66,16 +66,11 @@ class SeedStorage:
     def discard_wallet(self):
         # 1. Clear nested objects first (if they exist)
         if self.seed is not None:
-            self.seed.discard_seed()
-        self.seed = None
+            self.discard_seed()
     
         if self.scheme is not None:
-            self.scheme.discard_scheme()
-        self.scheme = None
-        if self.scheme_params is not None:
-            self.scheme_params.discard_parameters()
-        self.scheme_params = None
-    
+            self.discard_scheme()
+        
         if self.wallet is not None:
             self.wallet.discard_wallet()
         self.wallet = None
@@ -177,14 +172,16 @@ class SeedStorage:
         """
         Discard the current seed.
         """
+        self.discard_mnemonic()
+        self.passphrase = ""
+        self.seed.discard_seed()
         self.seed = None
-        logger.info("Seed discarded.")
 
     # Scheme management
     @property
     def _scheme(self) -> Scheme:
         if not self.scheme:
-            raise InvalidSeedException("Scheme has not been initialized")
+            raise InvalidSchemeException("Scheme has not been initialized")
         return self.scheme
 
     def set_scheme_params(self, bits: str):
@@ -192,7 +189,7 @@ class SeedStorage:
         Set the scheme parameters for the current seed.
         """
         if not bits:
-            raise InvalidSeedException("Bits must be provided to set scheme parameters")
+            raise InvalidSchemeException("Bits must be provided to set scheme parameters")
 
         self.scheme_params = SchemeParameters(bits=bits)
         logger.info("Scheme parameters set with bits: %s", bits)
@@ -202,7 +199,7 @@ class SeedStorage:
         Generate a scheme based on the current mnemonic and scheme parameters.
         """
         if not self.scheme_params:
-            raise InvalidSeedException("Scheme parameters have not been set")
+            raise InvalidSchemeException("Scheme parameters have not been set")
 
         self.scheme = Scheme(
             scheme_parameters=self.scheme_params,
@@ -214,28 +211,35 @@ class SeedStorage:
 
     def add_share_to_scheme(self):
         """
-        Generate a scheme based on the current mnemonic.
+        Add the current slip mnemonic as a share.
+        - First call: create Scheme from this share
+        - Later calls: add share to the existing recovery scheme
         """
+
         if self.mnemonic is None:
-            raise InvalidSeedException("Mnemonic has not been initialized")
+            raise InvalidShareException("Mnemonic has not been initialized")
 
-        if self.scheme is None:
-            try:
+        # Reject incomplete entry (still has None placeholders)
+        if any(w is None or not isinstance(w, str) for w in self.mnemonic):
+            raise InvalidShareException("Mnemonic is incomplete")
+
+        # Generation path already used scheme_parameters — do not mix with recovery
+        if self.scheme is not None and self.scheme.scheme_parameters is not None:
+            raise InvalidSchemeException("Scheme was generated with parameters; cannot add recovery shares")
+
+        try:
+            if self.scheme is None:
                 self.scheme = Scheme(mnemonics=self._mnemonic)
-            except Exception as e:
-                logger.info("Scheme Invalid:", e, self.scheme)
-                raise InvalidSeedException("Invalid mnemonic provided for scheme creation")
-
+                logger.info("New scheme created from first share.")
+            else:
+                self.scheme.add_share(self._mnemonic)
+                logger.info("Share added to the current scheme.")
+        except InvalidSchemeException as e:
+            logger.exception("Invalid SLIP39 share: %s", e)
+            raise InvalidSchemeException("Invalid mnemonic provided for scheme") from e
+        finally:
+            # Always clear the temporary slip mnemonic after attempt
             self.discard_slip_mnemonic()
-            logger.info("New scheme created with the current mnemonic.")
-            return
-
-        if self.scheme.scheme_parameters:
-            raise InvalidSeedException("Scheme generated with parameters already")
-
-        self.scheme.add_share(self._mnemonic)
-        self.discard_slip_mnemonic()
-        logger.info("Share added to the current scheme.")
 
     def discard_slip_mnemonic(self):
         """
@@ -248,7 +252,12 @@ class SeedStorage:
         """
         Discard the current scheme.
         """
+        if self.scheme is not None:
+            self.scheme.discard_scheme()
         self.scheme = None
+        if self.scheme_params is not None:
+            self.scheme_params.discard_parameters()
         self.scheme_params = None
         self.passphrase = ""
+        self.discard_slip_mnemonic()
         logger.info("Scheme and parameters discarded.")

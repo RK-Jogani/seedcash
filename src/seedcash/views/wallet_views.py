@@ -202,7 +202,7 @@ class SeedReviewPassphraseExitDialogView(View):
             if self.controller.storage.wallet:
                 return Destination(WalletOptionsView, clear_history=True)
 
-            self.controller.storage.discard_mnemonic()
+            self.controller.storage.discard_seed()
             return Destination(MainMenuView)
 
 
