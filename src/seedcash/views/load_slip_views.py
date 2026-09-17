@@ -357,7 +357,7 @@ class SeedShareInvalidView(View):
             )
 
         elif button_data[selected_menu_num] == self.DISCARD:
-            self.controller.storage.discard_slip_mnemonic()
+            self.controller.storage.discard_mnemonic()
             return Destination(BackStackView)
 
 
@@ -389,5 +389,5 @@ class SeedShareDiscardView(View):
             )
 
         elif button_data[selected_menu_num] == self.DISCARD:
-            self.controller.storage.discard_slip_mnemonic()
+            self.controller.storage.discard_mnemonic()
             return Destination(BackStackView)

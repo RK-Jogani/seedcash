@@ -83,7 +83,7 @@ class ShowWordsView(View):
     def __init__(self, mnemonic: list = None):
         super().__init__()
         if mnemonic:
-            self.controller.storage._mnemonic = mnemonic
+            self.controller.storage.set_mnemonic(mnemonic)
 
         self.mnemonic = self.controller.storage.mnemonic
 

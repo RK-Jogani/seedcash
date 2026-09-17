@@ -15,7 +15,8 @@ class Wallet:
 
     @property
     def _xpub(self) -> str:
-        return str(self.xpub)
+        # convert xpub bytearray to string
+        return self.xpub.decode('utf-8')
 
     @property
     def _fingerprint(self) -> str:
