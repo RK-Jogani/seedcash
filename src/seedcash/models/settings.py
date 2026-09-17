@@ -243,18 +243,6 @@ class Settings(Singleton):
         locale = self.get_value(SettingsConstants.SETTING__LOCALE)
         os.environ["LANGUAGE"] = locale
 
-        # Re-initialize with the new locale
-        print(f"Set LANGUAGE locale to {os.environ['LANGUAGE']}")
-
-    """
-        Intentionally keeping the properties very limited to avoid an expectation of
-        boilerplate property code for every SettingsEntry.
-
-        It's more cumbersome, but instead use:
-
-        Settings.get_instance().get_value(SettingsConstants.SETTING__MY_SETTING_ATTR)
-    """
-
     @property
     def debug(self) -> bool:
         return (

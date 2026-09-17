@@ -143,12 +143,7 @@ class FountainDecoder:
         # Keep track of how many parts we've processed
         self.processed_parts_count += 1
 
-        # self.print_part_end()
-        # self.print_state()
-
         if num_complete == len(self.received_part_indexes) and num_mixed_frames == len(self.mixed_parts):
-            # This part didn't add any new info
-            # print("No new data")
             return False
 
         return True
@@ -163,17 +158,13 @@ class FountainDecoder:
         self.queued_parts.append(p)
 
     def process_queue_item(self):
-        start = time.time()
         part = self.queued_parts.pop(0)
-        # self.print_part(part)
+        
 
         if part.is_simple():
             self.process_simple_part(part)
         else:
             self.process_mixed_part(part)
-        
-        # print(f"Queue processing: {int((time.time() - start)*1000.0)}ms")
-        # self.print_state()
 
     def reduce_mixed_by(self, p):
         # Reduce all the current mixed parts by the given part
@@ -193,8 +184,7 @@ class FountainDecoder:
                 new_mixed[reduced_part.indexes] = reduced_part
 
         self.mixed_parts = new_mixed
-        # print(self.mixed_parts.keys())
-
+        
     def reduce_part_by_part(self, a, b):
         # If the fragments mixed into `b` are a strict (proper) subset of those in `a`...
         if is_strict_subset(b.indexes, a.indexes):
@@ -310,32 +300,4 @@ class FountainDecoder:
         else:
             assert False
 
-    def print_part(self, p):
-        print('part indexes: {}'.format(self.indexes_to_string(p.indexes)))
-
-    def print_part_end(self):
-        expected = self.expected_part_count() if self.expected_part_indexes != None else 'None'
-        percent = int(round(self.estimated_percent_complete() * 100))
-        print("processed: {}, expected: {}, received: {}, percent: {}%".format(self.processed_parts_count, expected, len(self.received_part_indexes), percent))
-
-    def print_state(self):
-        guesstimate = self.estimated_percent_complete(weight_mixed_frames=True)
-        original_metric = self.estimated_percent_complete()
-        mixed = []
-        mixed_set = set()
-        try:
-            for indexes, p in self.mixed_parts.items():
-                if not indexes or len(indexes) == 0:
-                    continue
-                mixed.append(self.indexes_to_string(indexes))
-                mixed_set.update(indexes)
-            
-            num_complete = len(self.received_part_indexes)
-
-            mixed_s = "[{}]".format(', '.join(mixed))
-            queued = len(self.queued_parts)
-            print(f"{original_metric*100.0:5.1f}% | {guesstimate*100.0:5.1f}% | done: {num_complete:2d}, mixed: {len(mixed_set):2d}, queued: {queued}, frames: {self.processed_parts_count:2d} | {mixed_s}")
-
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+    
