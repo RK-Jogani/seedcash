@@ -156,7 +156,7 @@ class PSBTButtonListScreen(BaseTopNavScreen, ButtonListScreen):
 
 @dataclass
 class PSBTOverviewScreen(PSBTButtonListScreen):
-    spend_amount: int = 0
+    inputs_amount: int = 0
     fee_amount: int = 0
     input_count: int = 0
     destination_addresses: list[str] = None
@@ -186,7 +186,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         elif self.category:    
             self.components.append(
                 TokenAmount(
-                    amount=self.spend_amount,
+                    amount=self.inputs_amount,
                     category=self.category,
                     screen_y=icon_text_lines_y,
                 )
@@ -194,7 +194,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         else:
             self.components.append(
                 BchAmount(
-                    total_sats=self.spend_amount,
+                    total_sats=self.inputs_amount,
                     screen_y=icon_text_lines_y,
                 )
             )
@@ -245,7 +245,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
         # First calculate how wide the inputs col will be
         inputs_column = []
         if self.input_count == 1:
-            inputs_column.append(_("1 input" if self.spend_amount > 0 else "Genesis"))
+            inputs_column.append(_("1 input" if self.inputs_amount > 0 else "Genesis"))
         elif self.input_count > 5:
             inputs_column.append(_("input 1"))
             inputs_column.append(_("input 2"))

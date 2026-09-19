@@ -130,7 +130,7 @@ class PSBTFungibleTokenDetailsView(View):
             return Destination(MainMenuView, skip_current_view=True)
         category_id = self.controller.psbt_parser.inputs.get_ft_category_ids[self.category_num]
         category: Category = get_category(category_id)
-        spend_amount = psbt_parser.inputs.get_ft_total_amount(category_id)
+        inputs_amount = psbt_parser.inputs.get_ft_total_amount(category_id)
         is_ft_burned = psbt_parser.is_ft_burned(category_id)
 
         if self.warning:
@@ -139,7 +139,7 @@ class PSBTFungibleTokenDetailsView(View):
                 view_args={
                     "category_num": self.category_num,
                     "is_ft_burned": is_ft_burned,
-                    "spend_amount": spend_amount,
+                    "inputs_amount": inputs_amount,
                     "category": category
                 }, skip_current_view=True)
 
@@ -147,7 +147,7 @@ class PSBTFungibleTokenDetailsView(View):
 
         selected_menu_num = self.run_screen(
             PSBTOverviewScreen,
-            spend_amount=spend_amount,
+            inputs_amount=inputs_amount,
             input_count=psbt_parser.inputs.get_ft_count(category_id),
             destination_addresses=[output.address for output in outputs],
             selected_color=category.icon_color,
@@ -170,13 +170,13 @@ class PSBTFungibleWarningView(View):
     def __init__(self, 
                  category_num: int = 0, 
                  is_ft_burned: bool = False,
-                 spend_amount: int = 0,
+                 inputs_amount: int = 0,
                  category: Category = None,
                  check_point: bool = True):
         super().__init__()
         self.category_num = category_num
         self.is_ft_burned = is_ft_burned
-        self.spend_amount = spend_amount
+        self.inputs_amount = inputs_amount
         self.category = category
         self.check_point = check_point
 
@@ -213,19 +213,19 @@ class PSBTFungibleWarningView(View):
                     view_args={
                         "category_num": self.category_num,
                         "is_ft_burned": self.is_ft_burned,
-                        "spend_amount": self.spend_amount,
+                        "inputs_amount": self.inputs_amount,
                         "category": self.category,
                     },
                     skip_current_view=True)
     
-        if self.spend_amount >= 10e8:
+        if self.inputs_amount >= 10e8:
             result = self.run_screen(
                 WarningScreen,
                 title=_("High Raw Amount"),
                 show_back_button=True,
                 status_headline=_(""),
                 status_icon_name=SeedCashIconsConstants.WARNING,
-                text=_(f"This transaction will send {self.spend_amount} {self.category.token_symbol}"),
+                text=_(f"This transaction will send {self.inputs_amount} {self.category.token_symbol}"),
                 button_data=[ButtonOption("Confirm")],
                 selected_color=self.category.icon_color
             )
@@ -235,7 +235,7 @@ class PSBTFungibleWarningView(View):
                     view_args={
                         "category_num": self.category_num,
                         "is_ft_burned": self.is_ft_burned,
-                        "spend_amount": self.spend_amount,
+                        "inputs_amount": self.inputs_amount,
                         "category": self.category,
                         "check_point": False
                     },
@@ -467,7 +467,7 @@ class BCHPSBTOverviewView(View):
         # Run the overview screen
         selected_menu_num = self.run_screen(
             PSBTOverviewScreen,
-            spend_amount=psbt_parser.input_amount,
+            inputs_amount=psbt_parser.output_amount,
             fee_amount=psbt_parser.fee_amount,
             input_count=psbt_parser.input_count,
             destination_addresses=[output.address for output in psbt_parser.bch_outputs],
