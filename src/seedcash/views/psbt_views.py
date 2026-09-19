@@ -593,11 +593,11 @@ class PSBTAddressDetailsView(View):
     
         elif self.category_id is not None:
             if self.is_genesis:
-                if self.category_num < self.controller.psbt_parser.genesis.inputs.get_ft_count(self.category_id) - 1:
+                if self.category_num < len(self.controller.psbt_parser.genesis.inputs.get_ft_category_ids) - 1:
                     return Destination(PSBTGenesisFTDetailsView, view_args={"category_num": self.category_num + 1})
                 else:
                     return Destination(PSBTNFTView, view_args={"category_num": 0, "is_genesis": True})
-            if self.category_num < self.controller.psbt_parser.inputs.get_ft_count(self.category_id) - 1:
+            if self.category_num < len(self.controller.psbt_parser.inputs.get_ft_category_ids) - 1:
                 return Destination(PSBTFungibleTokenDetailsView, view_args={"category_num": self.category_num + 1})    
             else:
                 return Destination(PSBTNFTView, view_args={"category_num": 0})
