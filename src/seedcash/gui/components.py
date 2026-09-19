@@ -80,7 +80,7 @@ class GUIConstants:
     BUTTON_HEIGHT = 32
     BUTTON_SELECTED_FONT_COLOR = BACKGROUND_COLOR
 
-    NOTIFICATION_COLOR = "#00F100"
+    NOTIFICATION_COLOR = "#CE1014"
 
 
 class FontAwesomeIconConstants:
@@ -1771,14 +1771,13 @@ def get_category(category_id: str) -> Category:
     for category in categories:
         if category.category_id == category_id:
             return category
-        else:
-            return Category(
-                category_id=category_id,
-                token_symbol="[?]",
-                decimal=0,
-                icon_name=SeedCashIconsConstants.CASHTOKEN,
-                icon_color=GUIConstants.MUSD_BLUE,
-            )
+    return Category(
+        category_id=category_id,
+        token_symbol="[?]",
+        decimal=0,
+        icon_name=SeedCashIconsConstants.CASHTOKEN,
+        icon_color=GUIConstants.MUSD_BLUE,
+    )
 
 @dataclass
 class BchAmount(BaseComponent):
