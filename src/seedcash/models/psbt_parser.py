@@ -518,7 +518,7 @@ class PSBTParser:
         in_genesis_dict: Dict[str, Dict[str, List[TxInput]]] = {"nft": {}, "ft": {}}
         out_genesis_dict: Dict[str, Dict[str, List[TxOutput]]] = {"nft": {}, "ft": {}}
 
-        # Candidate funding inputs for a genesis category (non-token, prev_index == 0)
+        # Candidate funding inputs for a genesis category (prev_index == 0)
         in_genesis_catId: Dict[str, List[str]] = {}
 
         # ---------------- INPUTS ----------------
@@ -531,6 +531,10 @@ class PSBTParser:
 
             self.total_input_amount += spent.value_satoshis
 
+            if tx_in.prev_index == 0:
+                category_id = tx_in.prev_txid[::-1].hex()
+                in_genesis_catId.setdefault(category_id, []).append(tx_in)
+
             if spent.token:
                 category = spent.token.category_id
                 if spent.token.nft_data is not None:
@@ -541,10 +545,7 @@ class PSBTParser:
                     if category not in self.categories["ft"]:
                         self.categories["ft"].append(category)
                     inputs["ft"].setdefault(category, []).append(tx_in)
-            else:
-                if tx_in.prev_index == 0:
-                    category_id = tx_in.prev_txid[::-1].hex()
-                    in_genesis_catId.setdefault(category_id, []).append(tx_in)
+
 
         # ---------------- OUTPUTS ----------------
         for tx_out in self.tx.outputs:
