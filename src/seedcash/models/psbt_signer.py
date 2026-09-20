@@ -78,6 +78,85 @@ def double_sha256(data: bytes) -> bytes:
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()
 
 
+def validate_redeem_script(script_pubkey: bytes, redeem_script: bytes) -> bytes:
+    """Validate that a redeem script matches the supplied P2SH scriptPubKey."""
+    if (len(script_pubkey) == 23
+            and script_pubkey.startswith(b"\xa9\x14")
+            and script_pubkey.endswith(b"\x87")):
+        expected_hash = Bip44.hash160(redeem_script)
+        script_hash = script_pubkey[2:22]
+    elif (len(script_pubkey) == 35
+            and script_pubkey.startswith(b"\xaa\x20")
+            and script_pubkey.endswith(b"\x87")):
+        expected_hash = double_sha256(redeem_script)
+        script_hash = script_pubkey[2:34]
+    else:
+        raise BCHSignerExpectation(
+            "redeem script supplied for a non-P2SH UTXO"
+        )
+
+    if expected_hash != script_hash:
+        raise BCHSignerExpectation(
+            "redeem script does not match the UTXO scriptPubKey"
+        )
+
+    return redeem_script
+
+
+def validate_multisig_redeem_script(redeem_script: bytes) -> bytes:
+    """Validate the standard m-of-n multisig redeem-script template."""
+    if len(redeem_script) < 3 or not 0x51 <= redeem_script[0] <= 0x60:
+        raise BCHSignerExpectation(
+            "redeem script is not a standard multisignature script"
+        )
+
+    required_signatures = redeem_script[0] - 0x50
+    cursor = 1
+    public_key_count = 0
+
+    while cursor < len(redeem_script) - 2:
+        push_length = redeem_script[cursor]
+        if push_length not in (33, 65) or cursor + 1 + push_length > len(redeem_script):
+            raise BCHSignerExpectation(
+                "redeem script contains an invalid multisig public key push"
+            )
+
+        public_key = redeem_script[cursor + 1:cursor + 1 + push_length]
+        if ((push_length == 33 and public_key[0] not in (0x02, 0x03))
+                or (push_length == 65 and public_key[0] != 0x04)):
+            raise BCHSignerExpectation(
+                "redeem script contains an invalid multisig public key"
+            )
+
+        public_key_count += 1
+        cursor += 1 + push_length
+
+    if cursor + 2 != len(redeem_script):
+        raise BCHSignerExpectation(
+            "redeem script is not a standard multisignature script"
+        )
+
+    declared_public_keys = redeem_script[cursor]
+    if not 0x51 <= declared_public_keys <= 0x60:
+        raise BCHSignerExpectation(
+            "redeem script is not a standard multisignature script"
+        )
+
+    declared_key_count = declared_public_keys - 0x50
+    if (public_key_count != declared_key_count
+            or required_signatures > declared_key_count):
+        raise BCHSignerExpectation(
+            "redeem script has invalid multisignature key counts"
+        )
+
+    if redeem_script[-1] != 0xae:
+        raise BCHSignerExpectation(
+            "redeem script is not a standard multisignature script"
+        )
+
+    return redeem_script
+
+
 # ----------------------------------------------------------------------
 # BIP32 derivation helpers
 # ----------------------------------------------------------------------
@@ -368,7 +447,10 @@ class BitcoinCashSigner:
             script_code = None
             for key, value in input_pairs:
                 if key[0] == PSBT_IN_REDEEM_SCRIPT:
-                    script_code = value
+                    script_code = validate_redeem_script(
+                        tx_input.spent_output.script_pubkey, value
+                    )
+                    validate_multisig_redeem_script(script_code)
                     break
 
             sighash = self.create_sighash(self.parser.tx, idx, hash_type, script_code=script_code)
