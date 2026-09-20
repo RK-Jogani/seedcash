@@ -152,6 +152,21 @@ class TestSC04SC05Tokens:
         script = b"\xef" + bytes(32) + b"\x80"
         assert parse_token_script(script) is None
 
+    def test_token_prefix_rejects_invalid_parameters(self):
+        category = bytes(32)
+        assert parse_token_script(b"\xef" + category + b"\x13") is None
+        assert parse_token_script(b"\xef" + category + b"\x40\x01") is None
+        assert parse_token_script(b"\xef" + category + b"\x60\xfd") is None
+        assert parse_token_script(b"\xef" + category + b"\x10\x00") is None
+        assert parse_token_script(b"\xef" + category + b"\x10\xfd\x01\x00") is None
+
+    def test_token_prefix_accepts_valid_nft_and_ft(self):
+        category = bytes(32)
+        nft = b"\xef" + category + b"\x60\x01x"
+        ft = b"\xef" + category + b"\x10\x01"
+        assert parse_token_script(nft) is not None
+        assert parse_token_script(ft) is not None
+
     def test_plain_script_not_token(self):
         assert parse_token_script(b"\x76\xa9\x14" + bytes(20) + b"\x88\xac") is None
 

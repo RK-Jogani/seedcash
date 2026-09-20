@@ -15,6 +15,9 @@ from seedcash.models.psbt_parser import (
     classify_script,
     ScriptType,
     parse_transaction,
+    ParseTransactionResult,
+    Token,
+    TxInput,
     TxOutput,
     PSBTParser,
 )
@@ -24,7 +27,11 @@ from seedcash.models.psbt_signer import (
     SIGHASH_ALL,
     SIGHASH_FORKID,
     SIGHASH_NONE,
+    double_sha256,
+    validate_redeem_script,
+    validate_multisig_redeem_script,
 )
+from seedcash.models.bip44 import Bip44
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +104,7 @@ class TestSC02OpReturnFirst:
         payment = [o for o in result.outputs if o.address]
         assert len(payment) == 1
         assert payment[0].value_satoshis == 1_001_000  # NOT 8_998_000
+        assert payment[0].index == 1  # Preserve the signed transaction's real vout
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +137,99 @@ class TestSC01SighashRuntime:
         from seedcash.models.psbt_signer import ALLOWED_SIGHASH
         assert (SIGHASH_NONE | SIGHASH_FORKID) not in ALLOWED_SIGHASH
         assert (SIGHASH_ALL | SIGHASH_FORKID) in ALLOWED_SIGHASH
+
+    def test_genesis_accepts_tokenized_vout_zero_input(self):
+        category_id = "11" * 32
+        spent_category_id = "22" * 32
+        prev_txid = bytes.fromhex(category_id)[::-1]
+        token = Token(
+            prefix=b"",
+            script_pubkey=_p2pkh_script(),
+            category_id=spent_category_id,
+            ft_amount=1,
+        )
+        spent_output = TxOutput(
+            value_satoshis=1000,
+            index=0,
+            full_script=token.script_pubkey,
+            token=token,
+        )
+        tx_input = TxInput(prev_txid=prev_txid, prev_index=0, sequence=0)
+        parser = PSBTParser.__new__(PSBTParser)
+        parser.parsed = {"inputs": [[]]}
+        parser.total_input_amount = 0
+        parser.total_output_amount = 0
+        parser.categories = {"nft": [], "ft": []}
+        parser.tx = ParseTransactionResult(
+            version=b"\x01\x00\x00\x00",
+            inputs=[tx_input],
+            outputs=[TxOutput(
+                value_satoshis=900,
+                index=0,
+                full_script=token.script_pubkey,
+                token=Token(
+                    prefix=b"",
+                    script_pubkey=token.script_pubkey,
+                    category_id=category_id,
+                    ft_amount=1,
+                ),
+            )],
+            locktime=b"\x00\x00\x00\x00",
+        )
+        parser.resolve_spent_output = lambda prev_index, input_pairs: spent_output
+
+        parser.build_transaction()
+
+        assert parser.genesis is not None
+        assert category_id in parser.genesis.categories["ft"]
+
+
+# ---------------------------------------------------------------------------
+# Redeem scripts must commit to the supplied UTXO scriptPubKey
+# ---------------------------------------------------------------------------
+
+class TestRedeemScriptValidation:
+
+    def test_standard_multisig_redeem_script_is_accepted(self):
+        redeem_script = (
+            b"\x52"
+            + b"\x21\x02" + bytes(32)
+            + b"\x21\x03" + bytes(32)
+            + b"\x52\xae"
+        )
+
+        assert validate_multisig_redeem_script(redeem_script) == redeem_script
+
+    @pytest.mark.parametrize("redeem_script", [
+        b"\x51",
+        b"\x51\x21" + bytes(33) + b"\x51\xae",
+        b"\x51\x20" + bytes(32) + b"\x51\xae",
+        b"\x52\x21\x02" + bytes(32) + b"\x51\xae",
+        b"\x51\x21\x02" + bytes(32) + b"\x52\xae",
+        b"\x51\x21\x02" + bytes(32) + b"\x51\xae\x00",
+    ])
+    def test_nonstandard_multisig_redeem_script_is_rejected(self, redeem_script):
+        with pytest.raises(BCHSignerExpectation, match="redeem script"):
+            validate_multisig_redeem_script(redeem_script)
+
+    def test_matching_p2sh20_redeem_script_is_accepted(self):
+        redeem_script = b"\x51"
+        script_pubkey = b"\xa9\x14" + Bip44.hash160(redeem_script) + b"\x87"
+
+        assert validate_redeem_script(script_pubkey, redeem_script) == redeem_script
+
+    def test_mismatched_redeem_script_is_rejected(self):
+        redeem_script = b"\x51"
+        script_pubkey = b"\xa9\x14" + Bip44.hash160(redeem_script) + b"\x87"
+
+        with pytest.raises(BCHSignerExpectation, match="does not match"):
+            validate_redeem_script(script_pubkey, b"\x52")
+
+    def test_matching_p2sh32_redeem_script_is_accepted(self):
+        redeem_script = b"\x51"
+        script_pubkey = b"\xaa\x20" + double_sha256(redeem_script) + b"\x87"
+
+        assert validate_redeem_script(script_pubkey, redeem_script) == redeem_script
 
 
 # ---------------------------------------------------------------------------
