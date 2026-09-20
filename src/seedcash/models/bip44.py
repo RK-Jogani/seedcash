@@ -71,18 +71,28 @@ class Bip44:
             + account_public_key
         )
         checksum = Bip44.double_sha256(data)[:4]
+        if len(data) + len(checksum) != 82:
+            raise ValueError("xpub data length is incorrect")
         return bytearray(b58encode(data + checksum))
 
     @staticmethod
     def xpub_decode(xpub):
         """Decode xpub from base58 to byte components"""
         xpub_bytes = b58decode(xpub)
-        version = xpub_bytes[:4]
-        depth = xpub_bytes[4:5]
-        fingerprint = xpub_bytes[5:9]
-        child_number = xpub_bytes[9:13]
-        chain_code = xpub_bytes[13:45]
-        public_key = xpub_bytes[45:-4]
+        if len(xpub_bytes) != 82:
+            raise ValueError("not an extended public key")
+
+        payload = xpub_bytes[:-4]
+        checksum = xpub_bytes[-4:]
+        if Bip44.double_sha256(payload)[:4] != checksum:
+            raise ValueError("invalid xpub checksum")
+
+        version = payload[:4]
+        depth = payload[4:5]
+        fingerprint = payload[5:9]
+        child_number = payload[9:13]
+        chain_code = payload[13:45]
+        public_key = payload[45:]
         return version, depth, fingerprint, child_number, chain_code, public_key
 
     @staticmethod
