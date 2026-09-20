@@ -37,7 +37,7 @@ class LoadingPSBTView(View):
     def run(self):
         if self.controller.psbt_parser.is_genesis:
             is_ft = len(self.controller.psbt_parser.genesis.categories["ft"]) > 0
-            return Destination(GenesisWarningView, view_args={"is_ft": is_ft}, skip_current_view=True)
+            return Destination(GenesisWarningView, view_args={"is_ft": is_ft, "category_num": 0}, skip_current_view=True)
         elif self.controller.psbt_parser.inputs.ft:
             return Destination(PSBTFungibleTokenDetailsView, skip_current_view=True, view_args={"is_last": True})
         elif self.controller.psbt_parser.inputs.nft:
@@ -47,10 +47,11 @@ class LoadingPSBTView(View):
 
 # GENESIS View
 class GenesisWarningView(View):
-    def __init__(self, is_ft: bool = False):
+    def __init__(self, is_ft: bool = False, category_num: int = 0):
         super().__init__()
         self.loading_screen = None
         self.is_ft = is_ft
+        self.category_num = category_num
 
     def run(self):
         if self.is_ft:
@@ -72,7 +73,7 @@ class GenesisWarningView(View):
                 show_back_button=True,
                 status_icon_name=SeedCashIconsConstants.WARNING,
                 status_headline=_("New Non-Fungible Token"),
-                text=_("This transaction will create a new NFT category."),
+                text=_("This transaction will create a new token category."),
                 button_data=[ButtonOption("Confirm")],
                 selected_color=GUIConstants.MUSD_BLUE
                 )
@@ -81,23 +82,38 @@ class GenesisWarningView(View):
             return Destination(PSBTDiscardWarningView)
         if result == 0:
             if self.is_ft:
-                return Destination(PSBTGenesisFTDetailsView, view_args={"category_num": 0})
+                return Destination(PSBTGenesisFTDetailsView, view_args={"category_num": self.category_num, "warning": False})
             else:
-                return Destination(PSBTNFTView, view_args={"category_num": 0, "is_genesis": True})
+                return Destination(PSBTNFTView, view_args={"category_num": self.category_num, "is_genesis": True, "genesis_warning": False})
 
 class PSBTGenesisFTDetailsView(View):
-    def __init__(self, category_num: int = 0):
+    def __init__(self, category_num: int = 0, warning: bool = True):
         super().__init__()
         self.loading_screen = None
         self.category_num = category_num
+        self.warning = warning
 
     def run(self):
         psbt_parser: PSBTParser = self.controller.psbt_parser
         if not psbt_parser:
             return Destination(MainMenuView)
         category_ids = self.controller.psbt_parser.genesis.categories["ft"]
+
+        if not category_ids or self.category_num >= len(category_ids):
+            return Destination(PSBTNFTView, view_args={"category_num": 0, "is_genesis": True})
+
         category_id = category_ids[self.category_num]
         category: Category = get_category(category_id)
+
+        if self.warning:
+            return Destination(
+                GenesisWarningView,
+                view_args={
+                    "is_ft": True,
+                    "category_num": self.category_num
+                },
+                skip_current_view=True
+            )
 
         outputs = psbt_parser.genesis.outputs.get_ft(category_id)
 
@@ -250,28 +266,37 @@ class PSBTFungibleWarningView(View):
 
 # NFT Details View
 class PSBTNFTView(View):
-    def __init__(self, category_num=0, is_genesis=False, is_last=False, warning=True):
+    def __init__(self, category_num=0, is_genesis=False, is_last=False, warning=True, genesis_warning=True):
             super().__init__()
             self.category_num = category_num
             self.is_genesis = is_genesis
             self.loading_screen = None
             self.is_last = is_last
             self.warning = warning
+            self.genesis_warning = genesis_warning
     
     def run(self):
         if self.is_genesis:
             nft_category_ids = self.controller.psbt_parser.genesis.inputs.get_nft_category_ids
-            if nft_category_ids is not None or len(nft_category_ids) > 0:
-                return Destination(GenesisWarningView, view_args={"is_ft": False}, skip_current_view=True)
-        
-        nft_category_ids = self.controller.psbt_parser.inputs.get_nft_category_ids
+        else:
+            nft_category_ids = self.controller.psbt_parser.inputs.get_nft_category_ids
 
-        if nft_category_ids is None or len(nft_category_ids) == 0:
+        if nft_category_ids is None or self.category_num > len(nft_category_ids)-1:
             return Destination(BCHPSBTOverviewView, skip_current_view=True)
         
         category_id = nft_category_ids[self.category_num]
 
-        if self.warning:
+        if self.is_genesis and self.genesis_warning:
+            return Destination(
+                GenesisWarningView,
+                view_args={
+                    "is_ft": False,
+                    "category_num": self.category_num
+                },
+                skip_current_view=True
+            )
+
+        if self.warning and not self.is_genesis:
             is_minting = self.controller.psbt_parser.is_nft_minting(category_id)
             is_burning = self.controller.psbt_parser.is_nft_burned(category_id)
             return Destination(

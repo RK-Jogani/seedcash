@@ -145,6 +145,16 @@ def read_varint(buf: bytes, pos: int) -> Tuple[int, int]:
         return struct.unpack_from("<I", buf, pos + 1)[0], pos + 5
     return struct.unpack_from("<Q", buf, pos + 1)[0], pos + 9
 
+def read_token_varint(buf: bytes, pos: int) -> Tuple[int, int]:
+    """Read a minimally encoded CompactSize value used by CashTokens."""
+    value, new_pos = read_varint(buf, pos)
+    marker = buf[pos]
+    if ((marker == 0xFD and value < 0xFD)
+            or (marker == 0xFE and value <= 0xFFFF)
+            or (marker == 0xFF and value <= 0xFFFFFFFF)):
+        raise ValueError("non-minimal CompactSize encoding")
+    return value, new_pos
+
 def parse_token_script(script: bytes) -> Optional[Token]:
 
     if not script or script[0] != 0xEF:
@@ -166,14 +176,26 @@ def parse_token_script(script: bytes) -> Optional[Token]:
     has_amount = bool(bitfield & 0x10)
     capability_bits = bitfield & 0x0F
 
+    if not has_nft and has_commitment_length:
+        return None
+    if not has_nft and capability_bits:
+        return None
+    if has_nft and capability_bits > 2:
+        return None
+    if not has_nft and not has_amount:
+        return None
+
     capability_map = {0: "none", 1: "mutable", 2: "minting"}
     capability = capability_map.get(capability_bits, str(capability_bits)) if has_nft else None
 
     nft_data = None
     if has_nft:
         if has_commitment_length:
-            nft_len, pos = read_varint(script, pos)
-            if len(script) < pos + nft_len:
+            try:
+                nft_len, pos = read_token_varint(script, pos)
+            except (IndexError, struct.error, ValueError):
+                return None
+            if not 0 < nft_len <= 40 or len(script) < pos + nft_len:
                 return None
             nft_bytes = script[pos:pos + nft_len]
             pos += nft_len
@@ -183,7 +205,12 @@ def parse_token_script(script: bytes) -> Optional[Token]:
 
     ft_amount = None
     if has_amount:
-        ft_amount, pos = read_varint(script, pos)
+        try:
+            ft_amount, pos = read_token_varint(script, pos)
+        except (IndexError, struct.error, ValueError):
+            return None
+        if not 0 < ft_amount <= 0x7FFFFFFFFFFFFFFF:
+            return None
 
     return Token(
         prefix=script[:pos],
