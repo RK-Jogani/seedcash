@@ -97,7 +97,7 @@ class FountainEncoder:
         assert message_len > 0
         assert min_fragment_len > 0
         assert max_fragment_len >= min_fragment_len
-        max_fragment_count = message_len // min_fragment_len
+        max_fragment_count = max(1, message_len // min_fragment_len)
         fragment_len = None
 
         for fragment_count in range(1, max_fragment_count + 1):
@@ -111,10 +111,11 @@ class FountainEncoder:
 
     @staticmethod
     def partition_message(message, fragment_len):
-        remaining = message
+        remaining = bytearray(message)
         fragments = []
         while len(remaining) != 0:
             (fragment, remaining) = split(remaining, fragment_len)
+            fragment = bytearray(fragment)
             padding = fragment_len - len(fragment)
             while padding > 0:
                 fragment.append(0)

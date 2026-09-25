@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from seedcash.helpers.ur2.cbor_lite import CBOREncoder
 from seedcash.helpers.ur2.ur_encoder import UREncoder
 from seedcash.helpers.ur2.ur import UR
 from seedcash.helpers.qr import QR
@@ -130,7 +131,13 @@ class UrPsbtQrEncoder(BaseFountainQrEncoder):
     psbt: bytearray = None
     qr_max_fragment_size: int = 65
 
+    @staticmethod
+    def _wrap_psbt(psbt):
+        encoder = CBOREncoder()
+        encoder.encodeBytes(psbt)
+        return encoder.get_bytes()
+
     def __post_init__(self):
         super().__post_init__()
-        ur = UR("crypto-psbt", self.psbt)
+        ur = UR("crypto-psbt", self._wrap_psbt(bytes(self.psbt)))
         self.ur2_encode = UREncoder(ur=ur, max_fragment_len=self.qr_max_fragment_size)
