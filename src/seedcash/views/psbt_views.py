@@ -387,8 +387,6 @@ class PSBTNFTWarningView(View):
                 "category_num": self.category_num,
                 "is_genesis": self.is_genesis,
                 "is_last": self.is_last,
-                "is_minting": self.is_minting,
-                "is_burning": self.is_burning,
                 "warning": False
             },
             skip_current_view=True

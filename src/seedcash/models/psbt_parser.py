@@ -1,4 +1,5 @@
 # New
+import hashlib
 import struct
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any
@@ -294,6 +295,8 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
         pos += script_len
 
         token: Optional[Token] = parse_token_script(script)
+        if script.startswith(b"\xef") and token is None:
+            raise ValueError("invalid token prefix")
         script_type, address = classify_script(token.script_pubkey if token else script, is_token_tx=bool(token))
         outputs.append(TxOutput(
             value_satoshis=int.from_bytes(value, "little"),
@@ -380,6 +383,9 @@ def parse_psbt(buf) -> Dict[str, Any]:
     outputs = []
     for _ in range(output_count):
         pairs, pos = parse_keypairs(buf, pos)
+        for key, value in pairs:
+            if key == b"\x36" and parse_token_script(value) is None:
+                raise ValueError("invalid token prefix")
         outputs.append(pairs)
 
     return {
@@ -505,7 +511,8 @@ class PSBTParser:
     def resolve_spent_output(
         self,
         prev_index: int, 
-        input_pairs: List[Tuple[bytes, bytes]],) -> Optional[TxOutput]:
+        input_pairs: List[Tuple[bytes, bytes]],
+        prev_txid: Optional[bytes] = None,) -> Optional[TxOutput]:
         """
         Resolve the UTXO an input spends, from PSBT_IN_NON_WITNESS_UTXO or
         PSBT_IN_WITNESS_UTXO, with CashToken decoding applied.
@@ -513,6 +520,9 @@ class PSBTParser:
 
         for key, value in input_pairs:
             if key[0] == 0x00:  # PSBT_IN_NON_WITNESS_UTXO
+                expected_txid = hashlib.sha256(hashlib.sha256(value).digest()).digest()
+                if prev_txid is not None and expected_txid != prev_txid:
+                    raise ValueError("parent transaction hash mismatch")
                 prev_tx = parse_transaction(value)
                 if prev_index < len(prev_tx.outputs):
                     return prev_tx.outputs[prev_index]   # TxOutput
@@ -550,7 +560,15 @@ class PSBTParser:
 
         # ---------------- INPUTS ----------------
         for i, tx_in in enumerate(self.tx.inputs):
-            spent = self.resolve_spent_output(tx_in.prev_index, self.parsed["inputs"][i])
+            input_pairs = self.parsed["inputs"][i]
+            for key, value in input_pairs:
+                if key[0] == 0x00:
+                    expected_txid = hashlib.sha256(hashlib.sha256(value).digest()).digest()
+                    if expected_txid != tx_in.prev_txid:
+                        raise ValueError("parent transaction hash mismatch")
+                    break
+
+            spent = self.resolve_spent_output(tx_in.prev_index, input_pairs)
             tx_in.spent_output = spent
 
             if spent is None:
