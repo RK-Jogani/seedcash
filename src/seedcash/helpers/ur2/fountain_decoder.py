@@ -4,9 +4,9 @@
 # Copyright © 2020 Foundation Devices, Inc.
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
-import time
+from .constants import MAX_SEQ_LEN
 from .fountain_utils import choose_fragments, contains, is_strict_subset, set_difference
-from .utils import join_lists, join_bytes, crc32_int, xor_with, take_first
+from .utils import join_bytes, crc32_int, xor_with, take_first
 
 class InvalidPart(Exception):
     pass
@@ -258,6 +258,9 @@ class FountainDecoder:
             self.mixed_parts[p2.indexes] = p2
 
     def validate_part(self, p):
+        if p.seq_len > MAX_SEQ_LEN:
+            return False
+
         # If this is the first part we've seen
         if self.expected_part_indexes == None:
             # Record the things that all the other parts we see will have to match to be valid.
