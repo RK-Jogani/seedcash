@@ -6,9 +6,11 @@
 #
 
 from .ur import UR
-from .fountain_encoder import FountainEncoder, Part as FountainEncoderPart
+from .fountain_encoder import Part as FountainEncoderPart
 from .fountain_decoder import FountainDecoder
 from .bytewords import *
+from .cbor_lite import CBORDecoder
+from .constants import MAX_SEQ_LEN
 from .utils import drop_first, is_ur_type
 
 class InvalidScheme(Exception):
@@ -44,6 +46,18 @@ class URDecoder:
     @staticmethod
     def decode_by_type(type, body):
         cbor = Bytewords.decode(Bytewords_Style_minimal, body)
+        return URDecoder.decode_cbor_by_type(type, cbor)
+
+    @staticmethod
+    def decode_cbor_by_type(type, cbor):
+        if type == "crypto-psbt":
+            try:
+                decoder = CBORDecoder(cbor)
+                (psbt, _) = decoder.decodeBytes()
+                return UR(type, psbt)
+            except Exception:
+                pass
+
         return UR(type, cbor)
 
     @staticmethod
@@ -80,10 +94,10 @@ class URDecoder:
                 raise InvalidSequenceComponent()
             seq_num = int(comps[0])
             seq_len = int(comps[1])
-            if seq_num < 1 or seq_len < 1:
+            if seq_num < 1 or seq_len < 1 or seq_len > MAX_SEQ_LEN:
                 raise InvalidSequenceComponent()
             return (seq_num, seq_len)
-        except:
+        except (TypeError, ValueError):
             raise InvalidSequenceComponent()
 
     def validate_part(self, type):
@@ -106,8 +120,12 @@ class URDecoder:
             if not self.validate_part(type):
                 return False
 
-            # If this is a single-part UR then we're done
+            # If this is a single-part UR then we're done, but only if we are not
+            # already mid-fountain decode. Otherwise an attacker can substitute a
+            # complete single-part UR for the active message.
             if len(components) == 1:
+                if self.fountain_decoder.expected_part_indexes is not None and not self.fountain_decoder.is_complete():
+                    return False
                 body = components[0]
                 self.result = self.decode_by_type(type, body)
                 return True
@@ -130,7 +148,9 @@ class URDecoder:
                 return False
 
             if self.fountain_decoder.is_success():
-                self.result = UR(type, self.fountain_decoder.result_message())
+                self.result = self.decode_cbor_by_type(
+                    type, self.fountain_decoder.result_message()
+                )
             elif self.fountain_decoder.is_failure():
                 self.result = self.fountain_decoder.result_error()
 
