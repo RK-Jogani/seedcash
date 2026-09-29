@@ -21,141 +21,19 @@ from seedcash.gui.components import (
     linear_interp,
 )
 from seedcash.gui.renderer import Renderer
-from seedcash.hardware.buttons import HardwareButtonsConstants
 from seedcash.models.threads import BaseThread
 
 from .screen import (
-    ButtonListScreen,
-    BaseTopNavScreen,
     ButtonOption,
-    Button,
-    RET_CODE__BACK_BUTTON,
-    RET_CODE__CHECK_BUTTON,
+    SeedCashButtonListWithNav,
+    ScrollableCardConfirmScreen,
 )
 
 
-@dataclass
-class PSBTButtonListScreen(BaseTopNavScreen, ButtonListScreen):
-    def __post_init__(self):
-        super().__post_init__()
-
-    def _run(self):
-        while True:
-            ret = self._run_callback()
-            if ret is not None:
-                return ret
-
-            user_input = self.hw_inputs.wait_for(
-                [
-                    HardwareButtonsConstants.KEY_UP,
-                    HardwareButtonsConstants.KEY_DOWN,
-                    HardwareButtonsConstants.KEY_LEFT,
-                    HardwareButtonsConstants.KEY_RIGHT,
-                ]
-                + HardwareButtonsConstants.KEYS__ANYCLICK
-            )
-
-            with self.renderer.lock:
-                if not self.top_nav.is_selected and (
-                    user_input == HardwareButtonsConstants.KEY_LEFT
-                    or (
-                        user_input == HardwareButtonsConstants.KEY_UP
-                        and self.selected_button == 0
-                    )
-                ):
-                    if self.top_nav.show_back_button or self.top_nav.show_check_button:
-                        self.buttons[self.selected_button].is_selected = False
-                        self.buttons[self.selected_button].render()
-                        self.top_nav.is_selected = True
-                        self.top_nav.render_buttons()
-
-                elif user_input == HardwareButtonsConstants.KEY_UP:
-                    if self.top_nav.is_selected:
-                        pass
-                    else:
-                        cur_selected_button: Button = self.buttons[self.selected_button]
-                        self.selected_button -= 1
-                        next_selected_button: Button = self.buttons[
-                            self.selected_button
-                        ]
-                        cur_selected_button.is_selected = False
-                        next_selected_button.is_selected = True
-                        if (
-                            self.has_scroll_arrows
-                            and next_selected_button.screen_y
-                            - next_selected_button.scroll_y
-                            + next_selected_button.height
-                            < self.top_nav.height
-                        ):
-                            frame_scroll = (
-                                cur_selected_button.screen_y
-                                - next_selected_button.screen_y
-                            )
-                            for button in self.buttons:
-                                button.scroll_y -= frame_scroll
-                            self._render_visible_buttons()
-                        else:
-                            cur_selected_button.render()
-                            next_selected_button.render()
-
-                elif user_input == HardwareButtonsConstants.KEY_DOWN or (
-                    self.top_nav.is_selected
-                    and user_input == HardwareButtonsConstants.KEY_RIGHT
-                ):
-                    if self.selected_button == len(self.buttons) - 1:
-                        if not self.top_nav.is_selected:
-                            continue
-
-                    if self.top_nav.is_selected:
-                        self.top_nav.is_selected = False
-                        self.top_nav.render_buttons()
-
-                        cur_selected_button = None
-                        next_selected_button = self.buttons[self.selected_button]
-                        next_selected_button.is_selected = True
-
-                    else:
-                        cur_selected_button: Button = self.buttons[self.selected_button]
-                        self.selected_button += 1
-                        next_selected_button: Button = self.buttons[
-                            self.selected_button
-                        ]
-                        cur_selected_button.is_selected = False
-                        next_selected_button.is_selected = True
-
-                    if self.has_scroll_arrows and (
-                        next_selected_button.screen_y
-                        - next_selected_button.scroll_y
-                        + next_selected_button.height
-                        > self.down_arrow_img_y
-                    ):
-                        frame_scroll = (
-                            next_selected_button.screen_y - cur_selected_button.screen_y
-                        )
-                        for button in self.buttons:
-                            button.scroll_y += frame_scroll
-                        self._render_visible_buttons()
-                    else:
-                        if cur_selected_button:
-                            cur_selected_button.render()
-                        next_selected_button.render()
-
-                elif user_input in HardwareButtonsConstants.KEYS__ANYCLICK:
-                    if self.top_nav.is_selected:
-                        if self.top_nav.show_check_button:
-                            if self.top_nav.right_button.is_selected:
-                                return RET_CODE__CHECK_BUTTON
-                        if self.top_nav.show_back_button:
-                            if self.top_nav.left_button.is_selected:
-                                return RET_CODE__BACK_BUTTON
-
-                    return self.selected_button
-
-                self.renderer.show_image()
 
 
 @dataclass
-class PSBTOverviewScreen(PSBTButtonListScreen):
+class PSBTOverviewScreen(SeedCashButtonListWithNav):
     inputs_amount: int = 0
     fee_amount: int = 0
     input_count: int = 0
@@ -634,7 +512,7 @@ class PSBTOverviewScreen(PSBTButtonListScreen):
                 time.sleep(0.02)
 
 @dataclass
-class PSBTMathScreen(PSBTButtonListScreen):
+class PSBTMathScreen(SeedCashButtonListWithNav):
     input_amount: int = 0
     input_count: int = 0
     spend_amount: int = 0
@@ -797,7 +675,7 @@ class PSBTMathScreen(PSBTButtonListScreen):
         )
 
 @dataclass
-class PSBTAddressDetailsScreen(PSBTButtonListScreen):
+class PSBTAddressDetailsScreen(SeedCashButtonListWithNav):
     address: str = None
     amount: int = 0
     category: Category = None 
@@ -805,6 +683,7 @@ class PSBTAddressDetailsScreen(PSBTButtonListScreen):
     def __post_init__(self):
         # Customize defaults
         self.is_bottom_list = True
+        self.is_button_text_centered = True
         super().__post_init__()
 
         center_img_height = self.buttons[0].screen_y - self.top_nav.height
@@ -863,12 +742,13 @@ class PSBTAddressDetailsScreen(PSBTButtonListScreen):
         self.paste_images.append((self.body_img, (0, body_img_y)))
 
 @dataclass
-class PSBTOpReturnScreen(PSBTButtonListScreen):
+class PSBTOpReturnScreen(SeedCashButtonListWithNav):
     op_return_data: bytes = None
 
     def __post_init__(self):
         # Customize defaults
         self.is_bottom_list = True
+        self.is_button_text_centered = True
 
         super().__post_init__()
 
@@ -879,7 +759,7 @@ class PSBTOpReturnScreen(PSBTButtonListScreen):
                     text=self.op_return_data.decode(
                         errors="strict"
                     ),  # "strict" is a good enough heuristic to decide if it's human readable
-                    font_size=GUIConstants.get_top_nav_title_font_size(),
+                    font_size=GUIConstants.TOP_NAV_TITLE_FONT_SIZE,
                     is_text_centered=True,
                     allow_text_overflow=True,
                     screen_y=self.top_nav.height + GUIConstants.COMPONENT_PADDING,
@@ -931,11 +811,12 @@ class PSBTOpReturnScreen(PSBTButtonListScreen):
             )
 
 @dataclass
-class PSBTFinalizeScreen(PSBTButtonListScreen):
+class PSBTFinalizeScreen(SeedCashButtonListWithNav):
     def __post_init__(self):
         # Customize defaults
         self.title = _("Sign PSBT")
         self.is_bottom_list = True
+        self.is_button_text_centered = True
         super().__post_init__()
 
         icon = Icon(
@@ -957,13 +838,14 @@ class PSBTFinalizeScreen(PSBTButtonListScreen):
         )
 
 @dataclass
-class PSBTNFTScreen(PSBTButtonListScreen):
+class PSBTNFTScreen(SeedCashButtonListWithNav):
     category_id: str = None
 
     def __post_init__(self):
         # Customize defaults
         self.title = _("Review PSBT")
         self.is_bottom_list = True
+        self.is_button_text_centered = True
         super().__post_init__()
         
         # collection TODO: For now we have unkown we will add collection in future
@@ -1010,83 +892,94 @@ class PSBTNFTScreen(PSBTButtonListScreen):
                 screen_y=y_offset,
             )
         )
+
 @dataclass
-class PSBTNFTDetailsScreen(PSBTButtonListScreen):
+class PSBTNFTDetailsScreen(ScrollableCardConfirmScreen):
+    """
+    Drop-in replacement for the old flat PSBTNFTDetailsScreen. Same
+    constructor signature (output_num, nft_capability, nft_commitment), but
+    now renders "NFT #<n>" as a bold centered heading, then Type and
+    Commitment as dimmed label / bright value pairs, all inside the filled,
+    scrollable card, with a single "Next" button underneath.
+    """
+
     output_num: int = None
     nft_capability: str = None
     nft_commitment: str = None
-    
 
     def __post_init__(self):
-        # Customize defaults
         self.title = _("Review PSBT")
-        self.is_bottom_list = True
+        self.is_button_text_centered = True
+        self.confirm_button_label = _("Next")
+
+        heading = TextArea(
+            text=f"NFT #{self.output_num}",
+            width=Renderer.get_instance().canvas_width
+                - 2 * GUIConstants.EDGE_PADDING
+                - 2 * GUIConstants.COMPONENT_PADDING,
+            font_size=GUIConstants.TOP_NAV_TITLE_FONT_SIZE,
+            font_color=GUIConstants.BODY_FONT_COLOR,
+            is_text_centered=True,
+            background_color=GUIConstants.INACTIVE_COLOR,
+        )
+
+        type_label = TextArea(
+            text=_("Type"),
+            font_size=GUIConstants.BODY_FONT_SIZE - 4,
+            font_color=GUIConstants.LABEL_FONT_COLOR,
+            is_text_centered=False,
+            background_color=GUIConstants.INACTIVE_COLOR
+        )
+        type_value = TextArea(
+            text=self.nft_capability,
+            font_size=GUIConstants.BODY_FONT_SIZE - 2,
+            font_color=GUIConstants.BODY_FONT_COLOR,
+            is_text_centered=False,
+            background_color=GUIConstants.INACTIVE_COLOR
+        )
+
+        # Bigger gap after the heading and after each value, tight gap
+        # between a label and its own value directly below it
+        self.card_components = [
+            (heading, GUIConstants.COMPONENT_PADDING * 2),
+            (type_label, GUIConstants.COMPONENT_PADDING // 2),
+            (type_value, GUIConstants.COMPONENT_PADDING * 2),
+        ]
+
+        # nft_commitment is an empty string when there is nothing to show;
+        # keep that section out of the card entirely in that case, same as
+        # the original screen did.
+        if self.nft_commitment != "":
+            commitment_label = TextArea(
+                text=_("Commitment"),
+                font_size=GUIConstants.BODY_FONT_SIZE - 4,
+                font_color=GUIConstants.LABEL_FONT_COLOR,
+                is_text_centered=False,
+                background_color=GUIConstants.INACTIVE_COLOR
+            )
+            commitment_value = TextArea(
+                text=self.nft_commitment,
+                font_size=GUIConstants.BODY_FONT_SIZE - 2,
+                font_color=GUIConstants.BODY_FONT_COLOR,
+                is_text_centered=False,
+                background_color=GUIConstants.INACTIVE_COLOR
+            )
+            self.card_components += [
+                (commitment_label, GUIConstants.COMPONENT_PADDING // 2),
+                commitment_value,
+            ]
+
         super().__post_init__()
 
-        # Type
-        y_offset = self.top_nav.height + GUIConstants.COMPONENT_PADDING
-        self.components.append(
-            TextArea(
-                text=f"NFT #{self.output_num}",
-                font_size=GUIConstants.BODY_FONT_SIZE,
-                screen_y=y_offset,
-            )
-        )
-
-        y_offset += GUIConstants.BODY_FONT_SIZE
-        self.components.append(
-            TextArea(
-                text="Type",
-                font_size=GUIConstants.BODY_FONT_SIZE - 4,
-                is_text_centered=False,
-                screen_y=y_offset,
-            )
-        )
-
-        y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
-        self.components.append(
-            RoundedTextArea(
-                text=self.nft_capability,
-                font_size=GUIConstants.BODY_FONT_SIZE - 2,
-                is_text_centered=False,
-                treat_chars_as_words=True,
-                screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=y_offset,
-            )
-        )
-
-        # Commitment
-        # if str is empty, we don't want to show the commitment section at all
-        if self.nft_commitment != "":
-            y_offset += GUIConstants.BODY_FONT_SIZE + 2 * GUIConstants.COMPONENT_PADDING
-            self.components.append(
-                TextArea(
-                    text="Commitment",
-                    font_size=GUIConstants.BODY_FONT_SIZE - 4,
-                    is_text_centered=False,
-                    screen_y=y_offset,
-                )
-            )
-            y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
-            self.components.append(
-                RoundedTextArea(
-                    text=self.nft_commitment,
-                    font_size=GUIConstants.BODY_FONT_SIZE - 2,
-                    is_text_centered=False,
-                    treat_chars_as_words=True,
-                    screen_x=GUIConstants.EDGE_PADDING,
-                    screen_y=y_offset,
-                )
-            )
-
 @dataclass
-class PSBTNFTAddressScreen(PSBTButtonListScreen):
+class PSBTNFTAddressScreen(SeedCashButtonListWithNav):
     destination_addr: str = None
     index: int = None
 
     def __post_init__(self):
         self.title = _("Will Send")
-        self.is_bottom_list = True 
+        self.is_bottom_list = True
+        self.is_button_text_centered = True
         super().__post_init__()
 
         center_img_height = self.buttons[0].screen_y - self.top_nav.height

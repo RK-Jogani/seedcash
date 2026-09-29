@@ -247,7 +247,7 @@ class RemoveSDCardToastManagerThread(BaseToastOverlayManagerThread):
         body_font_size = GUIConstants.BODY_FONT_SIZE
         return ToastOverlay(
             icon_name=SeedCashIconsConstants.MICROSD,
-            label_text=_("You can remove\nthe SD card now"),
+            label_text=_("You must remove\nthe SD card now"),
             font_size=body_font_size,
             height=body_font_size * 2
             + GUIConstants.BODY_LINE_SPACING
@@ -620,7 +620,7 @@ class RemoveSDCardToastManagerThread(BaseToastOverlayManagerThread):
         body_font_size = GUIConstants.BODY_FONT_SIZE
         return ToastOverlay(
             icon_name=SeedCashIconsConstants.MICROSD,
-            label_text=_("You can remove\nthe SD card now"),
+            label_text=_("You must remove\nthe SD card now"),
             font_size=body_font_size,
             height=body_font_size * 2
             + GUIConstants.BODY_LINE_SPACING

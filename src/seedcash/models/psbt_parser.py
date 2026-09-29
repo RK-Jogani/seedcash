@@ -147,28 +147,46 @@ def read_varint(buf: bytes, pos: int) -> Tuple[int, int]:
     return struct.unpack_from("<Q", buf, pos + 1)[0], pos + 9
 
 def read_token_varint(buf: bytes, pos: int) -> Tuple[int, int]:
-    """Read a minimally encoded CompactSize value used by CashTokens."""
+    """Read a minimally encoded CashTokens CompactSize value."""
+
+    if pos >= len(buf):
+        raise ValueError("missing CompactSize value")
+
     value, new_pos = read_varint(buf, pos)
     marker = buf[pos]
-    if ((marker == 0xFD and value < 0xFD)
-            or (marker == 0xFE and value <= 0xFFFF)
-            or (marker == 0xFF and value <= 0xFFFFFFFF)):
+
+    if (
+        (marker == 0xFD and value < 0xFD)
+        or (marker == 0xFE and value <= 0xFFFF)
+        or (marker == 0xFF and value <= 0xFFFFFFFF)
+    ):
         raise ValueError("non-minimal CompactSize encoding")
+
     return value, new_pos
 
 def parse_token_script(script: bytes) -> Optional[Token]:
+    """Parse a CashTokens prefix and return the token + remaining locking bytecode."""
 
     if not script or script[0] != 0xEF:
         return None
+
     pos = 1
+
+    # category_id
     if len(script) < pos + 32:
         return None
+
     category = script[pos:pos + 32]
     pos += 32
-    if len(script) < pos + 1:
+
+    # bitfield
+    if len(script) <= pos:
         return None
+
     bitfield = script[pos]
     pos += 1
+
+    # RESERVED_BIT
     if bitfield & 0x80:
         return None
 
@@ -179,15 +197,15 @@ def parse_token_script(script: bytes) -> Optional[Token]:
 
     if not has_nft and has_commitment_length:
         return None
-    if not has_nft and capability_bits:
+    if not has_nft and capability_bits != 0:
         return None
     if has_nft and capability_bits > 2:
         return None
     if not has_nft and not has_amount:
         return None
 
-    capability_map = {0: "none", 1: "mutable", 2: "minting"}
-    capability = capability_map.get(capability_bits, str(capability_bits)) if has_nft else None
+    capability_map = { 0: "none", 1: "mutable", 2: "minting"}
+    capability = (capability_map[capability_bits] if has_nft else None)
 
     nft_data = None
     if has_nft:
@@ -196,13 +214,15 @@ def parse_token_script(script: bytes) -> Optional[Token]:
                 nft_len, pos = read_token_varint(script, pos)
             except (IndexError, struct.error, ValueError):
                 return None
-            if not 0 < nft_len <= 40 or len(script) < pos + nft_len:
+            if nft_len == 0 or nft_len > 40:
+                return None
+            if len(script) < pos + nft_len:
                 return None
             nft_bytes = script[pos:pos + nft_len]
             pos += nft_len
         else:
             nft_bytes = b""
-        nft_data: Token.NFTData = Token.NFTData(capability=capability, commitment=nft_bytes.hex())
+        nft_data: Token.NFTData = Token.NFTData(capability=capability,commitment=nft_bytes.hex())
 
     ft_amount = None
     if has_amount:
@@ -298,6 +318,10 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
         if script.startswith(b"\xef") and token is None:
             raise ValueError("invalid token prefix")
         script_type, address = classify_script(token.script_pubkey if token else script, is_token_tx=bool(token))
+        
+        if script_type == ScriptType.UNKNOWN and not script.startswith(b"\xef"):
+            raise ValueError("unknown script type")
+        
         outputs.append(TxOutput(
             value_satoshis=int.from_bytes(value, "little"),
             index=vout,
@@ -448,15 +472,6 @@ class PSBTParser:
     def has_p2pk(self) -> bool:
         return any(tx_out.script_type == ScriptType.P2PK for tx_out in self.tx.outputs)
     
-    @property
-    def unknown_outputs(self) -> List[TxOutput]:
-        return [tx_out for tx_out in self.tx.outputs if tx_out.script_type == ScriptType.UNKNOWN]
-
-    @property
-    def has_unknown_outputs(self) -> bool:
-        return any(tx_out.script_type == ScriptType.UNKNOWN for tx_out in self.tx.outputs)
-
-    
     # Math
     @property
     def input_amount(self) -> int:
@@ -560,15 +575,8 @@ class PSBTParser:
 
         # ---------------- INPUTS ----------------
         for i, tx_in in enumerate(self.tx.inputs):
-            input_pairs = self.parsed["inputs"][i]
-            for key, value in input_pairs:
-                if key[0] == 0x00:
-                    expected_txid = hashlib.sha256(hashlib.sha256(value).digest()).digest()
-                    if expected_txid != tx_in.prev_txid:
-                        raise ValueError("parent transaction hash mismatch")
-                    break
-
-            spent = self.resolve_spent_output(tx_in.prev_index, input_pairs)
+            
+            spent = self.resolve_spent_output(tx_in.prev_index, self.parsed["inputs"][i], prev_txid=tx_in.prev_txid)
             tx_in.spent_output = spent
 
             if spent is None:

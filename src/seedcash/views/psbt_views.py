@@ -629,8 +629,6 @@ class PSBTAddressDetailsView(View):
             return Destination(PSBTOpReturnView, view_args={"output_num": 0})
         elif self.controller.psbt_parser.has_p2pk:
             return Destination(PSBTP2PKView, view_args={"output_num": 0})
-        elif self.controller.psbt_parser.has_unknown_outputs:
-            return Destination(PSBTUnknownOutputsView, view_args={"output_num": 0})
     
         return Destination(PSBTConfirmationView)
 
@@ -716,8 +714,6 @@ class PSBTOpReturnView(View):
             )
         elif psbt_parser.has_p2pk:
             return Destination(PSBTP2PKView, view_args={"output_num": 0})
-        elif psbt_parser.has_unknown_outputs:
-            return Destination(PSBTUnknownOutputsView, view_args={"output_num": 0})
 
         return Destination(PSBTConfirmationView)
 
@@ -755,45 +751,8 @@ class PSBTP2PKView(View):
             return Destination(
                 PSBTP2PKView, view_args={"output_num": self.output_num + 1}
             )
-        if psbt_parser.has_unknown_outputs:
-            return Destination(PSBTUnknownOutputsView, view_args={"output_num": 0})
         return Destination(PSBTConfirmationView)
 
-class PSBTUnknownOutputsView(View):
-    """
-    Shows the Unknown Outputs data
-    """
-    def __init__(self, output_num: int = 0):
-        super().__init__()
-        self.output_num = output_num
-
-    def run(self):
-        from seedcash.gui.screens.psbt_screens import PSBTOpReturnScreen
-
-        psbt_parser: PSBTParser = self.controller.psbt_parser
-        outputs:List[TxOutput] = psbt_parser.unknown_outputs
-
-        if not psbt_parser:
-            # Should not be able to get here
-            raise Exception("Routing error")
-
-        title = _("Unknown Outputs")
-        button_data = [ButtonOption("Next")]
-
-        selected_menu_num = self.run_screen(
-            PSBTOpReturnScreen,
-            title=title,
-            button_data=button_data,
-            op_return_data=outputs[self.output_num].full_script,
-        )
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-        if self.output_num < len(outputs) - 1:
-            return Destination(
-                PSBTUnknownOutputsView, view_args={"output_num": self.output_num + 1}
-            )
-        return Destination(PSBTConfirmationView)
 
 class PSBTConfirmationView(View):
     """

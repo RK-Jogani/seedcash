@@ -102,60 +102,45 @@ def validate_redeem_script(script_pubkey: bytes, redeem_script: bytes) -> bytes:
 
     return redeem_script
 
-
-def validate_multisig_redeem_script(redeem_script: bytes) -> bytes:
-    """Validate the standard m-of-n multisig redeem-script template."""
+def validate_multisig_redeem_script(redeem_script: bytes) -> Tuple[bytes, List[bytes]]:
+    """Validate the standard m-of-n multisig redeem-script template.
+    Returns (redeem_script, list_of_embedded_pubkeys)."""
     if len(redeem_script) < 3 or not 0x51 <= redeem_script[0] <= 0x60:
-        raise BCHSignerExpectation(
-            "redeem script is not a standard multisignature script"
-        )
+        raise BCHSignerExpectation("redeem script is not a standard multisignature script")
 
     required_signatures = redeem_script[0] - 0x50
     cursor = 1
-    public_key_count = 0
+    public_keys = []
 
     while cursor < len(redeem_script) - 2:
         push_length = redeem_script[cursor]
         if push_length not in (33, 65) or cursor + 1 + push_length > len(redeem_script):
-            raise BCHSignerExpectation(
-                "redeem script contains an invalid multisig public key push"
-            )
+            raise BCHSignerExpectation("redeem script contains an invalid multisig public key push")
 
         public_key = redeem_script[cursor + 1:cursor + 1 + push_length]
         if ((push_length == 33 and public_key[0] not in (0x02, 0x03))
                 or (push_length == 65 and public_key[0] != 0x04)):
-            raise BCHSignerExpectation(
-                "redeem script contains an invalid multisig public key"
-            )
+            raise BCHSignerExpectation("redeem script contains an invalid multisig public key")
 
-        public_key_count += 1
+        public_keys.append(public_key)
         cursor += 1 + push_length
 
     if cursor + 2 != len(redeem_script):
-        raise BCHSignerExpectation(
-            "redeem script is not a standard multisignature script"
-        )
+        raise BCHSignerExpectation("redeem script is not a standard multisignature script")
 
     declared_public_keys = redeem_script[cursor]
     if not 0x51 <= declared_public_keys <= 0x60:
-        raise BCHSignerExpectation(
-            "redeem script is not a standard multisignature script"
-        )
+        raise BCHSignerExpectation("redeem script is not a standard multisignature script")
 
     declared_key_count = declared_public_keys - 0x50
-    if (public_key_count != declared_key_count
+    if (len(public_keys) != declared_key_count
             or required_signatures > declared_key_count):
-        raise BCHSignerExpectation(
-            "redeem script has invalid multisignature key counts"
-        )
+        raise BCHSignerExpectation("redeem script has invalid multisignature key counts")
 
     if redeem_script[-1] != 0xae:
-        raise BCHSignerExpectation(
-            "redeem script is not a standard multisignature script"
-        )
+        raise BCHSignerExpectation("redeem script is not a standard multisignature script")
 
-    return redeem_script
-
+    return redeem_script, public_keys
 
 # ----------------------------------------------------------------------
 # BIP32 derivation helpers
@@ -166,9 +151,6 @@ def parse_bip32_derivation_value(value: bytes) -> Tuple[bytes, List[int]]:
     master_fingerprint = value[:4]
     path = [int.from_bytes(value[i:i+4], 'little') for i in range(4, len(value), 4)]
     return master_fingerprint, path
-
-
-
 
 
 def path_to_string(path: List[int]) -> str:
@@ -450,7 +432,9 @@ class BitcoinCashSigner:
                     script_code = validate_redeem_script(
                         tx_input.spent_output.script_pubkey, value
                     )
-                    validate_multisig_redeem_script(script_code)
+                    script_code, embedded_pubkeys = validate_multisig_redeem_script(script_code)
+                    if pub not in embedded_pubkeys:
+                        raise BCHSignerExpectation("derived public key is not part of the multisignature redeem script")
                     break
 
             sighash = self.create_sighash(self.parser.tx, idx, hash_type, script_code=script_code)

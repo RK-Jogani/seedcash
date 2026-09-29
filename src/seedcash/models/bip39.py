@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import os
+import unicodedata
 
 from seedcash.gui.components import load_txt
 
@@ -82,8 +83,11 @@ class Bip39:
         """mnemonic + passprhrase --> seed   (512bits=64bytes)"""
 
         # Convertim a bytes els inputs
-        mnemonic_bytes = " ".join(seed).encode("utf-8")
-        passphrase_bytes = passphrase.encode("utf-8")
+        mnemonic_str = unicodedata.normalize("NFKD", " ".join(seed))
+        passphrase_str = unicodedata.normalize("NFKD", passphrase)
+
+        mnemonic_bytes = mnemonic_str.encode("utf-8")
+        passphrase_bytes = passphrase_str.encode("utf-8")
 
         # PBKDF2
         algorithm = "sha512"
