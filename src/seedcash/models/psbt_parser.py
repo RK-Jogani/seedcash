@@ -141,10 +141,25 @@ def read_varint(buf: bytes, pos: int) -> Tuple[int, int]:
     if b < 0xFD:
         return b, pos + 1
     if b == 0xFD:
-        return struct.unpack_from("<H", buf, pos + 1)[0], pos + 3
+        if pos + 3 > len(buf):
+            raise ValueError("truncated CompactSize uint16")
+        value = struct.unpack_from("<H", buf, pos + 1)[0]
+        if value < 0xFD:
+            raise ValueError("non-minimal CompactSize encoding")
+        return value, pos + 3
     if b == 0xFE:
-        return struct.unpack_from("<I", buf, pos + 1)[0], pos + 5
-    return struct.unpack_from("<Q", buf, pos + 1)[0], pos + 9
+        if pos + 5 > len(buf):
+            raise ValueError("truncated CompactSize uint32")
+        value = struct.unpack_from("<I", buf, pos + 1)[0]
+        if value <= 0xFFFF:
+            raise ValueError("non-minimal CompactSize encoding")
+        return value, pos + 5
+    if pos + 9 > len(buf):
+        raise ValueError("truncated CompactSize uint64")
+    value = struct.unpack_from("<Q", buf, pos + 1)[0]
+    if value <= 0xFFFFFFFF:
+        raise ValueError("non-minimal CompactSize encoding")
+    return value, pos + 9
 
 def read_token_varint(buf: bytes, pos: int) -> Tuple[int, int]:
     """Read a minimally encoded CashTokens CompactSize value."""
@@ -282,6 +297,8 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
     Parse the raw transaction bytes into a structured dictionary with inputs and outputs, 
     including token information if present.
     """
+    if len(tx_bytes) < 10:
+        raise ValueError("truncated transaction")
     pos = 0
     version = tx_bytes[pos:pos + 4]
     pos += 4
@@ -289,11 +306,15 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
     input_count, pos = read_varint(tx_bytes, pos)
     inputs: List[TxInput] = []
     for _ in range(input_count):
+        if pos + 36 > len(tx_bytes):
+            raise ValueError("truncated transaction input")
         prev_txid = tx_bytes[pos:pos + 32]
         pos += 32
         prev_index = tx_bytes[pos:pos + 4]
         pos += 4
         script_len, pos = read_varint(tx_bytes, pos)
+        if pos + script_len + 4 > len(tx_bytes):
+            raise ValueError("truncated transaction input script")
         script_sig = tx_bytes[pos:pos + script_len]
         pos += script_len
         sequence = tx_bytes[pos:pos + 4]
@@ -308,9 +329,13 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
     output_count, pos = read_varint(tx_bytes, pos)
     outputs: List[TxOutput] = []
     for vout in range(output_count):
+        if pos + 8 > len(tx_bytes):
+            raise ValueError("truncated transaction output")
         value = tx_bytes[pos:pos + 8]
         pos += 8
         script_len, pos = read_varint(tx_bytes, pos)
+        if pos + script_len > len(tx_bytes):
+            raise ValueError("truncated transaction output script")
         script = tx_bytes[pos:pos + script_len]
         pos += script_len
 
@@ -331,6 +356,8 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
             address=address,
         ))
 
+    if pos + 4 != len(tx_bytes):
+        raise ValueError("transaction has trailing or missing bytes")
     locktime = tx_bytes[pos:pos + 4]
     return ParseTransactionResult(
         version=version,
@@ -342,14 +369,22 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
 def parse_keypairs(buf: bytes, pos: int) -> Tuple[List[Tuple[bytes, bytes]], int]:
     """Parse one PSBT key-value map, returning ``[(key, value), ...]``."""
     pairs = []
+    seen_keys = set()
     limit = len(buf)
     while pos < limit:
         key_len, pos = read_varint(buf, pos)
         if key_len == 0:
             return pairs, pos
+        if pos + key_len > limit:
+            raise ValueError("truncated PSBT key")
         key = buf[pos:pos + key_len]
         pos += key_len
+        if key in seen_keys:
+            raise ValueError("duplicate PSBT key")
+        seen_keys.add(key)
         val_len, pos = read_varint(buf, pos)
+        if pos + val_len > limit:
+            raise ValueError("truncated PSBT value")
         value = buf[pos:pos + val_len]
         pos += val_len
         pairs.append((key, value))
@@ -373,20 +408,44 @@ def parse_psbt(buf) -> Dict[str, Any]:
 
     global_pairs, pos = parse_keypairs(buf, pos)
 
+    known_global_types = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0xFB, 0xFC}
+    known_input_types = {
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+        0x0E, 0x0F, 0x10, 0xFC,
+    }
+    known_output_types = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xFC, 0x36}
+
+    def reject_unknown_types(pairs, allowed_types, scope):
+        for key, _ in pairs:
+            if not key:
+                raise ValueError(f"empty PSBT {scope} key")
+            if key[0] not in allowed_types:
+                raise ValueError(f"unknown PSBT {scope} field 0x{key[0]:02x}")
+
+    reject_unknown_types(global_pairs, known_global_types, "global")
+
     unsigned_tx = None
     input_count = 0
     output_count = 0
     psbt_version = 0
     proprietary: List[Tuple[bytes, bytes]] = []
     for key, value in global_pairs:
+        if not key:
+            raise ValueError("empty PSBT key")
         if key[0] == 0x00:  # PSBT_GLOBAL_UNSIGNED_TX
             unsigned_tx = value
         elif key[0] == 0x04:  # PSBT_GLOBAL_INPUT_COUNT (v2)
-            input_count, _ = read_varint(value, 0)
+            input_count, count_pos = read_varint(value, 0)
+            if count_pos != len(value):
+                raise ValueError("invalid PSBT input count")
         elif key[0] == 0x05:  # PSBT_GLOBAL_OUTPUT_COUNT (v2)
-            output_count, _ = read_varint(value, 0)
+            output_count, count_pos = read_varint(value, 0)
+            if count_pos != len(value):
+                raise ValueError("invalid PSBT output count")
         elif key[0] == 0xFB:  # PSBT_GLOBAL_VERSION
-            psbt_version, _ = read_varint(value, 0)
+            psbt_version, version_pos = read_varint(value, 0)
+            if version_pos != len(value):
+                raise ValueError("invalid PSBT version")
         elif key[0] == 0xFC:  # PSBT_GLOBAL_PROPRIETARY
             proprietary.append((key, value))
 
@@ -400,6 +459,7 @@ def parse_psbt(buf) -> Dict[str, Any]:
         if _ == 0:
             input_starts = pos
         pairs, pos = parse_keypairs(buf, pos)
+        reject_unknown_types(pairs, known_input_types, "input")
         inputs.append(pairs)
         if _ == input_count - 1:
             input_ends = pos
@@ -407,10 +467,14 @@ def parse_psbt(buf) -> Dict[str, Any]:
     outputs = []
     for _ in range(output_count):
         pairs, pos = parse_keypairs(buf, pos)
+        reject_unknown_types(pairs, known_output_types, "output")
         for key, value in pairs:
             if key == b"\x36" and parse_token_script(value) is None:
                 raise ValueError("invalid token prefix")
         outputs.append(pairs)
+
+    if pos != len(buf):
+        raise ValueError("PSBT has trailing bytes")
 
     return {
         "global": global_pairs,

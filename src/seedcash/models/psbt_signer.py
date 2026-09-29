@@ -29,9 +29,10 @@ PSBT_IN_PARTIAL_SIG          = 0x02
 PSBT_IN_REDEEM_SCRIPT        = 0x04
 PSBT_IN_BIP32_DERIVATION     = 0x06
 
-PSBT_OUT_AMOUNT              = 0x00
-PSBT_OUT_SCRIPT              = 0x01
+PSBT_OUT_AMOUNT              = 0x03
+PSBT_OUT_SCRIPT              = 0x04
 PSBT_OUT_BIP32_DERIVATION    = 0x02
+PSBT_OUT_CASHTOKEN            = 0x36
 
 # Bitcoin Cash sighash flags
 SIGHASH_ALL                  = 0x01

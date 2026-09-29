@@ -1,0 +1,3087 @@
+{
+  "schemaId": "optn.psbt-v145-cashtoken-scenarios.v1",
+  "fixtureType": "psbt-v145-cashtoken-scenario-spec",
+  "schemaVersion": 1,
+  "status": "partially-materialized-offline",
+  "scenarioCount": 69,
+  "negativeScenarioCount": 26,
+  "source": "PSBTv145_test_vectors.csv",
+  "network": "chipnet",
+  "psbtDialect": {
+    "name": "Paytaca PSBT v145",
+    "globalVersion": 145,
+    "defaultSighash": "0x41",
+    "signerProfiles": ["seedcash-hardware"]
+  },
+  "signerTarget": {
+    "name": "SeedCash",
+    "surface": "physical-hardware",
+    "validScenarioExpectation": "parse-review-and-sign",
+    "invalidScenarioExpectation": "record-device-result-and-block-broadcast",
+    "evidenceStatus": "not-yet-run",
+    "requiredEvidence": [
+      "device-model",
+      "firmware-or-source-commit",
+      "input-transport",
+      "parse-and-review-result",
+      "signed-psbt-or-explicit-refusal",
+      "post-signature-verification",
+      "independent-bch-cashtoken-validation"
+    ]
+  },
+  "artifactContract": {
+    "materializationStatus": "partially-materialized",
+    "requiredPerScenario": [
+      "sourceTransactions",
+      "unsignedTransactionHex",
+      "psbtHex",
+      "seedCashParseResult",
+      "seedCashSignedPsbtHex",
+      "finalTransactionHex",
+      "tokenAccountingResult"
+    ],
+    "rules": [
+      "Every parent transaction must hash to the referenced input txid.",
+      "Every token-bearing input must carry complete parent transaction context.",
+      "The unsigned transaction token prefixes and PSBT output token fields must agree.",
+      "Genesis category IDs must be derived from actual vout=0 outpoints, not labels.",
+      "A valid consensus transaction must pass independent BCH and CashToken validation.",
+      "A SeedCash emulator result is not physical-hardware evidence.",
+      "A SeedCash parse or signature result is not proof of consensus validity."
+    ]
+  },
+  "scenarios": [
+    {
+      "id": 1,
+      "slug": "p2pkh-1-to-1",
+      "title": "P2PKH 1 to 1",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "Simple transfer of pure BCH from 1 P2PKH input to 1 P2PKH output (no change).",
+      "tokenScenario": false,
+      "sourceRow": 1,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 2,
+      "slug": "p2pkh-1-to-2",
+      "title": "P2PKH 1 to 2",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "Standard transaction with a payment to a third party and the remaining balance returned to the sender’s change address.",
+      "tokenScenario": false,
+      "sourceRow": 2,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 3,
+      "slug": "bch-consolidation-n-to-1",
+      "title": "BCH Consolidation (N to 1)",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "Spend multiple small BCH UTXOs and consolidate them into a single P2PKH output.",
+      "tokenScenario": false,
+      "sourceRow": 3,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 4,
+      "slug": "bch-distribution-1-to-n",
+      "title": "BCH Distribution (1 to N)",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "Payroll or batch distribution of BCH from 1 UTXO to dozens of independent P2PKH outputs.",
+      "tokenScenario": false,
+      "sourceRow": 4,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 5,
+      "slug": "standard-p2sh-spend",
+      "title": "Standard P2SH Spend",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "Spend a classic 20-byte P2SH UTXO (e.g. traditional multisignature).",
+      "tokenScenario": false,
+      "sourceRow": 5,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 6,
+      "slug": "p2sh-32-spend",
+      "title": "P2SH-32 Spend",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "Spend a 32-byte P2SH UTXO (introduced in BCH to avoid hash collisions and enable advanced contracts).",
+      "tokenScenario": false,
+      "sourceRow": 6,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 7,
+      "slug": "pure-op-return-data",
+      "title": "Pure OP_RETURN (Data)",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "BCH transaction with 1 input and one OP_RETURN output containing up to 220 bytes of metadata/pushdata.",
+      "tokenScenario": false,
+      "sourceRow": 7,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 8,
+      "slug": "relative-timelock-csv",
+      "title": "Relative Timelock (CSV)",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "Spend a P2SH UTXO protected by OP_CHECKSEQUENCEVERIFY, requiring a minimum number of blocks to have elapsed.",
+      "tokenScenario": false,
+      "sourceRow": 8,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 9,
+      "slug": "absolute-timelock-cltv",
+      "title": "Absolute Timelock (CLTV)",
+      "status": "planned",
+      "domain": "bch-transaction",
+      "operation": "bch-transfer",
+      "validity": "valid-consensus",
+      "description": "Spend using OP_CHECKLOCKTIMEVERIFY conditioned on a specific Unix time or block height.",
+      "tokenScenario": false,
+      "sourceRow": 9,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "not-applicable",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 11,
+      "slug": "pure-ft-genesis-input-0",
+      "title": "Pure FT Genesis (Input 0)",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Input 0 spends a UTXO with vout = 0. The output issues N Fungible Tokens (FTs). The category ID is the txid spent at vout = 0.",
+      "tokenScenario": true,
+      "sourceRow": 11,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 12,
+      "slug": "ft-genesis-in-secondary-input",
+      "title": "FT Genesis in Secondary Input",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Genesis where the input whose outpoint.vout = 0 is not at input index 0 (e.g. Input 2 has vout = 0).",
+      "tokenScenario": true,
+      "sourceRow": 12,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 13,
+      "slug": "immutable-nft-genesis-none",
+      "title": "Immutable NFT Genesis (none)",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Issue 1 NFT with none capability and no commitment (0 bytes of data).",
+      "tokenScenario": true,
+      "sourceRow": 13,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 14,
+      "slug": "immutable-nft-genesis-with-commitment",
+      "title": "Immutable NFT Genesis with Commitment",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Issue 1 NFT with none capability and a binary data commitment (up to 40 bytes).",
+      "tokenScenario": true,
+      "sourceRow": 14,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 15,
+      "slug": "mutable-nft-genesis-mutable",
+      "title": "Mutable NFT Genesis (mutable)",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Issue 1 NFT with mutable capability and an initial commitment.",
+      "tokenScenario": true,
+      "sourceRow": 15,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 16,
+      "slug": "minting-nft-genesis-minting",
+      "title": "Minting NFT Genesis (minting)",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Issue 1 NFT with minting capability, allowing future tokens of that category to be minted.",
+      "tokenScenario": true,
+      "sourceRow": 16,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 17,
+      "slug": "mixed-genesis-ft-immutable-nft",
+      "title": "Mixed Genesis: FT + Immutable NFT",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Genesis in a single output containing both N FTs and 1 none-capability NFT of the new category.",
+      "tokenScenario": true,
+      "sourceRow": 17,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 18,
+      "slug": "mixed-genesis-ft-mutable-nft",
+      "title": "Mixed Genesis: FT + Mutable NFT",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Issue, in 1 output, N FTs and 1 NFT with mutable capability.",
+      "tokenScenario": true,
+      "sourceRow": 18,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 19,
+      "slug": "mixed-genesis-ft-minting-nft",
+      "title": "Mixed Genesis: FT + Minting NFT",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Issue, in 1 output, N FTs and minting capability for the new category.",
+      "tokenScenario": true,
+      "sourceRow": 19,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 20,
+      "slug": "double-genesis-in-one-psbt",
+      "title": "Double Genesis in One PSBT",
+      "status": "planned",
+      "domain": "cashtokens-genesis",
+      "operation": "genesis",
+      "validity": "valid-consensus",
+      "description": "Two independent inputs, both with vout = 0 from different previous transactions, issuing two different Token Category IDs in the same PSBT.",
+      "tokenScenario": true,
+      "sourceRow": 20,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 21,
+      "slug": "exact-ft-transfer-1-1",
+      "title": "Exact FT Transfer 1:1",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "1 input with N FTs of Category A -> 1 output with N FTs of Category A (no token change).",
+      "tokenScenario": true,
+      "sourceRow": 21,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 22,
+      "slug": "ft-transfer-with-change",
+      "title": "FT Transfer with Change",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "1 input with 100 FTs -> Output 0: 30 FTs (payment); Output 1: 70 FTs (change).",
+      "tokenScenario": true,
+      "sourceRow": 22,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 23,
+      "slug": "ft-consolidation",
+      "title": "FT Consolidation",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "M inputs containing Category A FTs -> 1 output summing the exact total of FTs.",
+      "tokenScenario": true,
+      "sourceRow": 23,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 24,
+      "slug": "ft-splitting",
+      "title": "FT Splitting",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "1 input with 1000 FTs -> 10 independent outputs of 100 FTs each.",
+      "tokenScenario": true,
+      "sourceRow": 24,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 25,
+      "slug": "multi-category-transfer-2-fts",
+      "title": "Multi-Category Transfer (2 FTs)",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "Inputs with Category A and Category B FTs -> outputs independently preserving the amounts of A and B.",
+      "tokenScenario": true,
+      "sourceRow": 25,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 26,
+      "slug": "multi-category-transfer-with-change",
+      "title": "Multi-Category Transfer with Change",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "Inputs A and B -> Payment A output, Change A output, Payment B output, Change B output.",
+      "tokenScenario": true,
+      "sourceRow": 26,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 27,
+      "slug": "ft-transfer-across-5-categories",
+      "title": "FT Transfer Across 5+ Categories",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "A single PSBT simultaneously moving 5 or more distinct Category IDs among multiple participants.",
+      "tokenScenario": true,
+      "sourceRow": 27,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 28,
+      "slug": "bch-and-ft-change-in-the-same-output",
+      "title": "BCH and FT Change in the Same Output",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "The change output contains both the remaining FTs and the remaining BCH not used for fees.",
+      "tokenScenario": true,
+      "sourceRow": 28,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 29,
+      "slug": "bch-change-separate-from-ft-change",
+      "title": "BCH Change Separate from FT Change",
+      "status": "planned",
+      "domain": "fungible-token",
+      "operation": "fungible-transfer",
+      "validity": "valid-consensus",
+      "description": "Output 1 receives FT change with dust-limit satoshis; Output 2 receives pure BCH change in P2PKH.",
+      "tokenScenario": true,
+      "sourceRow": 29,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 31,
+      "slug": "immutable-nft-transfer-none",
+      "title": "Immutable NFT Transfer (none)",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Move a none-capability NFT from input to output. The commitment must not change.",
+      "tokenScenario": true,
+      "sourceRow": 31,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 32,
+      "slug": "commitment-update-mutable-nft",
+      "title": "Commitment Update (Mutable NFT)",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Input with a mutable NFT and commitment D1 -> output with a mutable NFT and modified commitment D2.",
+      "tokenScenario": true,
+      "sourceRow": 32,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 33,
+      "slug": "downgrade-mutable-nft-to-immutable",
+      "title": "Downgrade Mutable NFT to Immutable",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Input with mutable NFT -> output with none capability (fixes the state and destroys mutation capability).",
+      "tokenScenario": true,
+      "sourceRow": 33,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 34,
+      "slug": "simple-mint-of-1-nft-minting",
+      "title": "Simple Mint of 1 NFT (Minting)",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Input with minting NFT -> Output 0 retains minting capability; Output 1 creates a new none-capability NFT.",
+      "tokenScenario": true,
+      "sourceRow": 34,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 35,
+      "slug": "multiple-nft-minting",
+      "title": "Multiple NFT Minting",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Input with minting NFT -> Output 0 retains minting; Outputs 1..N create N new NFTs with different commitments.",
+      "tokenScenario": true,
+      "sourceRow": 35,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 36,
+      "slug": "mint-mutable-nft",
+      "title": "Mint Mutable NFT",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Minting input creates a new NFT with mutable capability assigned to a third party.",
+      "tokenScenario": true,
+      "sourceRow": 36,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 37,
+      "slug": "minting-capability-splitting",
+      "title": "Minting Capability Splitting",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "invalid-consensus",
+      "description": "Input with 1 minting NFT -> Outputs 0 and 1 both have minting capability (the issuance capability is multiplied).",
+      "tokenScenario": true,
+      "sourceRow": 37,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "record-observed-parse-and-sign-behavior"
+      },
+      "notes": [
+        "Negative case: one input minting NFT cannot be duplicated into two minting authorities. The validator must reject this transaction."
+      ]
+    },
+    {
+      "id": 38,
+      "slug": "mint-fts-from-minting-nft",
+      "title": "Mint FTs from Minting NFT",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Input with a minting NFT of Category A (no FTs) -> outputs creating 1,000,000 new FTs of Category A.",
+      "tokenScenario": true,
+      "sourceRow": 38,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 39,
+      "slug": "combined-ft-nft-minting",
+      "title": "Combined FT + NFT Minting",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Minting input -> output simultaneously issues new FTs and new NFTs of the same category.",
+      "tokenScenario": true,
+      "sourceRow": 39,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 40,
+      "slug": "transfer-of-multiple-distinct-nfts",
+      "title": "Transfer of Multiple Distinct NFTs",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "PSBT spending 3 NFTs from 3 completely different categories in one atomic transaction.",
+      "tokenScenario": true,
+      "sourceRow": 40,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 41,
+      "slug": "hybrid-nft-ft-bch-output",
+      "title": "Hybrid NFT + FT + BCH Output",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "A single output stores 500 FTs, 1 mutable NFT, and the satoshis reserved for the UTXO.",
+      "tokenScenario": true,
+      "sourceRow": 41,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 42,
+      "slug": "commitment-swap-between-nfts",
+      "title": "Commitment Swap Between NFTs",
+      "status": "planned",
+      "domain": "non-fungible-token",
+      "operation": "nft-transfer-or-mutation",
+      "validity": "valid-consensus",
+      "description": "Transaction processing 2 mutable NFTs from the same category and swapping their commitment payloads.",
+      "tokenScenario": true,
+      "sourceRow": 42,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 43,
+      "slug": "partial-ft-burn-50-example",
+      "title": "Partial FT Burn (50% Example)",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Inputs total 1000 FTs of Category A. Outputs assign only 500 FTs. The remaining 50% is implicitly burned.",
+      "tokenScenario": true,
+      "sourceRow": 43,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 44,
+      "slug": "minimum-partial-burn-1-ft",
+      "title": "Minimum Partial Burn (1 FT)",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Inputs total N FTs; outputs assign N-1 FTs.",
+      "tokenScenario": true,
+      "sourceRow": 44,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 45,
+      "slug": "total-ft-burn-100-burn",
+      "title": "Total FT Burn (100% Burn)",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Spend a UTXO containing FTs to a pure BCH output without specifying the category in the outputs.",
+      "tokenScenario": true,
+      "sourceRow": 45,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 46,
+      "slug": "immutable-nft-burn-none",
+      "title": "Immutable NFT Burn (none)",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Input contains a none-capability NFT that is included in no output, destroying it.",
+      "tokenScenario": true,
+      "sourceRow": 46,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 47,
+      "slug": "mutable-nft-burn-mutable",
+      "title": "Mutable NFT Burn (mutable)",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Spend the input with a mutable NFT and remove it from the outputs to freeze its state/existence.",
+      "tokenScenario": true,
+      "sourceRow": 47,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": [
+        "Burning the mutable NFT destroys it; it does not freeze or preserve the state. A freeze-like transition is a retained none-capability NFT."
+      ]
+    },
+    {
+      "id": 48,
+      "slug": "destroy-minting-capability",
+      "title": "Destroy Minting Capability",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Burn the minting NFT, permanently closing the ability to mint more tokens of that category.",
+      "tokenScenario": true,
+      "sourceRow": 48,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 49,
+      "slug": "selective-multi-category-burn",
+      "title": "Selective Multi-Category Burn",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Inputs with Category A and Category B: transfer the A tokens but burn the B tokens.",
+      "tokenScenario": true,
+      "sourceRow": 49,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 50,
+      "slug": "mixed-burn-nft-burn-ft-preservation",
+      "title": "Mixed Burn (NFT Burn + FT Preservation)",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Input with NFT + FTs of the same category: the NFT is destroyed and the FTs are preserved in the outputs.",
+      "tokenScenario": true,
+      "sourceRow": 50,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 51,
+      "slug": "ft-burn-with-nft-preservation",
+      "title": "FT Burn with NFT Preservation",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "Input with NFT + FTs: burn all FTs and only pass the NFT to the output.",
+      "tokenScenario": true,
+      "sourceRow": 51,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 52,
+      "slug": "mass-multi-category-burn-cleanup",
+      "title": "Mass Multi-Category Burn (Cleanup)",
+      "status": "planned",
+      "domain": "token-burn",
+      "operation": "explicit-or-implicit-burn",
+      "validity": "valid-consensus",
+      "description": "A cleanup PSBT spending 10 UTXOs containing different junk/spam tokens without passing them to the outputs.",
+      "tokenScenario": true,
+      "sourceRow": 52,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 53,
+      "slug": "utxo-vout-0-non-genesis-existing-token",
+      "title": "UTXO vout = 0 Non-Genesis (Existing Token)",
+      "status": "planned",
+      "domain": "token-boundary",
+      "operation": "mixed-token-transaction",
+      "validity": "valid-consensus",
+      "description": "Spend a UTXO with outpoint.vout = 0 that ALREADY contained an existing token (does not activate genesis; operates as a transfer).",
+      "tokenScenario": true,
+      "sourceRow": 53,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 54,
+      "slug": "utxo-vout-0-non-genesis-pure-bch",
+      "title": "UTXO vout = 0 Non-Genesis (Pure BCH)",
+      "status": "planned",
+      "domain": "token-boundary",
+      "operation": "mixed-token-transaction",
+      "validity": "valid-consensus",
+      "description": "Spend a pure BCH UTXO at vout = 0 in a transaction that does NOT generate new tokens.",
+      "tokenScenario": true,
+      "sourceRow": 54,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 55,
+      "slug": "mixed-genesis-neutral-vout-0-utxo",
+      "title": "Mixed Genesis + Neutral vout = 0 UTXO",
+      "status": "planned",
+      "domain": "token-boundary",
+      "operation": "mixed-token-transaction",
+      "validity": "valid-consensus",
+      "description": "Input 0 (vout=0 activates genesis of Category A) + Input 1 (vout=0 from another transaction transferred as pure BCH).",
+      "tokenScenario": true,
+      "sourceRow": 55,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 56,
+      "slug": "op-return-in-output-0-with-tokens-in-output-1",
+      "title": "OP_RETURN in Output 0 with Tokens in Output 1",
+      "status": "planned",
+      "domain": "token-boundary",
+      "operation": "mixed-token-transaction",
+      "validity": "valid-consensus",
+      "description": "Output 0 contains an OP_RETURN script. Tokens must be mapped correctly to Output 1 onward.",
+      "tokenScenario": true,
+      "sourceRow": 56,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 57,
+      "slug": "op-return-interleaved-between-tokens",
+      "title": "OP_RETURN Interleaved Between Tokens",
+      "status": "planned",
+      "domain": "token-boundary",
+      "operation": "mixed-token-transaction",
+      "validity": "valid-consensus",
+      "description": "Output 0 (Token A), Output 1 (metadata OP_RETURN), Output 2 (Token B).",
+      "tokenScenario": true,
+      "sourceRow": 57,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 58,
+      "slug": "non-contiguous-token-outputs",
+      "title": "Non-Contiguous Token Outputs",
+      "status": "planned",
+      "domain": "token-boundary",
+      "operation": "mixed-token-transaction",
+      "validity": "valid-consensus",
+      "description": "CashToken outputs separated by pure BCH outputs without tokens.",
+      "tokenScenario": true,
+      "sourceRow": 58,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 62,
+      "slug": "consolidation-of-mixed-vout-utxos",
+      "title": "Consolidation of Mixed-vout UTXOs",
+      "status": "planned",
+      "domain": "token-boundary",
+      "operation": "mixed-token-transaction",
+      "validity": "valid-consensus",
+      "description": "Inputs originating from vout = 0, vout = 1, and vout = 5, all spent in the same PSBT.",
+      "tokenScenario": true,
+      "sourceRow": 62,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 89,
+      "slug": "p2sh-multisig-2-of-3-with-nft-mutation",
+      "title": "P2SH Multisig (2 of 3) with NFT Mutation",
+      "status": "planned",
+      "domain": "signer-interop",
+      "operation": "seedcash-interop",
+      "validity": "valid-consensus",
+      "description": "Two of three participants sign the PSBT to authorize changing the commitment of a jointly managed NFT.",
+      "tokenScenario": true,
+      "sourceRow": 89,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 90,
+      "slug": "asynchronous-multi-user-signing",
+      "title": "Asynchronous Multi-User Signing",
+      "status": "planned",
+      "domain": "signer-interop",
+      "operation": "seedcash-interop",
+      "validity": "valid-consensus",
+      "description": "A PSBT travels between 3 different wallets that add partial signatures for complex token transfers.",
+      "tokenScenario": true,
+      "sourceRow": 90,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 91,
+      "slug": "token-coinjoin-mixer",
+      "title": "Token CoinJoin (Mixer)",
+      "status": "planned",
+      "domain": "signer-interop",
+      "operation": "seedcash-interop",
+      "validity": "valid-consensus",
+      "description": "Collaborative PSBT with 5 participants who combine FT inputs and outputs to reduce traceability.",
+      "tokenScenario": true,
+      "sourceRow": 91,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 92,
+      "slug": "psbt-with-complete-utxo-context",
+      "title": "PSBT with Complete UTXO Context",
+      "status": "planned",
+      "domain": "signer-interop",
+      "operation": "seedcash-interop",
+      "validity": "valid-consensus",
+      "description": "PSBT format including complete previous-transaction data (non_witness_utxo / witness_utxo) to validate token amounts before signing.",
+      "tokenScenario": true,
+      "sourceRow": 92,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": [
+        "For SeedCash interoperability, compare non_witness_utxo and witness_utxo separately. Token-bearing inputs require a complete parent transaction."
+      ]
+    },
+    {
+      "id": 93,
+      "slug": "exact-dust-limit-546-satoshis",
+      "title": "Exact Dust Limit (~546 Satoshis)",
+      "status": "planned",
+      "domain": "limits-and-scale",
+      "operation": "boundary-or-scale",
+      "validity": "valid-consensus",
+      "description": "CashToken output funded with the strict minimum dust-limit amount permitted by the network.",
+      "tokenScenario": true,
+      "sourceRow": 93,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 94,
+      "slug": "bch-overfunded-token-utxo",
+      "title": "BCH-Overfunded Token UTXO",
+      "status": "planned",
+      "domain": "limits-and-scale",
+      "operation": "boundary-or-scale",
+      "validity": "valid-consensus",
+      "description": "Token output carrying 1 BCH instead of dust (used to self-fund future fees).",
+      "tokenScenario": true,
+      "sourceRow": 94,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 95,
+      "slug": "maximum-commitment-size-40-bytes",
+      "title": "Maximum Commitment Size (40 Bytes)",
+      "status": "planned",
+      "domain": "limits-and-scale",
+      "operation": "boundary-or-scale",
+      "validity": "valid-consensus",
+      "description": "NFT whose commitment uses exactly the maximum 40 bytes of arbitrary binary data.",
+      "tokenScenario": true,
+      "sourceRow": 95,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 96,
+      "slug": "maximum-ft-amount-2-63-1",
+      "title": "Maximum FT Amount (2^63-1)",
+      "status": "planned",
+      "domain": "limits-and-scale",
+      "operation": "boundary-or-scale",
+      "validity": "valid-consensus",
+      "description": "Output assigning the maximum possible Fungible Token amount in the specification (9223372036854775807).",
+      "tokenScenario": true,
+      "sourceRow": 96,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 97,
+      "slug": "massive-consolidation-100-ft-inputs",
+      "title": "Massive Consolidation (100 FT Inputs)",
+      "status": "planned",
+      "domain": "limits-and-scale",
+      "operation": "boundary-or-scale",
+      "validity": "valid-consensus",
+      "description": "Transaction consuming 100 UTXOs with FTs from the same category into a single output.",
+      "tokenScenario": true,
+      "sourceRow": 97,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 98,
+      "slug": "mass-distribution-airdrop-100-ft-outputs",
+      "title": "Mass Distribution / Airdrop (100 FT Outputs)",
+      "status": "planned",
+      "domain": "limits-and-scale",
+      "operation": "boundary-or-scale",
+      "validity": "valid-consensus",
+      "description": "Transaction consuming 1 FT UTXO and distributing it among 100 different addresses in a single PSBT.",
+      "tokenScenario": true,
+      "sourceRow": 98,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 99,
+      "slug": "multi-token-mesh-transaction",
+      "title": "Multi-Token Mesh Transaction",
+      "status": "planned",
+      "domain": "limits-and-scale",
+      "operation": "boundary-or-scale",
+      "validity": "valid-consensus",
+      "description": "10 different FT categories and 5 NFTs with different capabilities interacting in a single PSBT.",
+      "tokenScenario": true,
+      "sourceRow": 99,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    },
+    {
+      "id": 100,
+      "slug": "mega-exotic-all-in-one-transaction",
+      "title": "Mega-Exotic All-in-One Transaction",
+      "status": "planned",
+      "domain": "limits-and-scale",
+      "operation": "boundary-or-scale",
+      "validity": "valid-consensus",
+      "description": "Category A genesis + Category B minting NFT issuance + Category C FT transfer + BCH transfer in the same UTXO where Category C is sent + minting to the same address, with Category I NFT + Category I FT + BCH all in the same output + 50% burn of Category D + Category E NFT mutation + OP_RETURN all in one PSBT.",
+      "tokenScenario": true,
+      "sourceRow": 100,
+      "requirements": {
+        "parentTransactions": "required-and-hash-checked",
+        "unsignedTransactionHex": "required",
+        "psbtHex": "required",
+        "signedPsbtHex": "required",
+        "finalTransactionHex": "required",
+        "tokenAccounting": "required",
+        "seedCashResult": "parse-and-sign"
+      },
+      "notes": []
+    }
+  ],
+  "negativeScenarios": [
+    {
+      "id": "N01",
+      "slug": "invalid-psbt-magic",
+      "title": "Invalid PSBT magic",
+      "status": "planned",
+      "domain": "psbt-encoding",
+      "operation": "parse",
+      "validity": "invalid-psbt",
+      "description": "Replace the psbt\\xff magic prefix with arbitrary bytes.",
+      "expectedHardwareOutcome": "must-refuse-to-parse",
+      "walletGate": "reject-before-review",
+      "evidence": ["malformedPsbtHex", "hardware-refusal-or-error"]
+    },
+    {
+      "id": "N02",
+      "slug": "truncated-psbt-map",
+      "title": "Truncated PSBT map",
+      "status": "planned",
+      "domain": "psbt-encoding",
+      "operation": "parse",
+      "validity": "invalid-psbt",
+      "description": "Truncate the global, input, or output map at every byte boundary.",
+      "expectedHardwareOutcome": "must-refuse-to-parse",
+      "walletGate": "reject-before-review",
+      "evidence": ["truncatedPsbtHex", "hardware-refusal-or-error"]
+    },
+    {
+      "id": "N03",
+      "slug": "missing-unsigned-transaction",
+      "title": "Missing unsigned transaction",
+      "status": "planned",
+      "domain": "psbt-encoding",
+      "operation": "parse",
+      "validity": "invalid-psbt",
+      "description": "Remove PSBT_GLOBAL_UNSIGNED_TX while leaving otherwise plausible maps.",
+      "expectedHardwareOutcome": "must-refuse-to-parse",
+      "walletGate": "reject-before-review",
+      "evidence": ["malformedPsbtHex", "hardware-refusal-or-error"]
+    },
+    {
+      "id": "N04",
+      "slug": "mismatched-section-counts",
+      "title": "Mismatched v145 input or output counts",
+      "status": "planned",
+      "domain": "psbt-encoding",
+      "operation": "parse",
+      "validity": "invalid-psbt",
+      "description": "Make the v145 global input/output counts disagree with the unsigned transaction.",
+      "expectedHardwareOutcome": "must-refuse-to-parse",
+      "walletGate": "reject-before-review",
+      "evidence": ["malformedPsbtHex", "hardware-refusal-or-error"]
+    },
+    {
+      "id": "N05",
+      "slug": "ambiguous-duplicate-input-context",
+      "title": "Ambiguous duplicate input context",
+      "status": "planned",
+      "domain": "psbt-encoding",
+      "operation": "parse",
+      "validity": "invalid-psbt",
+      "description": "Include duplicate keys or both witness_utxo and non_witness_utxo for one input.",
+      "expectedHardwareOutcome": "must-refuse-to-parse",
+      "walletGate": "reject-before-review",
+      "evidence": ["malformedPsbtHex", "hardware-refusal-or-error"]
+    },
+    {
+      "id": "N06",
+      "slug": "missing-input-sighash",
+      "title": "Missing input sighash",
+      "status": "planned",
+      "domain": "signer-authorization",
+      "operation": "sighash-commitment",
+      "validity": "invalid-signer-request",
+      "description": "Omit PSBT_IN_SIGHASH_TYPE from one input.",
+      "expectedHardwareOutcome": "must-not-sign",
+      "walletGate": "reject-before-review",
+      "evidence": ["psbtHex", "hardware-refusal-or-no-signature"]
+    },
+    {
+      "id": "N07",
+      "slug": "unsupported-or-non-forkid-sighash",
+      "title": "Unsupported or non-FORKID sighash",
+      "status": "planned",
+      "domain": "signer-authorization",
+      "operation": "sighash-commitment",
+      "validity": "invalid-signer-request",
+      "description": "Use a BCH sighash without FORKID or with an unsupported flag combination.",
+      "expectedHardwareOutcome": "must-not-sign",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "wallet-refusal"]
+    },
+    {
+      "id": "N08",
+      "slug": "mixed-input-sighashes",
+      "title": "Mixed sighashes across inputs",
+      "status": "planned",
+      "domain": "signer-authorization",
+      "operation": "sighash-commitment",
+      "validity": "invalid-signer-request",
+      "description": "Give different inputs different requested sighash types.",
+      "expectedHardwareOutcome": "must-not-sign",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "wallet-refusal"]
+    },
+    {
+      "id": "N09",
+      "slug": "missing-key-origin",
+      "title": "Missing BIP32 key origin",
+      "status": "planned",
+      "domain": "signer-ownership",
+      "operation": "key-recognition",
+      "validity": "invalid-signer-request",
+      "description": "Remove PSBT_IN_BIP32_DERIVATION from an input that otherwise belongs to the signer.",
+      "expectedHardwareOutcome": "must-refuse-or-return-unsigned",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "hardware-refusal-or-no-signature"]
+    },
+    {
+      "id": "N10",
+      "slug": "wrong-key-origin-fingerprint",
+      "title": "Wrong signer fingerprint or derivation path",
+      "status": "planned",
+      "domain": "signer-ownership",
+      "operation": "key-recognition",
+      "validity": "invalid-signer-request",
+      "description": "Use a valid-looking derivation record that does not identify the SeedCash wallet key.",
+      "expectedHardwareOutcome": "must-refuse-or-return-unsigned",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "hardware-refusal-or-no-signature"]
+    },
+    {
+      "id": "N11",
+      "slug": "parent-transaction-hash-mismatch",
+      "title": "Parent transaction hash mismatch",
+      "status": "planned",
+      "domain": "source-transaction-integrity",
+      "operation": "parent-context",
+      "validity": "invalid-source-context",
+      "description": "Provide a decodable non_witness_utxo whose hash is not the input txid.",
+      "expectedHardwareOutcome": "must-not-sign",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "wallet-refusal"]
+    },
+    {
+      "id": "N12",
+      "slug": "parent-output-index-out-of-range",
+      "title": "Parent output index out of range",
+      "status": "planned",
+      "domain": "source-transaction-integrity",
+      "operation": "parent-context",
+      "validity": "invalid-source-context",
+      "description": "Reference an output index that does not exist in the supplied parent transaction.",
+      "expectedHardwareOutcome": "must-not-sign",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "wallet-refusal"]
+    },
+    {
+      "id": "N13",
+      "slug": "token-input-without-complete-parent",
+      "title": "Token input without complete parent transaction",
+      "status": "planned",
+      "domain": "cashtoken-source-context",
+      "operation": "parent-context",
+      "validity": "invalid-source-context",
+      "description": "Attempt to spend a token-bearing input using only compact witness_utxo context.",
+      "expectedHardwareOutcome": "must-not-sign",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "wallet-refusal"]
+    },
+    {
+      "id": "N14",
+      "slug": "token-state-parent-mismatch",
+      "title": "PSBT token state disagrees with parent",
+      "status": "planned",
+      "domain": "cashtoken-source-context",
+      "operation": "token-state-binding",
+      "validity": "invalid-source-context",
+      "description": "Declare a different category, amount, capability, or commitment than the spent parent output.",
+      "expectedHardwareOutcome": "must-not-sign",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "wallet-refusal"]
+    },
+    {
+      "id": "N15",
+      "slug": "malformed-token-prefix",
+      "title": "Malformed CashToken prefix",
+      "status": "planned",
+      "domain": "cashtoken-encoding",
+      "operation": "token-prefix-parse",
+      "validity": "invalid-consensus",
+      "description": "Use a missing category, reserved bit, unknown capability, empty token, or truncated prefix.",
+      "expectedHardwareOutcome": "hardware-result-must-be-recorded",
+      "walletGate": "reject-before-device-or-broadcast",
+      "evidence": [
+        "psbtHex",
+        "hardware-result",
+        "independent-validator-rejection"
+      ]
+    },
+    {
+      "id": "N16",
+      "slug": "oversized-nft-commitment",
+      "title": "NFT commitment over 40 bytes",
+      "status": "planned",
+      "domain": "cashtoken-encoding",
+      "operation": "nft-commitment",
+      "validity": "invalid-consensus",
+      "description": "Use a 41-byte NFT commitment.",
+      "expectedHardwareOutcome": "hardware-may-sign-wallet-must-block",
+      "walletGate": "reject-before-device-or-broadcast",
+      "evidence": [
+        "psbtHex",
+        "hardware-result",
+        "independent-validator-rejection"
+      ]
+    },
+    {
+      "id": "N17",
+      "slug": "fungible-amount-overflow",
+      "title": "Fungible amount over the signed 64-bit limit",
+      "status": "planned",
+      "domain": "cashtoken-encoding",
+      "operation": "fungible-amount",
+      "validity": "invalid-consensus",
+      "description": "Assign more than 9223372036854775807 fungible tokens.",
+      "expectedHardwareOutcome": "hardware-may-sign-wallet-must-block",
+      "walletGate": "reject-before-device-or-broadcast",
+      "evidence": [
+        "psbtHex",
+        "hardware-result",
+        "independent-validator-rejection"
+      ]
+    },
+    {
+      "id": "N18",
+      "slug": "fungible-output-exceeds-input",
+      "title": "Fungible output total exceeds input total",
+      "status": "planned",
+      "domain": "cashtoken-accounting",
+      "operation": "fungible-conservation",
+      "validity": "invalid-consensus",
+      "description": "Create more fungible tokens in outputs than are supplied by inputs or valid genesis/minting rules.",
+      "expectedHardwareOutcome": "hardware-may-sign-wallet-must-block",
+      "walletGate": "reject-before-device-or-broadcast",
+      "evidence": [
+        "psbtHex",
+        "hardware-result",
+        "independent-validator-rejection"
+      ]
+    },
+    {
+      "id": "N19",
+      "slug": "duplicated-minting-authority",
+      "title": "Duplicated minting authority",
+      "status": "planned",
+      "domain": "cashtoken-accounting",
+      "operation": "nft-authority-conservation",
+      "validity": "invalid-consensus",
+      "description": "The single minting NFT input is recreated as two minting NFT outputs; this is the negative form of source scenario 37.",
+      "expectedHardwareOutcome": "hardware-may-sign-wallet-must-block",
+      "walletGate": "reject-before-device-or-broadcast",
+      "sourceScenario": 37,
+      "evidence": [
+        "psbtHex",
+        "hardware-result",
+        "independent-validator-rejection"
+      ]
+    },
+    {
+      "id": "N20",
+      "slug": "unapproved-implicit-token-burn",
+      "title": "Unapproved implicit token burn",
+      "status": "planned",
+      "domain": "cashtoken-accounting",
+      "operation": "burn-approval",
+      "validity": "valid-consensus-but-unsafe",
+      "description": "Omit an input token from the outputs without an explicit user-approved burn intent.",
+      "expectedHardwareOutcome": "hardware-may-sign-wallet-must-block",
+      "walletGate": "reject-unless-explicitly-approved",
+      "evidence": ["psbtHex", "hardware-review-result", "wallet-burn-intent"]
+    },
+    {
+      "id": "N21",
+      "slug": "returned-psbt-unsigned-transaction-changed",
+      "title": "Returned PSBT changes the approved unsigned transaction",
+      "status": "planned",
+      "domain": "signed-psbt-import",
+      "operation": "proposal-binding",
+      "validity": "invalid-import",
+      "description": "Alter an output, input, token prefix, fee, or locktime after approval and return the modified PSBT.",
+      "expectedHardwareOutcome": "hardware-result-must-be-recorded",
+      "walletGate": "reject-after-import-before-broadcast",
+      "evidence": ["signedPsbtHex", "wallet-rejection"]
+    },
+    {
+      "id": "N22",
+      "slug": "returned-psbt-wrong-signature",
+      "title": "Returned PSBT has an invalid signature",
+      "status": "planned",
+      "domain": "signed-psbt-import",
+      "operation": "signature-verification",
+      "validity": "invalid-import",
+      "description": "Return a signature made by the wrong key, over the wrong amount, or with the wrong sighash byte.",
+      "expectedHardwareOutcome": "hardware-result-must-be-recorded",
+      "walletGate": "reject-after-import-before-broadcast",
+      "evidence": [
+        "signedPsbtHex",
+        "signature-verification-failure",
+        "wallet-rejection"
+      ]
+    },
+    {
+      "id": "N23",
+      "slug": "incomplete-multisig-return",
+      "title": "Incomplete multisig return",
+      "status": "planned",
+      "domain": "signed-psbt-import",
+      "operation": "multisig-threshold",
+      "validity": "incomplete-import",
+      "description": "Return fewer valid signatures than the approved multisig threshold.",
+      "expectedHardwareOutcome": "hardware-may-return-partial-signature",
+      "walletGate": "remain-partially-signed-and-block-broadcast",
+      "evidence": ["signedPsbtHex", "partial-signature-count", "wallet-state"]
+    },
+    {
+      "id": "N24",
+      "slug": "signer-returns-no-signatures",
+      "title": "Signer returns no signatures",
+      "status": "planned",
+      "domain": "signed-psbt-import",
+      "operation": "signer-postcondition",
+      "validity": "incomplete-import",
+      "description": "SeedCash returns a parseable PSBT without adding any partial signature.",
+      "expectedHardwareOutcome": "must-report-no-signature",
+      "walletGate": "remain-unsigned-and-block-broadcast",
+      "evidence": ["returnedPsbtHex", "signature-count", "wallet-state"]
+    },
+    {
+      "id": "N25",
+      "slug": "network-mismatch",
+      "title": "Network mismatch",
+      "status": "planned",
+      "domain": "signer-context",
+      "operation": "network-binding",
+      "validity": "invalid-context",
+      "description": "Present a mainnet or incompatible-network proposal to the chipnet watch-only signing path.",
+      "expectedHardwareOutcome": "must-not-sign",
+      "walletGate": "reject-before-device",
+      "evidence": ["psbtHex", "wallet-refusal"]
+    },
+    {
+      "id": "N26",
+      "slug": "invalid-ur-transport-payload",
+      "title": "Invalid UR transport payload",
+      "status": "planned",
+      "domain": "airgap-transport",
+      "operation": "ur-decode",
+      "validity": "invalid-transport",
+      "description": "Use truncated, reordered-incomplete, tampered, or CBOR-wrapped payloads that do not recover a raw PSBT for SeedCash.",
+      "expectedHardwareOutcome": "must-refuse-to-parse",
+      "walletGate": "reject-before-review",
+      "evidence": ["urFrames", "hardware-refusal-or-no-completion"]
+    }
+  ],
+  "materializedFixtureCount": 8,
+  "materializedFixtures": [
+    {
+      "id": "M01",
+      "sourceScenarioIds": [1],
+      "title": "Pure BCH control transaction",
+      "status": "offline-materialized-unsigned",
+      "validity": "consensus-shape-valid",
+      "signerProfile": "seedcash-hardware",
+      "sourceTransactions": [
+        {
+          "name": "pure-bch-parent",
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "hex": "0200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "600000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "vout": 1,
+          "satoshis": "50000"
+        }
+      ],
+      "outputs": [
+        {
+          "satoshis": "40000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac"
+        }
+      ],
+      "unsignedTransactionHex": "02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80100000000ffffffff01409c0000000000001976a914086a977c7dad32a56996af2ce90a727238d4899888ac00000000",
+      "psbtHex": "70736274ff01005502000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80100000000ffffffff01409c0000000000001976a914086a977c7dad32a56996af2ce90a727238d4899888ac0000000001fb01910104010101050101000100770200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000001000000010e20d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f010f0401000000011004ffffffff00010308409c00000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac00",
+      "signedPsbtHex": null,
+      "finalTransactionHex": null,
+      "tokenAccounting": {
+        "genesisInputOutpoints": [],
+        "unusedVoutZeroGenesisCandidates": [],
+        "inputFungibleByCategory": {},
+        "outputFungibleByCategory": {},
+        "inputNfts": [],
+        "outputNfts": [],
+        "explicitBurns": []
+      },
+      "offlineValidation": {
+        "parentTxidsHashChecked": true,
+        "psbtRoundTripChecked": true,
+        "unsignedTransactionMatchesPsbt": true,
+        "tokenPrefixesRoundTripChecked": true,
+        "bchValueConservationChecked": true,
+        "consensusVm": "not-run-unsigned-inputs-have-no-unlocking-scripts"
+      },
+      "seedCashHardware": {
+        "status": "not-run",
+        "signedPsbtHex": null,
+        "finalTransactionHex": null,
+        "evidence": null
+      }
+    },
+    {
+      "id": "M02",
+      "sourceScenarioIds": [22, 23, 24],
+      "title": "Genesis with fungible tokens and minting NFT",
+      "status": "offline-materialized-unsigned",
+      "validity": "consensus-shape-valid",
+      "signerProfile": "seedcash-hardware",
+      "sourceTransactions": [
+        {
+          "name": "genesis-funding-parent",
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "hex": "0200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "600000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "vout": 0,
+          "satoshis": "600000"
+        }
+      ],
+      "outputs": [
+        {
+          "satoshis": "50000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        },
+        {
+          "satoshis": "50000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100"
+          }
+        },
+        {
+          "satoshis": "390000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac"
+        }
+      ],
+      "unsignedTransactionHex": "02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac00000000",
+      "psbtHex": "70736274ff0100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010101050103000100770200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e20d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f010f0400000000011004ffffffff0001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013625ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8720101640001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d81064002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c0000809100008000000080010000006300000001030870f305000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "signedPsbtHex": null,
+      "finalTransactionHex": null,
+      "tokenAccounting": {
+        "genesisInputOutpoints": [
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f:0"
+        ],
+        "unusedVoutZeroGenesisCandidates": [],
+        "inputFungibleByCategory": {},
+        "outputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "200"
+        },
+        "inputNfts": [],
+        "outputNfts": [
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        ],
+        "explicitBurns": []
+      },
+      "offlineValidation": {
+        "parentTxidsHashChecked": true,
+        "psbtRoundTripChecked": true,
+        "unsignedTransactionMatchesPsbt": true,
+        "tokenPrefixesRoundTripChecked": true,
+        "bchValueConservationChecked": true,
+        "consensusVm": "not-run-unsigned-inputs-have-no-unlocking-scripts"
+      },
+      "seedCashHardware": {
+        "status": "not-run",
+        "signedPsbtHex": null,
+        "finalTransactionHex": null,
+        "evidence": null
+      }
+    },
+    {
+      "id": "M03",
+      "sourceScenarioIds": [11, 12, 14],
+      "title": "Pure fungible-token transfer with token change",
+      "status": "offline-materialized-unsigned",
+      "validity": "consensus-shape-valid",
+      "signerProfile": "seedcash-hardware",
+      "sourceTransactions": [
+        {
+          "name": "fungible-genesis-funding-parent",
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "hex": "0200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "600000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "fungible-genesis-parent",
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "hex": "02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100",
+                "nft": {
+                  "capability": "minting",
+                  "commitmentHex": "01"
+                }
+              }
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100"
+              }
+            },
+            {
+              "satoshis": "390000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "vout": 1,
+          "satoshis": "50000",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "satoshis": "20000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "60"
+          }
+        },
+        {
+          "satoshis": "20000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "40"
+          }
+        },
+        {
+          "satoshis": "5000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac"
+        }
+      ],
+      "unsignedTransactionHex": "02000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050100000000ffffffff03204e0000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8103c76a914086a977c7dad32a56996af2ce90a727238d4899888ac204e0000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8102876a914082a83ad87f97afa43952d11cdd038dab747017388ac88130000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac00000000",
+      "psbtHex": "70736274ff0100df02000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050100000000ffffffff03204e0000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8103c76a914086a977c7dad32a56996af2ce90a727238d4899888ac204e0000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8102876a914082a83ad87f97afa43952d11cdd038dab747017388ac88130000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010101050103000100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000001000000010e200505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c010f0401000000011004ffffffff00010308204e00000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8103c002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c00008091000080000000800100000063000000010308204e00000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d81028002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c00008091000080000000800100000063000000010308881300000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "signedPsbtHex": null,
+      "finalTransactionHex": null,
+      "tokenAccounting": {
+        "genesisInputOutpoints": [],
+        "unusedVoutZeroGenesisCandidates": [],
+        "inputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "outputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "inputNfts": [],
+        "outputNfts": [],
+        "explicitBurns": []
+      },
+      "offlineValidation": {
+        "parentTxidsHashChecked": true,
+        "psbtRoundTripChecked": true,
+        "unsignedTransactionMatchesPsbt": true,
+        "tokenPrefixesRoundTripChecked": true,
+        "bchValueConservationChecked": true,
+        "consensusVm": "not-run-unsigned-inputs-have-no-unlocking-scripts"
+      },
+      "seedCashHardware": {
+        "status": "not-run",
+        "signedPsbtHex": null,
+        "finalTransactionHex": null,
+        "evidence": null
+      }
+    },
+    {
+      "id": "M04",
+      "sourceScenarioIds": [25, 26, 27, 28],
+      "title": "Minting authority creates immutable NFT while preserving FT and authority",
+      "status": "offline-materialized-unsigned",
+      "validity": "consensus-shape-valid",
+      "signerProfile": "seedcash-hardware",
+      "sourceTransactions": [
+        {
+          "name": "minting-authority-funding-parent",
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "hex": "0200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "600000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "minting-authority-parent",
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "hex": "02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100",
+                "nft": {
+                  "capability": "minting",
+                  "commitmentHex": "01"
+                }
+              }
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100"
+              }
+            },
+            {
+              "satoshis": "390000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "vout": 0,
+          "satoshis": "50000",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "satoshis": "20000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        },
+        {
+          "satoshis": "20000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "0",
+            "nft": {
+              "capability": "none",
+              "commitmentHex": "dead"
+            }
+          }
+        },
+        {
+          "satoshis": "5000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac"
+        }
+      ],
+      "unsignedTransactionHex": "02000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050000000000ffffffff03204e0000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac204e0000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d86002dead76a914086a977c7dad32a56996af2ce90a727238d4899888ac88130000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac00000000",
+      "psbtHex": "70736274ff0100e302000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050000000000ffffffff03204e0000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac204e0000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d86002dead76a914086a977c7dad32a56996af2ce90a727238d4899888ac88130000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010101050103000100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e200505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c010f0400000000011004ffffffff00010308204e00000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013625ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016400010308204e00000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013625ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d86002dead002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c00008091000080000000800100000063000000010308881300000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "signedPsbtHex": null,
+      "finalTransactionHex": null,
+      "tokenAccounting": {
+        "genesisInputOutpoints": [
+          "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c:0"
+        ],
+        "unusedVoutZeroGenesisCandidates": [
+          "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c:0"
+        ],
+        "inputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "outputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "inputNfts": [
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        ],
+        "outputNfts": [
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "0",
+            "nft": {
+              "capability": "none",
+              "commitmentHex": "dead"
+            }
+          },
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        ],
+        "explicitBurns": []
+      },
+      "offlineValidation": {
+        "parentTxidsHashChecked": true,
+        "psbtRoundTripChecked": true,
+        "unsignedTransactionMatchesPsbt": true,
+        "tokenPrefixesRoundTripChecked": true,
+        "bchValueConservationChecked": true,
+        "consensusVm": "not-run-unsigned-inputs-have-no-unlocking-scripts"
+      },
+      "seedCashHardware": {
+        "status": "not-run",
+        "signedPsbtHex": null,
+        "finalTransactionHex": null,
+        "evidence": null
+      }
+    },
+    {
+      "id": "M05",
+      "sourceScenarioIds": [15, 16, 17, 18, 19, 20],
+      "title": "Multiple categories plus a neutral vout-0 input",
+      "status": "offline-materialized-unsigned",
+      "validity": "consensus-shape-valid",
+      "signerProfile": "seedcash-hardware",
+      "sourceTransactions": [
+        {
+          "name": "category-a-funding-parent",
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "hex": "0200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "600000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "category-a-parent",
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "hex": "02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100",
+                "nft": {
+                  "capability": "minting",
+                  "commitmentHex": "01"
+                }
+              }
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100"
+              }
+            },
+            {
+              "satoshis": "390000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "category-b-funding-parent",
+          "txid": "5869688d76b0ebddbd1bd3bd199161cb8ebcbea1e8bb8d4c9dad56033d0e9a90",
+          "hex": "0200000001b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b10000000000ffffffff02e0930400000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac409c0000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "300000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "40000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "category-b-parent",
+          "txid": "d1ffe93098607442a487e1a2becad552b0d18fea079cea7a3d8373ad76a0153e",
+          "hex": "0200000001909a0e3d0356ad9d4c8dbbe8a1bebc8ecb619119bdd31bbdddebb0768d6869580000000000ffffffff0250c30000000000003eef909a0e3d0356ad9d4c8dbbe8a1bebc8ecb619119bdd31bbdddebb0768d6869587101020776a914086a977c7dad32a56996af2ce90a727238d4899888ac400d0300000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "5869688d76b0ebddbd1bd3bd199161cb8ebcbea1e8bb8d4c9dad56033d0e9a90",
+                "amount": "7",
+                "nft": {
+                  "capability": "mutable",
+                  "commitmentHex": "02"
+                }
+              }
+            },
+            {
+              "satoshis": "200000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "neutral-vout-zero-parent",
+          "txid": "9e78b0d7bc474e8048bad4f6605fd0f661873b8a6cfe210e6f7a52dce3028ba1",
+          "hex": "0200000001c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c10000000000ffffffff0180380100000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "80000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "vout": 1,
+          "satoshis": "50000",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100"
+          }
+        },
+        {
+          "txid": "d1ffe93098607442a487e1a2becad552b0d18fea079cea7a3d8373ad76a0153e",
+          "vout": 0,
+          "satoshis": "50000",
+          "token": {
+            "category": "5869688d76b0ebddbd1bd3bd199161cb8ebcbea1e8bb8d4c9dad56033d0e9a90",
+            "amount": "7",
+            "nft": {
+              "capability": "mutable",
+              "commitmentHex": "02"
+            }
+          }
+        },
+        {
+          "txid": "9e78b0d7bc474e8048bad4f6605fd0f661873b8a6cfe210e6f7a52dce3028ba1",
+          "vout": 0,
+          "satoshis": "80000"
+        }
+      ],
+      "outputs": [
+        {
+          "satoshis": "50000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100"
+          }
+        },
+        {
+          "satoshis": "50000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "5869688d76b0ebddbd1bd3bd199161cb8ebcbea1e8bb8d4c9dad56033d0e9a90",
+            "amount": "7",
+            "nft": {
+              "capability": "mutable",
+              "commitmentHex": "03"
+            }
+          }
+        },
+        {
+          "satoshis": "70000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac"
+        }
+      ],
+      "unsignedTransactionHex": "02000000032cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050100000000ffffffff3e15a076ad73833d7aea9c07ea8fd1b052d5cabea2e187a44274609830e9ffd10000000000ffffffffa18b02e3dc527a6f0e21fe6c8a3b8761f6d05f60f6d4ba48804e47bcd7b0789e0000000000ffffffff0350c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003eef909a0e3d0356ad9d4c8dbbe8a1bebc8ecb619119bdd31bbdddebb0768d6869587101030776a914086a977c7dad32a56996af2ce90a727238d4899888ac70110100000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac00000000",
+      "psbtHex": "70736274ff0100fd330102000000032cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050100000000ffffffff3e15a076ad73833d7aea9c07ea8fd1b052d5cabea2e187a44274609830e9ffd10000000000ffffffffa18b02e3dc527a6f0e21fe6c8a3b8761f6d05f60f6d4ba48804e47bcd7b0789e0000000000ffffffff0350c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003eef909a0e3d0356ad9d4c8dbbe8a1bebc8ecb619119bdd31bbdddebb0768d6869587101030776a914086a977c7dad32a56996af2ce90a727238d4899888ac70110100000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010301050103000100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000001000000010e200505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c010f0401000000011004ffffffff0001009c0200000001909a0e3d0356ad9d4c8dbbe8a1bebc8ecb619119bdd31bbdddebb0768d6869580000000000ffffffff0250c30000000000003eef909a0e3d0356ad9d4c8dbbe8a1bebc8ecb619119bdd31bbdddebb0768d6869587101020776a914086a977c7dad32a56996af2ce90a727238d4899888ac400d0300000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e20d1ffe93098607442a487e1a2becad552b0d18fea079cea7a3d8373ad76a0153e010f0400000000011004ffffffff000100550200000001c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c10000000000ffffffff0180380100000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e209e78b0d7bc474e8048bad4f6605fd0f661873b8a6cfe210e6f7a52dce3028ba1010f0400000000011004ffffffff0001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d810640001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013625ef909a0e3d0356ad9d4c8dbbe8a1bebc8ecb619119bdd31bbdddebb0768d68695871010307002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c00008091000080000000800100000063000000010308701101000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "signedPsbtHex": null,
+      "finalTransactionHex": null,
+      "tokenAccounting": {
+        "genesisInputOutpoints": [
+          "d1ffe93098607442a487e1a2becad552b0d18fea079cea7a3d8373ad76a0153e:0",
+          "9e78b0d7bc474e8048bad4f6605fd0f661873b8a6cfe210e6f7a52dce3028ba1:0"
+        ],
+        "unusedVoutZeroGenesisCandidates": [
+          "d1ffe93098607442a487e1a2becad552b0d18fea079cea7a3d8373ad76a0153e:0",
+          "9e78b0d7bc474e8048bad4f6605fd0f661873b8a6cfe210e6f7a52dce3028ba1:0"
+        ],
+        "inputFungibleByCategory": {
+          "5869688d76b0ebddbd1bd3bd199161cb8ebcbea1e8bb8d4c9dad56033d0e9a90": "7",
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "outputFungibleByCategory": {
+          "5869688d76b0ebddbd1bd3bd199161cb8ebcbea1e8bb8d4c9dad56033d0e9a90": "7",
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "inputNfts": [
+          {
+            "category": "5869688d76b0ebddbd1bd3bd199161cb8ebcbea1e8bb8d4c9dad56033d0e9a90",
+            "amount": "7",
+            "nft": {
+              "capability": "mutable",
+              "commitmentHex": "02"
+            }
+          }
+        ],
+        "outputNfts": [
+          {
+            "category": "5869688d76b0ebddbd1bd3bd199161cb8ebcbea1e8bb8d4c9dad56033d0e9a90",
+            "amount": "7",
+            "nft": {
+              "capability": "mutable",
+              "commitmentHex": "03"
+            }
+          }
+        ],
+        "explicitBurns": []
+      },
+      "offlineValidation": {
+        "parentTxidsHashChecked": true,
+        "psbtRoundTripChecked": true,
+        "unsignedTransactionMatchesPsbt": true,
+        "tokenPrefixesRoundTripChecked": true,
+        "bchValueConservationChecked": true,
+        "consensusVm": "not-run-unsigned-inputs-have-no-unlocking-scripts"
+      },
+      "seedCashHardware": {
+        "status": "not-run",
+        "signedPsbtHex": null,
+        "finalTransactionHex": null,
+        "evidence": null
+      }
+    },
+    {
+      "id": "M06",
+      "sourceScenarioIds": [44, 45, 46],
+      "title": "Immutable NFT burn with fungible-token preservation",
+      "status": "offline-materialized-unsigned",
+      "validity": "consensus-valid-with-explicit-burn",
+      "signerProfile": "seedcash-hardware",
+      "sourceTransactions": [
+        {
+          "name": "immutable-nft-funding-parent",
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "hex": "0200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "600000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "immutable-nft-genesis-parent",
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "hex": "02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100",
+                "nft": {
+                  "capability": "minting",
+                  "commitmentHex": "01"
+                }
+              }
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100"
+              }
+            },
+            {
+              "satoshis": "390000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "immutable-nft-parent",
+          "txid": "e5e68025125c98b3c3e9fa751f4f18c2d4c390f9500c3970c141d5d880bde058",
+          "hex": "02000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050000000000ffffffff0150c30000000000003fef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87002aabb6476a914086a977c7dad32a56996af2ce90a727238d4899888ac00000000",
+          "outputs": [
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100",
+                "nft": {
+                  "capability": "none",
+                  "commitmentHex": "aabb"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "txid": "e5e68025125c98b3c3e9fa751f4f18c2d4c390f9500c3970c141d5d880bde058",
+          "vout": 0,
+          "satoshis": "50000",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "none",
+              "commitmentHex": "aabb"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "satoshis": "25000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100"
+          }
+        },
+        {
+          "satoshis": "20000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac"
+        }
+      ],
+      "unsignedTransactionHex": "020000000158e0bd80d8d541c170390c50f990c3d4c2184f1f75fae9c3b3985c122580e6e50000000000ffffffff02a8610000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac204e0000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac00000000",
+      "psbtHex": "70736274ff01009a020000000158e0bd80d8d541c170390c50f990c3d4c2184f1f75fae9c3b3985c122580e6e50000000000ffffffff02a8610000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac204e0000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb019101040101010501020001007b02000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050000000000ffffffff0150c30000000000003fef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87002aabb6476a914086a977c7dad32a56996af2ce90a727238d4899888ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e20e5e68025125c98b3c3e9fa751f4f18c2d4c390f9500c3970c141d5d880bde058010f0400000000011004ffffffff00010308a86100000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d81064002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c00008091000080000000800100000063000000010308204e00000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "signedPsbtHex": null,
+      "finalTransactionHex": null,
+      "tokenAccounting": {
+        "genesisInputOutpoints": [
+          "e5e68025125c98b3c3e9fa751f4f18c2d4c390f9500c3970c141d5d880bde058:0"
+        ],
+        "unusedVoutZeroGenesisCandidates": [
+          "e5e68025125c98b3c3e9fa751f4f18c2d4c390f9500c3970c141d5d880bde058:0"
+        ],
+        "inputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "outputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "inputNfts": [
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "none",
+              "commitmentHex": "aabb"
+            }
+          }
+        ],
+        "outputNfts": [],
+        "explicitBurns": [
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "none",
+              "commitmentHex": "aabb"
+            }
+          }
+        ]
+      },
+      "offlineValidation": {
+        "parentTxidsHashChecked": true,
+        "psbtRoundTripChecked": true,
+        "unsignedTransactionMatchesPsbt": true,
+        "tokenPrefixesRoundTripChecked": true,
+        "bchValueConservationChecked": true,
+        "consensusVm": "not-run-unsigned-inputs-have-no-unlocking-scripts"
+      },
+      "seedCashHardware": {
+        "status": "not-run",
+        "signedPsbtHex": null,
+        "finalTransactionHex": null,
+        "evidence": null
+      }
+    },
+    {
+      "id": "M07",
+      "sourceScenarioIds": [41, 42, 43],
+      "title": "Explicit fungible-token burn",
+      "status": "offline-materialized-unsigned",
+      "validity": "consensus-valid-with-explicit-burn",
+      "signerProfile": "seedcash-hardware",
+      "sourceTransactions": [
+        {
+          "name": "fungible-burn-funding-parent",
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "hex": "0200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "600000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "fungible-burn-parent",
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "hex": "02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100",
+                "nft": {
+                  "capability": "minting",
+                  "commitmentHex": "01"
+                }
+              }
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100"
+              }
+            },
+            {
+              "satoshis": "390000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "vout": 1,
+          "satoshis": "50000",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "satoshis": "40000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "75"
+          }
+        },
+        {
+          "satoshis": "5000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac"
+        }
+      ],
+      "unsignedTransactionHex": "02000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050100000000ffffffff02409c0000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8104b76a914086a977c7dad32a56996af2ce90a727238d4899888ac88130000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac00000000",
+      "psbtHex": "70736274ff01009a02000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050100000000ffffffff02409c0000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8104b76a914086a977c7dad32a56996af2ce90a727238d4899888ac88130000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010101050102000100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000001000000010e200505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c010f0401000000011004ffffffff00010308409c00000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8104b002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c00008091000080000000800100000063000000010308881300000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "signedPsbtHex": null,
+      "finalTransactionHex": null,
+      "tokenAccounting": {
+        "genesisInputOutpoints": [],
+        "unusedVoutZeroGenesisCandidates": [],
+        "inputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "outputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "75"
+        },
+        "inputNfts": [],
+        "outputNfts": [],
+        "explicitBurns": [
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "25"
+          }
+        ]
+      },
+      "offlineValidation": {
+        "parentTxidsHashChecked": true,
+        "psbtRoundTripChecked": true,
+        "unsignedTransactionMatchesPsbt": true,
+        "tokenPrefixesRoundTripChecked": true,
+        "bchValueConservationChecked": true,
+        "consensusVm": "not-run-unsigned-inputs-have-no-unlocking-scripts"
+      },
+      "seedCashHardware": {
+        "status": "not-run",
+        "signedPsbtHex": null,
+        "finalTransactionHex": null,
+        "evidence": null
+      }
+    },
+    {
+      "id": "M08",
+      "sourceScenarioIds": [31, 32, 33, 34, 35, 36],
+      "title": "NFT and FT of one category across recipient and change",
+      "status": "offline-materialized-unsigned",
+      "validity": "consensus-shape-valid",
+      "signerProfile": "seedcash-hardware",
+      "sourceTransactions": [
+        {
+          "name": "combined-token-funding-parent",
+          "txid": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+          "hex": "0200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "600000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        },
+        {
+          "name": "combined-token-parent",
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "hex": "02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac00000000",
+          "outputs": [
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100",
+                "nft": {
+                  "capability": "minting",
+                  "commitmentHex": "01"
+                }
+              }
+            },
+            {
+              "satoshis": "50000",
+              "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+              "token": {
+                "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+                "amount": "100"
+              }
+            },
+            {
+              "satoshis": "390000",
+              "lockingBytecodeHex": "76a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac"
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "txid": "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c",
+          "vout": 0,
+          "satoshis": "50000",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "satoshis": "20000",
+          "lockingBytecodeHex": "76a914086a977c7dad32a56996af2ce90a727238d4899888ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "40",
+            "nft": {
+              "capability": "none",
+              "commitmentHex": "01"
+            }
+          }
+        },
+        {
+          "satoshis": "20000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac",
+          "token": {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "60",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        },
+        {
+          "satoshis": "5000",
+          "lockingBytecodeHex": "76a914082a83ad87f97afa43952d11cdd038dab747017388ac"
+        }
+      ],
+      "unsignedTransactionHex": "02000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050000000000ffffffff03204e0000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87001012876a914086a977c7dad32a56996af2ce90a727238d4899888ac204e0000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201013c76a914082a83ad87f97afa43952d11cdd038dab747017388ac88130000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac00000000",
+      "psbtHex": "70736274ff0100e302000000012cf9d3d4c13e830e3b2a7143f4dd2a3bc55ca51346d23d5a73d3beee89df05050000000000ffffffff03204e0000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87001012876a914086a977c7dad32a56996af2ce90a727238d4899888ac204e0000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201013c76a914082a83ad87f97afa43952d11cdd038dab747017388ac88130000000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010101050103000100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e200505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c010f0400000000011004ffffffff00010308204e00000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013625ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d870010128002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c00008091000080000000800100000063000000010308204e00000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac013625ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201013c002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c00008091000080000000800100000063000000010308881300000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "signedPsbtHex": null,
+      "finalTransactionHex": null,
+      "tokenAccounting": {
+        "genesisInputOutpoints": [
+          "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c:0"
+        ],
+        "unusedVoutZeroGenesisCandidates": [
+          "0505df89eebed3735a3dd24613a55cc53b2addf443712a3b0e833ec1d4d3f92c:0"
+        ],
+        "inputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "outputFungibleByCategory": {
+          "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f": "100"
+        },
+        "inputNfts": [
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "100",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        ],
+        "outputNfts": [
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "40",
+            "nft": {
+              "capability": "none",
+              "commitmentHex": "01"
+            }
+          },
+          {
+            "category": "d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f",
+            "amount": "60",
+            "nft": {
+              "capability": "minting",
+              "commitmentHex": "01"
+            }
+          }
+        ],
+        "explicitBurns": []
+      },
+      "offlineValidation": {
+        "parentTxidsHashChecked": true,
+        "psbtRoundTripChecked": true,
+        "unsignedTransactionMatchesPsbt": true,
+        "tokenPrefixesRoundTripChecked": true,
+        "bchValueConservationChecked": true,
+        "consensusVm": "not-run-unsigned-inputs-have-no-unlocking-scripts"
+      },
+      "seedCashHardware": {
+        "status": "not-run",
+        "signedPsbtHex": null,
+        "finalTransactionHex": null,
+        "evidence": null
+      }
+    }
+  ],
+  "materializedNegativeVectors": [
+    {
+      "id": "N01-M",
+      "sourceNegativeScenarioId": "N01",
+      "title": "Invalid PSBT magic",
+      "status": "offline-materialized",
+      "psbtHex": "00000000000100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010101050103000100770200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e20d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f010f0400000000011004ffffffff0001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013625ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8720101640001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d81064002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c0000809100008000000080010000006300000001030870f305000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "expectedLocalResult": "reject-not-a-psbt"
+    },
+    {
+      "id": "N03-M",
+      "sourceNegativeScenarioId": "N03",
+      "title": "Missing unsigned transaction",
+      "status": "offline-materialized",
+      "psbtHex": "70736274ff00",
+      "expectedLocalResult": "reject-psbt-has-no-unsigned-transaction"
+    },
+    {
+      "id": "N11-M",
+      "sourceNegativeScenarioId": "N11",
+      "title": "Parent transaction hash mismatch",
+      "status": "offline-materialized",
+      "psbtHex": "70736274ff01007a02000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0150c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac0000000001fb01910104010101050101000100770200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000101030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e20d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f010f0400000000011004ffffffff0001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013625ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016400",
+      "expectedLocalResult": "reject-wrong-parent-transaction"
+    },
+    {
+      "id": "N15-M",
+      "sourceNegativeScenarioId": "N15",
+      "title": "Malformed CashToken prefix",
+      "status": "offline-materialized",
+      "psbtHex": "70736274ff0100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010101050103000100770200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e20d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f010f0400000000011004ffffffff0001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013602efff0001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d81064002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c0000809100008000000080010000006300000001030870f305000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "expectedLocalResult": "reject-invalid-token-prefix"
+    },
+    {
+      "id": "N16-M",
+      "sourceNegativeScenarioId": "N16",
+      "title": "NFT commitment exceeds 40 bytes",
+      "status": "offline-materialized",
+      "psbtHex": "70736274ff0100e102000000019f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d80000000000ffffffff0350c30000000000003eef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87201016476a914086a977c7dad32a56996af2ce90a727238d4899888ac50c30000000000003cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d8106476a914086a977c7dad32a56996af2ce90a727238d4899888ac70f30500000000001976a914082a83ad87f97afa43952d11cdd038dab747017388ac0000000001fb01910104010101050103000100770200000001a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10000000000ffffffff02c0270900000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac50c30000000000001976a914cfdcdfa3e0483ddd3c7b6ab6ee13c5087c26d5f188ac0000000001030441000000220602f178b9410d11e47e10bef8a8e4bc53e48d9ae15864a024a54f87a802dad5f5141873c5da0a2c00008091000080000000800100000000000000010e20d883788cf881e4f16607890e43d4c211a95602f322c349df8b62c476121e7e9f010f0400000000011004ffffffff0001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac01364cef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d87229aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0001030850c300000000000001041976a914086a977c7dad32a56996af2ce90a727238d4899888ac013623ef9f7e1e1276c4628bdf49c322f30256a911c2d4430e890766f1e481f88c7883d81064002202025c69db938d6de34b6dfd068649a2b2d9046725e0779f824ff9aa03bba33a79c81873c5da0a2c0000809100008000000080010000006300000001030870f305000000000001041976a914082a83ad87f97afa43952d11cdd038dab747017388ac00",
+      "expectedLocalResult": "reject-invalid-token-prefix"
+    }
+  ]
+}
