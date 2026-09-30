@@ -1626,9 +1626,17 @@ class ScrollableCardConfirmScreen(SeedCashButtonListWithNav):
         if self.scroll_step is None:
             self.scroll_step = GUIConstants.BUTTON_HEIGHT // 2
         if self.card_background_color is None:
-            self.card_background_color = GUIConstants.INACTIVE_COLOR
+            self.card_background_color = (
+                55,
+                55,
+                65
+            )
         if self.card_border_color is None:
-            self.card_border_color = GUIConstants.INACTIVE_COLOR
+            self.card_border_color = (
+                120,
+                120,
+                130
+            )
 
         # The card fills the space between the top nav and the confirm button
         self.card_x = GUIConstants.EDGE_PADDING
@@ -1638,7 +1646,7 @@ class ScrollableCardConfirmScreen(SeedCashButtonListWithNav):
             self.buttons[0].screen_y - self.card_y - GUIConstants.COMPONENT_PADDING
         )
 
-        self.card_inner_padding = GUIConstants.COMPONENT_PADDING
+        self.card_inner_padding = 2 * GUIConstants.COMPONENT_PADDING
         self.visible_top = self.card_y + self.card_inner_padding
         self.visible_bottom = self.card_y + self.card_height - self.card_inner_padding
         self.visible_height = max(0, self.visible_bottom - self.visible_top)
@@ -1690,9 +1698,12 @@ class ScrollableCardConfirmScreen(SeedCashButtonListWithNav):
         # Offscreen buffer big enough to hold every component in full, even
         # the parts that won't be visible until the user scrolls to them.
         self.card_buffer = Image.new(
-            "RGB",
-            (content_width, max(self.content_height, 1)),
-            self.card_background_color,
+            "RGBA",
+            (
+                content_width, 
+                max(self.content_height, 1)
+            ),
+            (0, 0, 0, 0),
         )
         buffer_draw = ImageDraw.Draw(self.card_buffer)
 
@@ -1722,16 +1733,65 @@ class ScrollableCardConfirmScreen(SeedCashButtonListWithNav):
         self.renderer.show_image()
 
     def _render_card_background(self):
+
+        x = self.card_x
+        y = self.card_y
+
+        w = self.card_width
+        h = self.card_height
+
+        r = self.card_corner_radius
+
+
+        # 1. Floating shadow
         self.image_draw.rounded_rectangle(
             (
-                self.card_x,
-                self.card_y,
-                self.card_x + self.card_width,
-                self.card_y + self.card_height,
+                x + 5,
+                y + 7,
+                x + w + 5,
+                y + h + 7,
             ),
-            radius=self.card_corner_radius,
+            radius=r,
+            fill=(18, 18, 22),
+        )
+
+
+        # 2. Outer dark edge
+        self.image_draw.rounded_rectangle(
+            (
+                x,
+                y,
+                x + w,
+                y + h,
+            ),
+            radius=r,
+            fill=(38, 38, 48),
+        )
+
+
+        # 3. Main card surface
+        self.image_draw.rounded_rectangle(
+            (
+                x + 2,
+                y + 2,
+                x + w - 2,
+                y + h - 2,
+            ),
+            radius=r,
             fill=self.card_background_color,
-            outline=self.card_border_color,
+        )
+
+
+        # 6. Inner glass border
+        self.image_draw.rounded_rectangle(
+            (
+                x + 5,
+                y + 5,
+                x + w - 5,
+                y + h - 5,
+            ),
+            radius=r,
+            outline=(105,105,120),
             width=1,
         )
 
@@ -1744,6 +1804,7 @@ class ScrollableCardConfirmScreen(SeedCashButtonListWithNav):
             self.canvas.paste(
                 visible_slice,
                 (self.card_x + self.card_inner_padding, self.visible_top),
+                visible_slice
             )
 
         if self.max_scroll_y > 0:

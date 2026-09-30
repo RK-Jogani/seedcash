@@ -916,11 +916,11 @@ class PSBTNFTDetailsScreen(ScrollableCardConfirmScreen):
             text=f"NFT #{self.output_num}",
             width=Renderer.get_instance().canvas_width
                 - 2 * GUIConstants.EDGE_PADDING
-                - 2 * GUIConstants.COMPONENT_PADDING,
+                - 3 * GUIConstants.COMPONENT_PADDING,
             font_size=GUIConstants.TOP_NAV_TITLE_FONT_SIZE,
             font_color=GUIConstants.BODY_FONT_COLOR,
             is_text_centered=True,
-            background_color=GUIConstants.INACTIVE_COLOR,
+            background_color=GUIConstants.TRANSPARENT_COLOR,
         )
 
         type_label = TextArea(
@@ -928,14 +928,14 @@ class PSBTNFTDetailsScreen(ScrollableCardConfirmScreen):
             font_size=GUIConstants.BODY_FONT_SIZE - 4,
             font_color=GUIConstants.LABEL_FONT_COLOR,
             is_text_centered=False,
-            background_color=GUIConstants.INACTIVE_COLOR
+            background_color=GUIConstants.TRANSPARENT_COLOR,
         )
         type_value = TextArea(
             text=self.nft_capability,
             font_size=GUIConstants.BODY_FONT_SIZE - 2,
             font_color=GUIConstants.BODY_FONT_COLOR,
             is_text_centered=False,
-            background_color=GUIConstants.INACTIVE_COLOR
+            background_color=GUIConstants.TRANSPARENT_COLOR,
         )
 
         # Bigger gap after the heading and after each value, tight gap
@@ -955,14 +955,14 @@ class PSBTNFTDetailsScreen(ScrollableCardConfirmScreen):
                 font_size=GUIConstants.BODY_FONT_SIZE - 4,
                 font_color=GUIConstants.LABEL_FONT_COLOR,
                 is_text_centered=False,
-                background_color=GUIConstants.INACTIVE_COLOR
+                background_color=GUIConstants.TRANSPARENT_COLOR,
             )
             commitment_value = TextArea(
                 text=self.nft_commitment,
                 font_size=GUIConstants.BODY_FONT_SIZE - 2,
                 font_color=GUIConstants.BODY_FONT_COLOR,
                 is_text_centered=False,
-                background_color=GUIConstants.INACTIVE_COLOR
+                background_color=GUIConstants.TRANSPARENT_COLOR,
             )
             self.card_components += [
                 (commitment_label, GUIConstants.COMPONENT_PADDING // 2),

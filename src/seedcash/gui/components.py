@@ -29,6 +29,7 @@ class GUIConstants:
 
     BACKGROUND_COLOR = "#000000"
     INACTIVE_COLOR = "#414141"
+    TRANSPARENT_COLOR = (0, 0, 0, 0)
     ACCENT_COLOR = "#0ac18e"  # Active Color
     DARK_ACCENT_COLOR = "#0a8e6e"  # Darker Active Color
     WARNING_COLOR = "#FFD60A"
