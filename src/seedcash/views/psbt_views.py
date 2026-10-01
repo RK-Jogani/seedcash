@@ -16,7 +16,7 @@ from seedcash.views.view import (
     Destination,
     BackStackView,
 )
-from seedcash.gui.screens.psbt_screens import PSBTOverviewScreen
+from seedcash.gui.screens.psbt_screens import PSBTNFTScreen, PSBTOverviewScreen
 from seedcash.views.wallet_views import WalletOptionsView
 
 class LoadingPSBTView(View):
@@ -37,7 +37,7 @@ class LoadingPSBTView(View):
     def run(self):
         if self.controller.psbt_parser.is_genesis:
             is_ft = len(self.controller.psbt_parser.genesis.categories["ft"]) > 0
-            return Destination(GenesisWarningView, view_args={"is_ft": is_ft, "category_num": 0}, skip_current_view=True)
+            return Destination(GenesisWarningView, view_args={"is_ft": is_ft, "category_num": 0, "is_last": True}, skip_current_view=True)
         elif self.controller.psbt_parser.inputs.ft:
             return Destination(PSBTFungibleTokenDetailsView, skip_current_view=True, view_args={"is_last": True})
         elif self.controller.psbt_parser.inputs.nft:
@@ -47,11 +47,12 @@ class LoadingPSBTView(View):
 
 # GENESIS View
 class GenesisWarningView(View):
-    def __init__(self, is_ft: bool = False, category_num: int = 0):
+    def __init__(self, is_ft: bool = False, category_num: int = 0, is_last: bool = False):
         super().__init__()
         self.loading_screen = None
         self.is_ft = is_ft
         self.category_num = category_num
+        self.is_last = is_last
 
     def run(self):
         if self.is_ft:
@@ -79,7 +80,11 @@ class GenesisWarningView(View):
                 )
 
         if result == RET_CODE__BACK_BUTTON:
-            return Destination(PSBTDiscardWarningView)
+            if self.is_last:
+                return Destination(PSBTDiscardWarningView)
+            else:
+                return Destination(BackStackView)
+        
         if result == 0:
             if self.is_ft:
                 return Destination(PSBTGenesisFTDetailsView, view_args={"category_num": self.category_num, "warning": False})
@@ -156,7 +161,8 @@ class PSBTFungibleTokenDetailsView(View):
                     "category_num": self.category_num,
                     "is_ft_burned": is_ft_burned,
                     "inputs_amount": inputs_amount,
-                    "category": category
+                    "category": category,
+                    "is_last": self.is_last
                 }, skip_current_view=True)
 
         outputs = psbt_parser.outputs.get_ft(category_id)
@@ -178,7 +184,10 @@ class PSBTFungibleTokenDetailsView(View):
             if len(outputs) == 0:
                 return Destination(
                     PSBTFungibleTokenDetailsView,
-                    view_args={"category_num": self.category_num + 1}
+                    view_args={
+                        "category_num": self.category_num + 1,
+                        "is_last": False,
+                    }
                 )
             return Destination(PSBTAddressDetailsView, view_args={"output_num": 0, "outputs": outputs, "category_id": category_id, "category_num": self.category_num})
 
@@ -188,17 +197,18 @@ class PSBTFungibleWarningView(View):
                  is_ft_burned: bool = False,
                  inputs_amount: int = 0,
                  category: Category = None,
-                 check_point: bool = True):
+                 check_point: int = 0,
+                 is_last: bool = False):
         super().__init__()
         self.category_num = category_num
         self.is_ft_burned = is_ft_burned
         self.inputs_amount = inputs_amount
         self.category = category
         self.check_point = check_point
-
+        self.is_last = is_last
     def run(self):
 
-        if self.is_ft_burned and self.check_point:
+        if self.is_ft_burned and self.check_point == 0:
             result = self.run_screen(
                 WarningScreen,
                 title=_("Burning Fungible Token(s)"),
@@ -210,29 +220,61 @@ class PSBTFungibleWarningView(View):
                 selected_color=self.category.icon_color
             )
             if result == RET_CODE__BACK_BUTTON:
+                if self.is_last:
+                    return Destination(PSBTDiscardWarningView)
                 return Destination(BackStackView)
 
+        if self.check_point == 0:
+            self.check_point += 1
+
         if self.category.token_symbol == "[?]":
-            result = self.run_screen(
-                WarningScreen,
-                title=_("Unknown Token ID"),
-                show_back_button=True,
-                status_headline=_(""),
-                status_icon_name=SeedCashIconsConstants.WARNING,
-                text=_(f"Unknown token ID, No decimal conversion applied!"),
-                button_data=[ButtonOption("Confirm")],
-                selected_color=self.category.icon_color
-            )
-            if result == RET_CODE__BACK_BUTTON:
-                return Destination(
-                    PSBTFungibleWarningView,
-                    view_args={
-                        "category_num": self.category_num,
-                        "is_ft_burned": self.is_ft_burned,
-                        "inputs_amount": self.inputs_amount,
-                        "category": self.category,
-                    },
-                    skip_current_view=True)
+            if self.check_point == 1:
+                result = self.run_screen(
+                    PSBTNFTScreen,
+                    button_data=[ButtonOption("Next")],
+                    selected_color=GUIConstants.MUSD_BLUE,
+                    category_id=self.category.category_id,
+                )
+
+                if result == RET_CODE__BACK_BUTTON:
+                    return Destination(
+                        PSBTFungibleWarningView,
+                        view_args={
+                            "category_num": self.category_num,
+                            "is_ft_burned": self.is_ft_burned,
+                            "inputs_amount": self.inputs_amount,
+                            "category": self.category,
+                            "check_point": 0,
+                            "is_last": self.is_last,
+                        },
+                        skip_current_view=True
+                    )
+            elif self.check_point == 2:
+                result = self.run_screen(
+                    WarningScreen,
+                    title=_("Unknown Token ID"),
+                    show_back_button=True,
+                    status_headline=_(""),
+                    status_icon_name=SeedCashIconsConstants.WARNING,
+                    text=_(f"Unknown token ID, No decimal conversion applied!"),
+                    button_data=[ButtonOption("Confirm")],
+                    selected_color=self.category.icon_color
+                )
+
+                if result == RET_CODE__BACK_BUTTON:
+                    return Destination(
+                        PSBTFungibleWarningView,
+                        view_args={
+                            "category_num": self.category_num,
+                            "is_ft_burned": self.is_ft_burned,
+                            "inputs_amount": self.inputs_amount,
+                            "category": self.category,
+                            "check_point": 1,
+                            "is_last": self.is_last,
+                        },
+                        skip_current_view=True)
+
+                self.check_point = 2
     
         if self.inputs_amount >= 10e8:
             result = self.run_screen(
@@ -253,14 +295,15 @@ class PSBTFungibleWarningView(View):
                         "is_ft_burned": self.is_ft_burned,
                         "inputs_amount": self.inputs_amount,
                         "category": self.category,
-                        "check_point": False
+                        "check_point": 2 if self.category.token_symbol == "[?]" else 0,
+                        "is_last": self.is_last,
                     },
                     skip_current_view=True
                 )
         
         return Destination(
             PSBTFungibleTokenDetailsView,
-            view_args={"category_num": self.category_num, "warning": False},
+            view_args={"category_num": self.category_num, "warning": False, "is_last": self.is_last},
             skip_current_view=True
         )
 
