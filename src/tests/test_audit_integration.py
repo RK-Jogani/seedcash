@@ -121,10 +121,8 @@ class TestSC03OnParsedTx:
             + b"\x76\xa9\x14" + attacker + b"\x88\xac"
         )
         tx = build_tx([(9_000_000, lookalike)])
-        result = parse_transaction(tx)
-        out = result.outputs[0]
-        assert out.address is None
-        assert out.script_type != ScriptType.P2PKH
+        with pytest.raises(ValueError, match="unknown script type"):
+            parse_transaction(tx)
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +174,7 @@ class TestSC01SighashRuntime:
             )],
             locktime=b"\x00\x00\x00\x00",
         )
-        parser.resolve_spent_output = lambda prev_index, input_pairs: spent_output
+        parser.resolve_spent_output = lambda prev_index, input_pairs, prev_txid=None: spent_output
 
         parser.build_transaction()
 
@@ -198,7 +196,7 @@ class TestRedeemScriptValidation:
             + b"\x52\xae"
         )
 
-        assert validate_multisig_redeem_script(redeem_script) == redeem_script
+        assert validate_multisig_redeem_script(redeem_script) == (redeem_script, [b"\x02" + bytes(32), b"\x03" + bytes(32)])
 
     @pytest.mark.parametrize("redeem_script", [
         b"\x51",
