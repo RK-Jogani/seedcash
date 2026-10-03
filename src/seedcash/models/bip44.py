@@ -6,6 +6,10 @@ from base58 import b58decode, b58encode
 from ecdsa import SECP256k1, SigningKey, VerifyingKey
 from ecdsa.ellipticcurve import INFINITY
 
+MAX_DERIVATION_PATH_LENGTH = 32
+MAX_DERIVATION_INDEX = 0xFFFFFFFF
+
+
 class Bip44:
 
     @staticmethod
@@ -132,6 +136,9 @@ class Bip44:
         Raises:
             ValueError: On invalid inputs or cryptographic failure
         """
+        Bip44.validate_derivation_path([index])
+        if len(parent_chain_code) != 32:
+            raise ValueError("Chain code must be 32 bytes")
         curve = SECP256k1.curve
         generator = SECP256k1.generator
         order = SECP256k1.order
@@ -436,28 +443,36 @@ class Bip44:
         return address
 
     @staticmethod
+    def validate_derivation_path(path):
+        if not isinstance(path, (list, tuple)) or len(path) > MAX_DERIVATION_PATH_LENGTH:
+            raise ValueError("derivation path exceeds maximum length")
+        for index in path:
+            if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index <= MAX_DERIVATION_INDEX:
+                raise ValueError("invalid derivation index")
+
+    @staticmethod
     def parse_derivation_path(path: str = SC.BCH_ACCOUNT_PATH) -> List[int]:
-        """Parse a BIP32 derivation path string to a list of integers."""
-        if not path:
+        """Parse and bound the entire path before any derivation starts."""
+        if not isinstance(path, str) or len(path) > 384:
+            raise ValueError("invalid derivation path")
+        if path in ("", "m", "M"):
             return []
-        path = path.strip()
-        if path in ("m", "M"):
-            return []
-        if path.startswith("m/") or path.startswith("M/"):
+        if path.startswith(("m/", "M/")):
             path = path[2:]
-    
+        items = path.split("/")
+        if len(items) > MAX_DERIVATION_PATH_LENGTH:
+            raise ValueError("derivation path exceeds maximum length")
         components = []
-        for item in path.split("/"):
-            item = item.strip()
-            if not item:
-                continue
-            hardened = item[-1] in ("'", "h", "H")
-            if hardened:
-                item = item[:-1]
-            index = int(item)
-            if hardened:
-                index |= 0x80000000
-            components.append(index)
+        for item in items:
+            hardened = item.endswith(("'", "h", "H"))
+            digits = item[:-1] if hardened else item
+            if not digits or not digits.isascii() or not digits.isdigit():
+                raise ValueError("invalid derivation index")
+            index = int(digits)
+            if index > (0x7FFFFFFF if hardened else MAX_DERIVATION_INDEX):
+                raise ValueError("invalid derivation index")
+            components.append(index | 0x80000000 if hardened else index)
+        Bip44.validate_derivation_path(components)
         return components
 
     @staticmethod
