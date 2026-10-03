@@ -192,7 +192,7 @@ class SeedStorage:
             raise InvalidSchemeException("Bits must be provided to set scheme parameters")
 
         self.scheme_params = SchemeParameters(bits=bits)
-        logger.info("Scheme parameters set with bits: %s", bits)
+        logger.info("Scheme parameters initialized")
 
     def generate_scheme_with_params(self):
         """
@@ -207,7 +207,7 @@ class SeedStorage:
         self.scheme.set_passphrase(self.passphrase)
         self.scheme.generate_mnemonics()
         self.scheme.generate_wallet()
-        logger.info("Scheme generated with parameters: %s", self.scheme_params)
+        logger.info("Scheme generated with parameters and wallet created.")
 
     def add_share_to_scheme(self):
         """
@@ -235,7 +235,7 @@ class SeedStorage:
                 self.scheme.add_share(self._mnemonic)
                 logger.info("Share added to the current scheme.")
         except InvalidSchemeException as e:
-            logger.exception("Invalid SLIP39 share: %s", e)
+            logger.warning("Invalid SLIP39 share")
             raise InvalidSchemeException("Invalid mnemonic provided for scheme") from e
         finally:
             # Always clear the temporary slip mnemonic after attempt
