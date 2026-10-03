@@ -178,12 +178,21 @@ class Controller(Singleton):
 
     def discard_wallet(self):
         self.storage.discard_wallet()
+        self.clear_back_stack()
+        self.discard_psbt()
+        if self.screensaver is not None:
+            self.screensaver.last_screen = None
         import gc
         gc.collect()
 
     def discard_psbt(self):
+        if isinstance(self.psbt_bytes, bytearray):
+            self.psbt_bytes[:] = b"\x00" * len(self.psbt_bytes)
         self.psbt_bytes = b""
         self.psbt_parser = None
+        self.token_review = None
+        self.token_review_parser = None
+        self.token_review_acknowledged = set()
 
     def pop_prev_from_back_stack(self):
         if len(self.back_stack) > 0:
@@ -255,8 +264,7 @@ class Controller(Singleton):
                     self.clear_back_stack()
 
                     # TODO: IMPORTANT Home always wipes the back_stack/state of temp vars
-                    self.psbt_bytes = b""
-                    self.psbt_parser = None
+                    self.discard_psbt()
 
                 logger.info(f"\nback_stack: {self.back_stack}")
 
@@ -409,45 +417,13 @@ class Controller(Singleton):
 
     def handle_exception(self, e) -> Destination:
         """
-        Displays a user-friendly error screen and includes debugging info to help
-        devs diagnose what went wrong.
-
-        Shows:
-            * Exception type
-            * python file, line num, method name
-            * Exception message
+        Display a controlled error without exception text or traceback secrets.
         """
         from seedcash.views.view import UnhandledExceptionView
 
-        logger.exception(e)
-
-        # The final exception output line is:
-        # "foo.bar.ExceptionType: The exception message"
-        # So we extract the Exception type and trim off any "foo.bar." namespacing:
-        last_line = traceback.format_exc().splitlines()[-1]
-        exception_type = last_line.split(":")[0].split(".")[-1]
-
-        # Extract the error message, if there is one
-        if ":" in last_line:
-            exception_msg = last_line.split(":")[1]
-        else:
-            exception_msg = ""
-
-        # Scan for the last debugging line that includes a line number reference
-        line_info = None
-        for i in range(len(traceback.format_exc().splitlines()) - 1, 0, -1):
-            traceback_line = traceback.format_exc().splitlines()[i]
-            if ", line " in traceback_line:
-                line_info = (
-                    traceback_line.split("/")[-1].replace('"', "").replace("line ", "")
-                )
-                break
-
-        error = [
-            exception_type,
-            line_info,
-            exception_msg,
-        ]
+        # Exception text and traceback can contain external secrets.
+        logger.error("View failed: %s", type(e).__name__)
+        error = [type(e).__name__, "", "Operation failed. Return to the menu and retry."]
         return Destination(
             UnhandledExceptionView, view_args={"error": error}, clear_history=True
         )
