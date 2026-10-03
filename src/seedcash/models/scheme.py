@@ -313,7 +313,7 @@ class Scheme:
             encrypted_master_secret = recover_ems(self.groups)
             self.set_master_secret(encrypted_master_secret.decrypt(self.passphrase))
         except Exception as e:
-            logger.error("Failed to recover master secret:", e)
+            logger.error("Failed to recover master secret")
             return None
 
     def generate_mnemonics(

@@ -54,8 +54,9 @@ class Seed:
         return self.mnemonic
 
     def discard_mnemonic(self):
-        if self.mnemonic:
-            del self.mnemonic
+        if self.mnemonic is not None:
+            self.mnemonic[:] = [None] * len(self.mnemonic)
+        self.mnemonic = None
         
 
     def get_encoded(self) -> str:
@@ -109,7 +110,7 @@ class Seed:
                     index = wordlist.index(word)
                     list_index_bi.append(bin(index)[2:].zfill(11))
                 except ValueError:
-                    raise InvalidSeedException(f"Word '{word}' not in wordlist")
+                    raise InvalidSeedException("Word not in wordlist")
 
             bin_mnemonic = "".join(list_index_bi)
             len_ = len(bin_mnemonic)
@@ -150,11 +151,7 @@ class Seed:
             computed_checksum = bin(hash_int)[2:].zfill(256)[:checksum_bits]
 
             if checksum != computed_checksum:
-                logger.debug(
-                    "Checksum mismatch: expected %s, got %s",
-                    checksum,
-                    computed_checksum,
-                )
+                logger.debug("Mnemonic checksum mismatch")
                 raise InvalidSeedException("Checksum validation failed")
 
             return True
@@ -162,8 +159,8 @@ class Seed:
         except InvalidSeedException:
             raise
         except Exception as e:
-            logger.exception("Unexpected error during validation")
-            raise InvalidSeedException(f"Validation error: {str(e)}")
+            logger.error("Unexpected error during mnemonic validation")
+            raise InvalidSeedException("Mnemonic validation error") from None
 
     def generate_wallet(self):
 

@@ -23,6 +23,8 @@ class Wallet:
         return self.fingerprint
 
     def discard_wallet(self):
+        if isinstance(self.xpriv, bytearray):
+            self.xpriv[:] = b"\x00" * len(self.xpriv)
         self.xpriv = None
         self.xpub = ""
         self.fingerprint = ""

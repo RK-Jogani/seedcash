@@ -98,7 +98,7 @@ class Settings(Singleton):
                 abbreviated_name
             )
             if not settings_entry:
-                logger.info(f"Ignoring unrecognized attribute: {abbreviated_name}")
+                logger.info("Ignoring unrecognized settings attribute")
                 continue
 
             # Validate value(s) against SettingsDefinition's valid options

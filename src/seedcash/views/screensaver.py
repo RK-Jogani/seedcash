@@ -152,7 +152,10 @@ class ScreensaverScreen(LogoScreen):
             finally:
                 # Restore the last screen
                 self._is_running = False
-                self.renderer.show_image(self.last_screen)
+                try:
+                    self.renderer.show_image(self.last_screen)
+                finally:
+                    self.last_screen = None
 
     def stop(self):
         self._is_running = False

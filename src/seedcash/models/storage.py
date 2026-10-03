@@ -113,7 +113,7 @@ class SeedStorage:
 
     def discard_mnemonic(self):
         if self.mnemonic is not None:
-            self.set_mnemonic([None] * len(self.mnemonic))
+            self.mnemonic[:] = [None] * len(self.mnemonic)
 
     def get_mnemonic_word(self, index: int) -> str:
         if index < len(self.mnemonic):
@@ -174,7 +174,8 @@ class SeedStorage:
         """
         self.discard_mnemonic()
         self.passphrase = ""
-        self.seed.discard_seed()
+        if self.seed is not None:
+            self.seed.discard_seed()
         self.seed = None
 
     # Scheme management
