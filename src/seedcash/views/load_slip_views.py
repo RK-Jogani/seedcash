@@ -1,6 +1,5 @@
 from gettext import gettext as _
 from seedcash.gui.components import SeedCashIconsConstants
-from seedcash.gui.screens import load_seed_screens
 from seedcash.gui.screens.load_seed_screens import SeedMnemonicEntryScreen
 from seedcash.gui.screens.screen import (
     RET_CODE__BACK_BUTTON,
@@ -30,19 +29,13 @@ class SeedSlipMnemonicEntryView(View):
 
     def __init__(self, cur_word_index: int = 0):
         super().__init__()
-        # counter
         self.cur_word_index = cur_word_index
-        # getting the index
         self.cur_word = self.controller.storage.get_mnemonic_word(cur_word_index)
-        # for the generation of seed
 
     def run(self):
         ret = self.run_screen(
             SeedMnemonicEntryScreen,
-            # TRANSLATOR_NOTE: Inserts the word number (e.g. "Seed Word #6")
-            title=_("Seed Word #{}").format(
-                self.cur_word_index + 1
-            ),  # Human-readable 1-indexing!
+            title=f"Seed Word #{self.cur_word_index + 1}",
             initial_letters=list(self.cur_word) if self.cur_word else ["a"],
             wordlist=self.controller.storage.get_wordlist,
         )
@@ -76,84 +69,34 @@ class SeedSlipMnemonicEntryView(View):
 
             confirm = self.run_screen(
                 SeedCashSeedWordsScreen,
-                seed_words=self.controller.storage._mnemonic,
+                seed_words=self.controller.storage.mnemonic,
             )
 
             if confirm == "CONFIRM":
-                # User confirmed the seed words
                 try:
                     self.controller.storage.add_share_to_scheme()
-
+                    self.controller.storage.discard_mnemonic()
                 except Exception as e:
-                    for i in range(self.controller.storage.mnemonic_length):
-                        self.controller.back_stack.pop()
                     return Destination(
-                        SeedShareInvalidView, view_args={"error": str(e)}
+                        SeedShareInvalidView
                     )
+                finally:
+                    for _ in range(self.controller.storage.mnemonic_length):
+                        self.controller.back_stack.pop()
 
                 if self.controller.storage._scheme.is_single_level():
-                    return Destination(SingleLevelVisualSchemeView)
+                    return Destination(VisualLoadedSchemeView, view_args={"is_single_level": True})
 
                 return Destination(VisualLoadedSchemeView)
-
-
-class SingleLevelVisualSchemeView(View):
-    """
-    View to display the loaded scheme.
-    """
-
-    def __init__(self):
-        super().__init__()
-
-        # Ensure the scheme is loaded
-        if not self.controller.storage.scheme:
-            raise ValueError("No scheme loaded. Please load a scheme first.")
-
-    def run(self):
-        """
-        Run the view to display the loaded scheme.
-        """
-
-        if self.controller.storage.scheme.is_complete():
-            self.controller.storage.create_wallet()
-            from seedcash.views.wallet_views import WalletFinalizeView
-
-            return Destination(WalletFinalizeView)
-
-        self.shares_count, self.member_threshold = (
-            self.controller.storage.scheme.get_group_info(0)
-        )
-
-        # Display the seed words for confirmation
-        ret = self.run_screen(
-            SingleLevelVisualLoadedSchemeScreen,
-            title="Shares Scheme",
-            shares_count=self.shares_count,
-            member_threshold=self.member_threshold,
-            show_back_button=False,
-        )
-
-        if ret == RET_CODE__BACK_BUTTON:
-            return Destination(DiscardSchemeView)
-        elif ret == "EDIT":
-            # If it's a multi-level scheme, go to the group entry view
-            return Destination(
-                EditAndReview, view_args={"are_shares": False, "is_single_level": True}
-            )
-        elif ret == "ADD":
-            # Add a new share to the existing scheme
-            return Destination(
-                SeedSlipMnemonicEntryView, view_args={"cur_word_index": 0}
-            )
-
 
 class VisualLoadedSchemeView(View):
     """
     View to display the loaded scheme.
     """
 
-    def __init__(self):
+    def __init__(self, is_single_level: bool = False):
         super().__init__()
+        self.is_single_level = is_single_level
 
         # Ensure the scheme is loaded
         if not self.controller.storage.scheme:
@@ -167,29 +110,37 @@ class VisualLoadedSchemeView(View):
         if self.controller.storage.scheme.is_complete():
             self.controller.storage.create_wallet()
             from seedcash.views.wallet_views import WalletFinalizeView
-
             return Destination(WalletFinalizeView)
 
         # Display the seed words for confirmation
-        ret = self.run_screen(
-            VisualLoadedSchemeScreen,
-            scheme=self.controller.storage._scheme,
-            show_back_button=False,
-        )
+        if self.is_single_level:
+            self.shares_count, self.member_threshold = self.controller.storage.scheme.get_group_info(0)
+            ret = self.run_screen(
+                SingleLevelVisualLoadedSchemeScreen,
+                title="Shares Scheme",
+                shares_count=self.shares_count,
+                member_threshold=self.member_threshold,
+                show_back_button=False,
+            )
+        else:
+            ret = self.run_screen(
+                VisualLoadedSchemeScreen,
+                scheme=self.controller.storage._scheme,
+                show_back_button=False,
+            )
 
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(DiscardSchemeView)
-        elif ret == "EDIT":
-            # If it's a multi-level scheme, go to the group entry view
-            return Destination(EditAndReview, view_args={"are_shares": False})
+        elif ret == "REVIEW":
+            return Destination(
+                ReviewLoadedSchemeView, view_args={"are_shares": False, "is_single_level": self.is_single_level}
+            )
         elif ret == "ADD":
-            # Add a new share to the existing scheme
             return Destination(
                 SeedSlipMnemonicEntryView, view_args={"cur_word_index": 0}
             )
 
-
-class EditAndReview(View):
+class ReviewLoadedSchemeView(View):
     """
     View to display the list of groups.
     """
@@ -237,27 +188,25 @@ class EditAndReview(View):
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         if self.are_shares:
-            from seedcash.views.generate_slip_views import MnemonicView
+            from seedcash.views.generate_slip_views import ViewShareView
 
             return Destination(
-                MnemonicView,
+                ViewShareView,
                 view_args={
-                    "words": self.controller.storage.scheme.get_mnemonics_share_of_group(
-                        self.shares[ret], self.group_index
-                    )
+                    "group_index": self.group_index,
+                    "share_index": self.shares[ret],
                 },
             )
 
         else:
             # If not in view mode, proceed to share generation
             return Destination(
-                EditAndReview,
+                ReviewLoadedSchemeView,
                 view_args={
                     "group_index": self.groups[ret],
                     "are_shares": True,
                 },
             )
-
 
 class DiscardSchemeView(View):
     """
@@ -280,62 +229,21 @@ class DiscardSchemeView(View):
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        if ret == 0:  # Keep current scheme
+        if ret == 0:
             if self.controller.storage.scheme.is_single_level():
-                return Destination(SingleLevelVisualSchemeView)
+                return Destination(VisualLoadedSchemeView, view_args={"is_single_level": True})
             return Destination(VisualLoadedSchemeView)
 
         # Discard current scheme
-        self.controller.storage.discard_scheme()
+        self.controller.storage.discard_wallet()
         return Destination(MainMenuView)
-
-
-class SchemeFinalizeView(View):
-    """
-    View to finalize the scheme.
-    """
-
-    CONFIRM = ButtonOption("Confirm Scheme", icon_color="green")
-
-    def run(self):
-        """
-        Run the view to finalize the scheme.
-        """
-        # If not complete, show a warning
-        button_data = [
-            self.CONFIRM,
-        ]
-
-        selected_menu_num = self.run_screen(
-            load_seed_screens.SeedFinalizeScreen,
-            fingerprint=(
-                self.controller.storage._scheme._wallet.fingerprint
-                if self.controller.storage._scheme
-                else None
-            ),
-            button_data=button_data,
-        )
-
-        if button_data[selected_menu_num] == self.CONFIRM:
-            if self.controller.storage.wallet:
-                from seedcash.views.wallet_views import WalletOptionsView
-
-                return Destination(WalletOptionsView, clear_history=True)
-
-            self.controller.storage.discard_mnemonic()
-            return Destination(MainMenuView)
-
-        return Destination(BackStackView)
-
 
 class SeedShareInvalidView(View):
     EDIT = ButtonOption("Review & Edit")
     DISCARD = ButtonOption("Discard", button_label_color="red")
 
-    def __init__(self, error: str):
+    def __init__(self):
         super().__init__()
-        self.error = error
-        self.mnemonic: list[str] = self.controller.storage._mnemonic
 
     def run(self):
         button_data = [self.EDIT, self.DISCARD]
@@ -344,7 +252,7 @@ class SeedShareInvalidView(View):
             title=_("Invalid Share!"),
             status_icon_name=SeedCashIconsConstants.ERROR,
             status_headline=None,
-            text=self.error,
+            text=_("The share you entered is invalid. Please review and edit the share or discard it."),
             show_back_button=False,
             button_data=button_data,
         )
@@ -360,14 +268,13 @@ class SeedShareInvalidView(View):
             self.controller.storage.discard_mnemonic()
             return Destination(BackStackView)
 
-
 class SeedShareDiscardView(View):
     EDIT = ButtonOption("Review & Edit")
     DISCARD = ButtonOption("Discard", button_label_color="red")
 
     def __init__(self):
         super().__init__()
-        self.mnemonic: list[str] = self.controller.storage._mnemonic
+        self.mnemonic: list[str] = self.controller.storage.mnemonic
 
     def run(self):
         button_data = [self.EDIT, self.DISCARD]
@@ -391,3 +298,40 @@ class SeedShareDiscardView(View):
         elif button_data[selected_menu_num] == self.DISCARD:
             self.controller.storage.discard_mnemonic()
             return Destination(BackStackView)
+
+class Slip39SeedViewView(View):
+    """
+    View to display the list of groups.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.fingerprint: str = None
+        self.groups = self.controller.storage.scheme.groups
+        self.group_indices = sorted(self.groups)
+        
+        # create button options for each group
+        self.button_data = [ButtonOption(f"Group {i}") for i in self.group_indices]
+
+        if self.controller.storage.scheme:
+            self.fingerprint = self.controller.storage._scheme._wallet.fingerprint
+
+    def run(self):
+        """
+        Run the view to display the list of groups.
+        """
+
+        ret = self.run_screen(
+            GroupShareListScreen,
+            title=("Groups"),
+            fingerprint=self.fingerprint,
+            button_data=self.button_data,
+            show_back_button=True,
+        )
+
+        if ret == RET_CODE__BACK_BUTTON:
+            from seedcash.views.wallet_views import ViewSeedView
+            return Destination(ViewSeedView, view_args={"index": 1 if self.controller.storage.passphrase else 0}, skip_current_view=True)
+        
+        from seedcash.views.generate_slip_views import ListOfSharesView
+        return Destination(ListOfSharesView, view_args={"group_index": self.group_indices[ret]})

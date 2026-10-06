@@ -8,6 +8,7 @@ from seedcash.gui.screens.screen import (
     DireWarningScreen,
 )
 
+from seedcash.helpers.shamir_mnemonic import share
 from seedcash.views.view import (
     BackStackView,
     View,
@@ -16,9 +17,7 @@ from seedcash.views.view import (
     MainMenuView,
 )
 
-from seedcash.gui.screens.slip_screens import (
-    GroupShareListScreen,
-)
+from seedcash.gui.screens.slip_screens import GroupShareListScreen
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class SeedSlipBitsView(View):
 
     def __init__(self):
         super().__init__()
-        self.bits = self.controller.storage.scheme_params._bits
+        self.bits = self.controller.storage._scheme.scheme_parameters.bits_str
 
     def run(self):
         """
@@ -81,7 +80,7 @@ class SeedSlipSchemeView(View):
 
     def __init__(self):
         super().__init__()
-
+        
         self.button_data = [
             self.SINGLE_LEVEL,
             self.TWO_LEVEL,
@@ -112,8 +111,8 @@ class VisualGroupView(View):
 
     def __init__(self):
         super().__init__()
-        self.groups = self.controller.storage.scheme_params._groups_length
-        self.group_threshold = self.controller.storage.scheme_params._group_threshold
+        self.groups = self.controller.storage.scheme.scheme_parameters.groups_length
+        self.group_threshold = self.controller.storage.scheme.scheme_parameters.group_threshold
 
         logger.info(
             "VisualGroupView initialized with %d groups and threshold %d",
@@ -139,8 +138,8 @@ class VisualGroupView(View):
         if result == RET_CODE__BACK_BUTTON:
             return Destination(DiscardGroupsView, skip_current_view=True)
 
-        self.controller.storage.scheme_params.set_group_threshold(result[1])
-        self.controller.storage.scheme_params.set_groups_length(result[2])
+        self.controller.storage.scheme.scheme_parameters.set_group_threshold(result[1])
+        self.controller.storage.scheme.scheme_parameters.set_groups_length(result[2])
 
         logger.info(
             "Action: %d Group threshold set to %d and groups length set to %d",
@@ -164,13 +163,13 @@ class ListOfGroupsView(View):
         super().__init__()
         self.is_view_mode = is_view_mode
         self.fingerprint: str = None
-        self.groups = self.controller.storage.scheme_params._groups_length
+        self.groups = self.controller.storage.scheme.scheme_parameters.groups_length
         
         # create button options for each group
         self.button_data = [ButtonOption(f"Group {i}") for i in range(self.groups)]
 
-        if self.controller.storage.scheme:
-            self.fingerprint = self.controller.storage._scheme._wallet.fingerprint
+        if self.is_view_mode and self.controller.storage.scheme.wallet:
+            self.fingerprint = self.controller.storage.scheme._wallet.fingerprint
 
     def run(self):
         """
@@ -188,13 +187,8 @@ class ListOfGroupsView(View):
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         if ret == RET_CODE__CHECK_BUTTON:
-            # If in view mode, finalize the groups
-            if self.is_view_mode:
-                self.controller.storage.discard_scheme()
-                return Destination(MainMenuView)
-
-            # If not in view mode, proceed to share generation
-            return Destination(VisualSharesView, view_args={"group_index": 0})
+            self.controller.storage.discard_wallet()
+            return Destination(MainMenuView)
 
         if self.is_view_mode:
             return Destination(ListOfSharesView, view_args={"group_index": ret})
@@ -211,7 +205,7 @@ class VisualSharesView(View):
         self.group_index = group_index
         self.is_single_level = is_single_level
 
-        self.group = self.controller.storage.scheme_params.get_group_at(
+        self.group = self.controller.storage.scheme.scheme_parameters.get_group_at(
             self.group_index
         )
 
@@ -242,7 +236,7 @@ class VisualSharesView(View):
                 skip_current_view=True,
             )
 
-        self.controller.storage.scheme_params.update_groups(
+        self.controller.storage.scheme.scheme_parameters.update_groups(
             self.group_index, (result[1], result[2])
         )
 
@@ -250,13 +244,13 @@ class VisualSharesView(View):
             return Destination(SchemeAddPassphraseView)
 
         if self.is_single_level:
-            self.controller.storage.generate_scheme_with_params()
+            self.controller.storage.create_wallet()
             return Destination(
                 ListOfSharesView, view_args={"group_index": 0, "is_single_level": True}
             )
 
-        if self.controller.storage.scheme_params.scheme_is_complete():
-            self.controller.storage.generate_scheme_with_params()
+        if self.controller.storage.scheme.scheme_parameters.scheme_is_complete():
+            self.controller.storage.create_wallet()
             return Destination(ListOfGroupsView, view_args={"is_view_mode": True})
 
         return Destination(ListOfGroupsView, view_args={"is_view_mode": False})
@@ -273,12 +267,11 @@ class ListOfSharesView(View):
         self.shares = self.controller.storage.scheme.get_shares_indices_of_group(
             group_index
         )
-        logger.info("Shares in group %d: %s", group_index, self.shares)
-
+        
         self.fingerprint = None
         if is_single_level:
             if self.controller.storage.scheme:
-                self.fingerprint = self.controller.storage._scheme._wallet.fingerprint
+                self.fingerprint = self.controller.storage.scheme.wallet.fingerprint
 
         # create button options for each group
         self.button_data = [ButtonOption(f"Share {i}") for i in self.shares]
@@ -299,33 +292,28 @@ class ListOfSharesView(View):
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         if ret == RET_CODE__CHECK_BUTTON:
-            # If not in view mode, proceed to mnemonic generation
-            self.controller.storage.discard_scheme()
+            self.controller.storage.discard_wallet()
             return Destination(MainMenuView)
 
-        share = self.controller.storage.scheme.get_mnemonics_share_of_group(
-            ret, self.group_index
-        )
-        return Destination(MnemonicView, view_args={"words": share})
+        return Destination(ViewShareView, view_args={"group_index": self.group_index, "share_index": self.shares[ret]})
 
 
-class MnemonicView(View):
+class ViewShareView(View):
     """
-    View to display the mnemonic.
+    View to display the mnemonic of a share.
     """
 
-    def __init__(self, words):
+    def __init__(self, group_index: int = 0, share_index: int = 0):
         super().__init__()
-        self.words = words
+        self.words = self.controller.storage.scheme.get_mnemonics_share_of_group(share_index, group_index)
 
     def run(self):
-        """
-        Run the view to display the mnemonic.
-        """
-
         from seedcash.gui.screens.load_seed_screens import SeedCashSeedWordsScreen
 
-        self.run_screen(SeedCashSeedWordsScreen, seed_words=self.words)
+        self.run_screen(
+            SeedCashSeedWordsScreen,
+            seed_words=self.words
+        )
 
         return Destination(BackStackView)
 
@@ -340,8 +328,8 @@ class DiscardGroupsView(View):
 
     def __init__(self):
         super().__init__()
-        self.groups = self.controller.storage.scheme_params._groups_length
-        self.group_threshold = self.controller.storage.scheme_params._group_threshold
+        self.groups = self.controller.storage.scheme.scheme_parameters.groups_length
+        self.group_threshold = self.controller.storage.scheme.scheme_parameters.group_threshold
 
         self.button_data = [
             self.KEEP_GROUPS,
@@ -367,7 +355,7 @@ class DiscardGroupsView(View):
         elif self.button_data[ret] == self.DISCARD_GROUPS:
             # Discard groups scheme
             self.controller.storage.set_passphrase("")
-            self.controller.storage.scheme_params.discard_groups()
+            self.controller.storage.scheme.scheme_parameters.discard_groups()
             return Destination(BackStackView)
 
 
@@ -418,46 +406,8 @@ class DiscardSharesView(View):
                 self.controller.storage.set_passphrase("")
 
             # Discard shares scheme
-            self.controller.storage.scheme_params.update_groups(self.group_index, None)
+            self.controller.storage.scheme.scheme_parameters.update_groups(self.group_index, None)
             return Destination(BackStackView)
-
-
-class SchemeFinalizeView(View):
-    """
-    View to finalize the scheme.
-    """
-
-    CONFIRM = ButtonOption("Confirm Scheme", icon_color="green")
-
-    def run(self):
-        """
-        Run the view to finalize the scheme.
-        """
-        # If not complete, show a warning
-        button_data = [
-            self.CONFIRM,
-        ]
-
-        selected_menu_num = self.run_screen(
-            load_seed_screens.SeedFinalizeScreen,
-            fingerprint=(
-                self.controller.storage._scheme._wallet.fingerprint
-                if self.controller.storage._scheme
-                else None
-            ),
-            button_data=button_data,
-        )
-
-        if button_data[selected_menu_num] == self.CONFIRM:
-            if self.controller.storage.wallet:
-                from seedcash.views.wallet_views import WalletOptionsView
-
-                return Destination(WalletOptionsView, clear_history=True)
-
-            self.controller.storage.discard_mnemonic()
-            return Destination(MainMenuView)
-
-        return Destination(BackStackView)
 
 
 class SchemeAddPassphraseView(View):
@@ -531,14 +481,14 @@ class SchemeReviewPassphraseView(View):
     """
 
     EDIT = ButtonOption("Edit passphrase")
-    DONE = ButtonOption("Confirm")
+    CONFIRM = ButtonOption("Confirm")
 
     def __init__(self):
         super().__init__()
 
     def run(self):
 
-        button_data = [self.EDIT, self.DONE]
+        button_data = [self.EDIT, self.CONFIRM]
 
         # Because we have an explicit "Edit" button, we disable "BACK" to keep the
         # routing options sane.
@@ -546,13 +496,16 @@ class SchemeReviewPassphraseView(View):
             load_seed_screens.SeedReviewPassphraseScreen,
             passphrase=self.controller.storage.passphrase,
             button_data=button_data,
+            selected_button=1,  # Default to "Confirm"
         )
 
         if button_data[selected_menu_num] == self.EDIT:
             return Destination(SchemeAddPassphraseView, skip_current_view=True)
 
-        elif button_data[selected_menu_num] == self.DONE:
-            if self.controller.storage.scheme:
-                self.controller.storage.create_wallet()
-                return Destination(SchemeFinalizeView)
-            return Destination(BackStackView)
+        elif button_data[selected_menu_num] == self.CONFIRM:
+            if self.controller.storage.scheme.scheme_parameters.groups_length == 1:
+                return Destination(VisualSharesView, view_args={"is_single_level": True})
+            elif self.controller.storage.scheme.scheme_parameters.groups_length > 1:
+                return Destination(VisualGroupView)
+            
+            

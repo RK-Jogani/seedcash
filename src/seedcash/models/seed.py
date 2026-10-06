@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 import hashlib
 
@@ -12,100 +13,40 @@ logger = logging.getLogger(__name__)
 class InvalidSeedException(Exception):
     pass
 
+@dataclass
+class CalculateFinalWord:     
+    coin_flips: str
 
 class Seed:
     def __init__(self, mnemonic: List[str] = None) -> None:
 
         if not mnemonic:
             raise InvalidSeedException(
-                "Must initialize a Seed with a mnemonic List[str] or a master_secret"
+                "Mnemonic must be provided to initialize the Seed object"
             )
-
-        self.mnemonic = mnemonic
-        self.passphrase: str = None
-        self.wallet: Wallet = None
+        # Own the list so clearing the storage input cannot erase the seed.
+        self._mnemonic = mnemonic.copy()
+        self._passphrase: str = None
+        self._wallet: Wallet = None
         self.validate_mnemonic()
 
     @property
-    def _mnemonic(self) -> List[str]:
-        if self.mnemonic is None:
+    def mnemonic(self) -> List[str]:
+        if self._mnemonic is None:
             raise InvalidSeedException("Mnemonic has not been initialized")
-        return self.mnemonic
-
-    @property
-    def _passphrase(self):
-        if self.passphrase is None:
-            raise InvalidSeedException("Passphrase not initialized")
-        return self.passphrase
-
-    def set_passphrase(self, passphrase: str):
-        self.passphrase = passphrase
-
-    @property
-    def _wallet(self) -> Wallet:
-        if self.wallet is None:
-            raise InvalidSeedException("Wallet has not been initialized")
-        return self.wallet
-    
-    def set_wallet(self, wallet: Optional[Wallet]):
-        self.wallet = wallet
-
-    def get_mnemonic_list(self) -> List[str]:
-        return self.mnemonic
+        return self._mnemonic
 
     def discard_mnemonic(self):
-        if self.mnemonic is not None:
-            self.mnemonic[:] = [None] * len(self.mnemonic)
-        self.mnemonic = None
-        
-
-    def get_encoded(self) -> str:
-        # Get the entropy (raw data without checksum)
-        entropy_bytes = self.get_entropy_bytes()
-
-        # Convert entropy bytes to a binary string
-        binary_str = ""
-        for byte in entropy_bytes:
-            binary_str += format(byte, '08b')
-
-        # Convert back to bytes
-        as_bytes = bytearray()
-        for i in range(0, len(binary_str), 8):
-            chunk = binary_str[i:i+8]
-            if len(chunk) < 8:
-                chunk = chunk.ljust(8, '0')
-            as_bytes.append(int(chunk, 2))
-
-        return bytes(as_bytes)
-
-    def get_entropy_bytes(self) -> bytes:
-        """Extract entropy bytes from the mnemonic (without checksum)"""
-        binary_str = ""
-
-        for word in self.mnemonic:
-            index = self.get_wordlist().index(word)
-            binary_str += format(index, '011b')
-
-        # Remove the checksum bits (last 4 bits for 12-word mnemonic)
-        checksum_length = len(self.mnemonic) // 3  # 4 bits for 12 words, 5 bits for 15 words, etc.
-        entropy_bits = binary_str[:-checksum_length]
-
-        as_bytes = bytearray()
-        for i in range(0, len(entropy_bits), 8):
-            chunk = entropy_bits[i:i+8]
-            if len(chunk) < 8:
-                chunk = chunk.ljust(8, '0')
-            as_bytes.append(int(chunk, 2))
-
-        return bytes(as_bytes)
-
+        if self._mnemonic is not None:
+            self._mnemonic[:] = [None] * len(self._mnemonic)
+        self._mnemonic = None
 
     def validate_mnemonic(self) -> bool:
         try:
             # Validate wordlist membership first
             wordlist = self.get_wordlist()
             list_index_bi = []
-            for word in self.get_mnemonic_list():
+            for word in self.mnemonic:
                 try:
                     index = wordlist.index(word)
                     list_index_bi.append(bin(index)[2:].zfill(11))
@@ -162,24 +103,87 @@ class Seed:
             logger.error("Unexpected error during mnemonic validation")
             raise InvalidSeedException("Mnemonic validation error") from None
 
+    @property
+    def passphrase(self):
+        if self._passphrase is None:
+            return ""
+        return self._passphrase
+
+    def set_passphrase(self, passphrase: str):
+        if not isinstance(passphrase, str):
+            raise InvalidSeedException("Passphrase must be a string")
+        self._passphrase = passphrase
+
+    @property
+    def wallet(self) -> Wallet:
+        if self._wallet is None:
+            raise InvalidSeedException("Wallet has not been initialized")
+        return self._wallet
+    
+    def set_wallet(self, wallet: Optional[Wallet]):
+        if wallet is not None and not isinstance(wallet, Wallet):
+            raise ValueError("Provided wallet is not a valid Wallet instance")
+        if self._wallet is not None:
+            self._wallet.discard_wallet()
+        self._wallet = wallet
+ 
+    def get_encoded(self) -> str:
+        # Get the entropy (raw data without checksum)
+        entropy_bytes = self.get_entropy_bytes()
+
+        # Convert entropy bytes to a binary string
+        binary_str = ""
+        for byte in entropy_bytes:
+            binary_str += format(byte, '08b')
+
+        # Convert back to bytes
+        as_bytes = bytearray()
+        for i in range(0, len(binary_str), 8):
+            chunk = binary_str[i:i+8]
+            if len(chunk) < 8:
+                chunk = chunk.ljust(8, '0')
+            as_bytes.append(int(chunk, 2))
+
+        return bytes(as_bytes)
+
+    def get_entropy_bytes(self) -> bytes:
+        """Extract entropy bytes from the mnemonic (without checksum)"""
+        binary_str = ""
+
+        for word in self.mnemonic:
+            index = self.get_wordlist().index(word)
+            binary_str += format(index, '011b')
+
+        # Remove the checksum bits (last 4 bits for 12-word mnemonic)
+        checksum_length = len(self.mnemonic) // 3  # 4 bits for 12 words, 5 bits for 15 words, etc.
+        entropy_bits = binary_str[:-checksum_length]
+
+        as_bytes = bytearray()
+        for i in range(0, len(entropy_bits), 8):
+            chunk = entropy_bits[i:i+8]
+            if len(chunk) < 8:
+                chunk = chunk.ljust(8, '0')
+            as_bytes.append(int(chunk, 2))
+
+        return bytes(as_bytes)
+
     def generate_wallet(self):
-
         master_private_key, master_private_code = Bip39.bip39_protocol(
-            self._mnemonic, self.passphrase
+            self.mnemonic, self.passphrase
         )
-        self.wallet = Wallet(master_private_key, master_private_code)
-
+        self.set_wallet(Wallet(master_private_key, master_private_code))
+    
     @staticmethod
     def get_wordlist() -> List[str]:
         return load_txt("bip39.txt")
 
     def discard_seed(self):
-        if self.mnemonic:
+        if self._mnemonic:
             self.discard_mnemonic()
-        if self.wallet:
-            self.wallet.discard_wallet()
-        if self.passphrase:
-            self.passphrase = None
+        if self._wallet:
+            self._wallet.discard_wallet()
+        if self._passphrase:
+            self._passphrase = None
         import gc
         gc.collect()
-        
+    

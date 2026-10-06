@@ -199,11 +199,6 @@ class MainMenuView(View):
     def run(self):
         from seedcash.gui.screens.screen import MainMenuScreen
 
-        if self.controller.storage.wallet:
-            from seedcash.views.wallet_views import WalletOptionsView
-
-            return Destination(WalletOptionsView)
-
         button_data = [
             self.LOAD_SEED,
             self.GENERATE_SEED,
@@ -218,9 +213,11 @@ class MainMenuView(View):
         button_data.append("Power Off")
 
         if button_data[selected_menu_num] == self.LOAD_SEED:
+            self.controller.storage.is_generate = False
             return Destination(LoadSeedView)
 
         elif button_data[selected_menu_num] == self.GENERATE_SEED:
+            self.controller.storage.is_generate = True
             return Destination(GenerateSeedView)
 
         elif button_data[selected_menu_num] == self.SETTINGS:
@@ -261,7 +258,7 @@ class LoadSeedView(View):
 
         elif button_data[selected_menu_num] == self.SLIP39:
             self.controller.switch_seed_protocol(SettingsConstants.SEED_PROTOCOL__SLIP39)
-            return Destination(SeedCashChooseWordsView, view_args={"is_random_seed": False})
+            return Destination(SeedCashChooseWordsView, view_args={"is_random_seed": False, "is_slip39": True})
 
         elif button_data[selected_menu_num] == self.SEEDQR:
             from seedcash.views.scan_view import ScanSeedQRView
@@ -299,24 +296,17 @@ class GenerateSeedView(View):
 
 # First Load Seed View
 class SeedCashChooseWordsView(View):
-    def __init__(self, is_random_seed: bool = False, is_calc_final_word: bool = False):
+    def __init__(self, is_random_seed: bool = False, is_calc_final_word: bool = False, is_slip39: bool = False):
         super().__init__()
 
         self.buttons_values = self.controller.settings.get_instance().get_value(
             SettingsConstants.SETTING__CHOOSE_WORDS
         )
 
-        self.is_slip39 = (
-            SettingsConstants.SEED_PROTOCOL__SLIP39
-            == self.controller.settings.get_instance().get_value(
-                SettingsConstants.SETTING__SEED_PROTOCOL
-            )
-        )
-
         self.buttons_data = [
             ButtonOption(f"{num} Words") for num in self.buttons_values
         ]
-
+        self.is_slip39 = is_slip39
         self.is_random_seed = is_random_seed
         self.is_calc_final_word = is_calc_final_word
 
@@ -337,24 +327,12 @@ class SeedCashChooseWordsView(View):
         if self.is_slip39:
             if self.is_random_seed:
                 from seedcash.views.generate_slip_views import SeedSlipSchemeView
-                from seedcash.models.slip39 import Slip39 as sp
-
-                self.bits = sp.get_random_bits_for_slip(
-                    self.controller.storage.mnemonic_length
-                )
-
-                self.controller.storage.set_scheme_params(self.bits)
-
+                self.controller.storage.set_scheme_params()
                 return Destination(SeedSlipSchemeView)
 
             elif self.is_calc_final_word:
-                # If the user wants to calculate the last word of a SLIP39 seed, we set the
-                # mnemonic length.
                 from seedcash.views.generate_slip_views import SeedSlipEntryView
-
-                return Destination(
-                    SeedSlipEntryView,
-                )
+                return Destination(SeedSlipEntryView)
 
             else:
                 # If the user wants to enter a SLIP39 seed, we set the mnemonic length.
@@ -369,13 +347,19 @@ class SeedCashChooseWordsView(View):
         else:
             if self.is_random_seed:
                 # If the user wants a random seed, we generate it here.
-                from seedcash.views.generate_seed_views import (
-                    SeedCashGenerateSeedRandomView,
-                )
-
-                return Destination(
-                    SeedCashGenerateSeedRandomView,
-                )
+                
+                from seedcash.models.bip39 import Bip39
+                try:
+                    self.controller.storage.set_mnemonic(
+                        Bip39.generate_random_seed(
+                            num_words=self.controller.storage.mnemonic_length
+                            )
+                        )
+                except Exception as e:
+                    logger.error(f"Error generating random seed: {e}")
+                
+                from seedcash.views.generate_seed_views import ShowWordsView
+                return Destination(ShowWordsView)
 
             else:
                 from seedcash.views.load_seed_views import SeedMnemonicEntryView

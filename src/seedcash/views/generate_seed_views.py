@@ -26,16 +26,14 @@ class SeedCashGenerateSeedView(View):
         super().__init__()
         self.RANDOM_SEED = ButtonOption("Random Seed")
 
-        self.CALCULATE_SEED = ButtonOption(
-            "Calculate Last Word"
-            if (
-                Settings.get_instance().get_value(
-                    SettingsConstants.SETTING__SEED_PROTOCOL
-                )
-                == SettingsConstants.SEED_PROTOCOL__BIP39
-            )
-            else "Custom Entropy Seed"
-        )
+        if (
+            Settings.get_instance().get_value(SettingsConstants.SETTING__SEED_PROTOCOL) 
+            == SettingsConstants.SEED_PROTOCOL__BIP39):
+            self.CALCULATE_SEED = ButtonOption("Calculate Last Word")
+            self.is_slip39 = False
+        else:
+            self.CALCULATE_SEED = ButtonOption("Custom Entropy Seed")
+            self.is_slip39 = True
 
     def run(self):
         from seedcash.gui.screens.generate_seed_screens import (
@@ -54,66 +52,36 @@ class SeedCashGenerateSeedView(View):
 
         if button_data[selected_menu_num] == self.CALCULATE_SEED:
             return Destination(
-                SeedCashChooseWordsView, view_args=dict(is_calc_final_word=True)
+                SeedCashChooseWordsView, view_args=dict(is_calc_final_word=True, is_slip39=self.is_slip39)
             )
         elif button_data[selected_menu_num] == self.RANDOM_SEED:
             return Destination(
-                SeedCashChooseWordsView, view_args=dict(is_random_seed=True)
+                SeedCashChooseWordsView, view_args=dict(is_random_seed=True, is_slip39=self.is_slip39)
             )
 
         return Destination(BackStackView)
 
-
-class SeedCashGenerateSeedRandomView(View):
-    """View to generate a random seed and display the words."""
-
-    def __init__(self):
-        super().__init__()
-
-    def run(self):
-        # Generate a random mnemonic
-        num_words = self.controller.storage.mnemonic_length
-        mnemonic = Bip39.generate_random_seed(num_words=num_words)
-        from seedcash.views.generate_seed_views import ShowWordsView
-
-        return Destination(ShowWordsView, view_args={"mnemonic": mnemonic})
-
-
 class ShowWordsView(View):
-    def __init__(self, mnemonic: list = None):
-        super().__init__()
-        if mnemonic:
-            self.controller.storage.set_mnemonic(mnemonic)
-
-        self.mnemonic = self.controller.storage.mnemonic
-
     def run(self):
         from seedcash.gui.screens.load_seed_screens import SeedCashSeedWordsScreen
 
         confirm = self.run_screen(
             SeedCashSeedWordsScreen,
-            seed_words=self.mnemonic,
+            seed_words=self.controller.storage.mnemonic,
         )
 
-        if confirm == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-        elif confirm == "CONFIRM":
+        if confirm == "CONFIRM":
             from seedcash.views.wallet_views import WalletFinalizeView
-
             self.controller.storage.convert_mnemonic_to_seed()
-            return Destination(
-                WalletFinalizeView,
-                view_args={"wallet": self.controller.storage.get_seed_wallet()},
-            )
+            self.controller.storage.create_wallet()
+            return Destination(WalletFinalizeView)
 
 
 class ToolsCalcFinalWordCoinFlipsView(View):
     def run(self):
         from seedcash.gui.screens.generate_seed_screens import ToolsCoinFlipEntryScreen
 
-        mnemonic_length = len(self.controller.storage._mnemonic)
-
-        total_bits = 11 - (mnemonic_length // 3)
+        total_bits = 11 - (self.controller.storage.mnemonic_length // 3)
 
         ret_val = ToolsCoinFlipEntryScreen(
             return_after_n_chars=total_bits,
@@ -122,40 +90,16 @@ class ToolsCalcFinalWordCoinFlipsView(View):
         if ret_val == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        else:
-            return Destination(
-                ToolsCalcFinalWordShowFinalWordView, view_args=dict(last_bits=ret_val)
-            )
+        self.controller.storage.calculate_final_word(coin_flips=ret_val)
+        return Destination(ToolsCalcFinalWordShowFinalWordView)
 
 
 class ToolsCalcFinalWordShowFinalWordView(View):
     CONFIRM = ButtonOption("Confirm")
 
-    def __init__(self, last_bits: str = None):
+    def __init__(self):
         super().__init__()
-
-        wordlist = self.controller.storage.get_wordlist
-        # Prep the user's selected word / coin flips and the actual final word for
-        # the display.
-
-        self.selected_final_bits = last_bits
-
-        final_mnemonic = Bip39.get_mnemonic(
-            self.controller.storage._mnemonic[:-1], last_bits
-        )
-
-        # Update our pending mnemonic with the real final word
-        self.controller.storage.update_mnemonic(final_mnemonic[-1], -1)
-
-        mnemonic = self.controller.storage._mnemonic
-        mnemonic_length = len(mnemonic)
-
-        # And grab the actual final word's checksum bits
-        self.actual_final_word = self.controller.storage._mnemonic[-1]
-        self.num_checksum_bits = mnemonic_length // 3
-        self.checksum_bits = format(wordlist.index(self.actual_final_word), "011b")[
-            -self.num_checksum_bits :
-        ]
+        self.last_bits, self.checksum_bits = self.controller.storage.calculate_last_word_fields
 
     def run(self):
         from seedcash.gui.screens.generate_seed_screens import ToolsCalcFinalWordScreen
@@ -165,54 +109,11 @@ class ToolsCalcFinalWordShowFinalWordView(View):
         selected_menu_num = self.run_screen(
             ToolsCalcFinalWordScreen,
             button_data=button_data,
-            num_checksum_bits=self.num_checksum_bits,
-            selected_final_bits=self.selected_final_bits,
+            num_checksum_bits=self.controller.storage.mnemonic_length // 3,
+            selected_final_bits=self.last_bits,
             checksum_bits=self.checksum_bits,
-            actual_final_word=self.actual_final_word,
+            actual_final_word=self.controller.storage.mnemonic[-1],
         )
 
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-
-        elif button_data[selected_menu_num] == self.CONFIRM:
+        if button_data[selected_menu_num] == self.CONFIRM:
             return Destination(ShowWordsView)
-
-
-class ToolsCalcFinalWordDoneView(View):
-    FINISH = ButtonOption("Finish")
-    PASSPHRASE = ButtonOption("Add Passphrase")
-
-    def run(self):
-        from seedcash.gui.screens.generate_seed_screens import (
-            ToolsCalcFinalWordDoneScreen,
-        )
-
-        final_word = self.controller.storage.get_mnemonic_word(-1)
-        generated_seed = self.controller.storage.get_seed_wallet()
-
-        button_data = [self.FINISH, self.PASSPHRASE]
-
-        selected_menu_num = ToolsCalcFinalWordDoneScreen(
-            final_word=final_word,
-            fingerprint=generated_seed.fingerprint,
-            button_data=button_data,
-        ).display()
-
-        if selected_menu_num == RET_CODE__BACK_BUTTON:
-            return Destination(BackStackView)
-
-        if button_data[selected_menu_num] == self.FINISH:
-            from seedcash.views.view import MainMenuView
-
-            # Discard the mnemonic and seed after generating the final word
-            self.controller.storage.discard_mnemonic()
-            self.controller.storage.discard_seed()
-
-            return Destination(MainMenuView)
-
-        elif button_data[selected_menu_num] == self.PASSPHRASE:
-            from seedcash.views.wallet_views import SeedAddPassphraseView
-
-            return Destination(
-                SeedAddPassphraseView, view_args={"seed": generated_seed}
-            )

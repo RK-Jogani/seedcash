@@ -147,9 +147,9 @@ class ScanView(View):
                     from seedcash.models.seed import Seed
                     from .wallet_views import WalletFinalizeView
                     seed = Seed(mnemonic=seed_mnemonic)
-                    self.controller._storage.set_seed(seed)
+                    self.controller.storage.set_seed(seed)
                     self.controller.switch_seed_protocol(SettingsConstants.SEED_PROTOCOL__BIP39)
-                    self.controller._storage.create_wallet()
+                    self.controller.storage.create_wallet()
                     return Destination(WalletFinalizeView, skip_current_view=True)
             
             elif self.decoder.is_psbt:

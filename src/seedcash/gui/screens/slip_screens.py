@@ -10,7 +10,6 @@ from seedcash.gui.components import (
     TextArea,
 )
 
-from seedcash.models.slip39 import Slip39 as sp
 from seedcash.gui.keyboard import TextEntryDisplay
 from seedcash.gui.screens.screen import (
     RET_CODE__BACK_BUTTON,
@@ -288,11 +287,18 @@ class SlipEntryScreen(BaseTopNavScreen):
                                     + self.current_bits[self.cursor_position :]
                                 )
                                 self.cursor_position += 1
-                        elif self.selected_button == 3:  # Dice button
-                            # random bits
-                            self.current_bits = sp.get_random_bits_for_slip(
-                                self.num_words
-                            )
+                        elif self.selected_button == 3:
+                            # add to current bits at cursor position
+                            import os
+                            random_bytes = os.urandom(1)
+                            if len(self.current_bits)+8 <= self.bits:
+                                self.current_bits += ''.join(format(byte, "08b") for byte in random_bytes)
+                                self.cursor_position += 8
+                            else:
+                                remaining_bits = self.bits - len(self.current_bits)
+                                self.current_bits += ''.join(format(byte, "08b") for byte in random_bytes)[:remaining_bits]
+                                self.cursor_position += remaining_bits
+                        
                             pass
                         elif self.selected_button == 4:  # Left cursor
                             if self.cursor_position > 0:
@@ -533,12 +539,21 @@ class GroupShareListScreen(SeedCashButtonListWithNav):
 
         if self.fingerprint:
             fingerprint_image = vh.generate_lifehash(self.fingerprint)
-            self.paste_images.append(
-                (
-                    fingerprint_image.resize((icon_size, icon_size)),
-                    (3 * GUIConstants.EDGE_PADDING, GUIConstants.EDGE_PADDING),
+            if self.show_check_button == True:
+                self.paste_images.append(
+                    (
+                        fingerprint_image.resize((icon_size, icon_size)),
+                        (3 * GUIConstants.EDGE_PADDING, GUIConstants.EDGE_PADDING),
+                    )
                 )
-            )
+            elif self.show_back_button == True:
+                self.paste_images.append(
+                    (
+                        fingerprint_image.resize((icon_size, icon_size)),
+                        (self.canvas_width - icon_size - 3 * GUIConstants.EDGE_PADDING, GUIConstants.EDGE_PADDING),
+                    )
+                )
+            
 
 
 @dataclass
@@ -971,30 +986,30 @@ class VisualLoadedSchemeScreen(BaseTopNavScreen):
             - GUIConstants.TOP_NAV_BUTTON_SIZE
         )
 
-        edit_review_width = 108
+        review_width = 108
 
-        # Edit & Review button
-        self.edit_review_button = Button(
-            text=_("Edit & Review"),
+        # Review button
+        self.review_button = Button(
+            text=_("Review"),
             screen_x=GUIConstants.EDGE_PADDING,
             screen_y=self.canvas_height
             - GUIConstants.BUTTON_HEIGHT
             - GUIConstants.EDGE_PADDING,
-            width=edit_review_width,
+            width=review_width,
             font_size=GUIConstants.BUTTON_FONT_SIZE - 4,
             height=GUIConstants.BUTTON_HEIGHT,
         )
-        self.components.append(self.edit_review_button)
+        self.components.append(self.review_button)
 
         # Add Share button
         self.add_share_button = Button(
             text=_(" Add Share"),
-            screen_x=edit_review_width + 2 * GUIConstants.EDGE_PADDING,
+            screen_x=review_width + 2 * GUIConstants.EDGE_PADDING,
             screen_y=self.canvas_height
             - GUIConstants.BUTTON_HEIGHT
             - GUIConstants.EDGE_PADDING,
             font_size=GUIConstants.BUTTON_FONT_SIZE - 4,
-            width=edit_review_width,
+            width=review_width,
             height=GUIConstants.BUTTON_HEIGHT,
         )
 
@@ -1330,7 +1345,7 @@ class VisualLoadedSchemeScreen(BaseTopNavScreen):
                     if self.top_nav.is_selected:
                         return RET_CODE__BACK_BUTTON
                     if self.selected_button == 1:
-                        return "EDIT"
+                        return "REVIEW"
                     if self.selected_button == 2:
                         return "ADD"
 
@@ -1354,29 +1369,29 @@ class SingleLevelVisualLoadedSchemeScreen(BaseTopNavScreen):
             self.canvas_height // 2 - GUIConstants.COMPONENT_PADDING,
         )
 
-        edit_review_width = 108
-        # Edit & Review button
-        self.edit_review_button = Button(
-            text=_("Edit & Review"),
+        review_width = 108
+        # Review button
+        self.review_button = Button(
+            text=_("Review"),
             screen_x=GUIConstants.EDGE_PADDING,
             screen_y=self.canvas_height
             - GUIConstants.BUTTON_HEIGHT
             - GUIConstants.EDGE_PADDING,
-            width=edit_review_width,
+            width=review_width,
             font_size=GUIConstants.BUTTON_FONT_SIZE - 4,
             height=GUIConstants.BUTTON_HEIGHT,
         )
-        self.components.append(self.edit_review_button)
+        self.components.append(self.review_button)
 
         # Add Share button
         self.add_share_button = Button(
             text=_(" Add Share"),
-            screen_x=edit_review_width + 2 * GUIConstants.EDGE_PADDING,
+            screen_x=review_width + 2 * GUIConstants.EDGE_PADDING,
             screen_y=self.canvas_height
             - GUIConstants.BUTTON_HEIGHT
             - GUIConstants.EDGE_PADDING,
             font_size=GUIConstants.BUTTON_FONT_SIZE - 4,
-            width=edit_review_width,
+            width=review_width,
             height=GUIConstants.BUTTON_HEIGHT,
         )
         self.components.append(self.add_share_button)
@@ -1588,7 +1603,7 @@ class SingleLevelVisualLoadedSchemeScreen(BaseTopNavScreen):
                     if self.top_nav.is_selected:
                         return RET_CODE__BACK_BUTTON
                     if self.selected_button == 1:
-                        return "EDIT"
+                        return "REVIEW"
                     if self.selected_button == 2:
                         return "ADD"
 

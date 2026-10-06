@@ -1,4 +1,6 @@
 import logging
+from seedcash.gui.screens import screen
+from seedcash.models.seed import InvalidSeedException
 from gettext import gettext as _
 from seedcash.gui.components import SeedCashIconsConstants
 from seedcash.gui.screens import (
@@ -14,10 +16,6 @@ from seedcash.views.view import (
     BackStackView,
     MainMenuView,
 )
-
-
-logger = logging.getLogger(__name__)
-
 
 """**************************************************
 Seed Cash Updated Code
@@ -101,32 +99,30 @@ class SeedMnemonicEntryView(View):
 
             confirm = self.run_screen(
                 SeedCashSeedWordsScreen,
-                seed_words=self.controller.storage._mnemonic,
+                seed_words=self.controller.storage.mnemonic,
             )
 
             if confirm == "CONFIRM":
                 try:
                     self.controller.storage.convert_mnemonic_to_seed()
-                    self.controller.storage.create_wallet()
 
-                except Exception as e:
+                except InvalidSeedException:
                     for i in range(self.controller.storage.mnemonic_length):
                         self.controller.back_stack.pop()
 
                     return Destination(SeedMnemonicInvalidView)
+                self.controller.storage.create_wallet()
                 from seedcash.views.wallet_views import WalletFinalizeView
-
                 return Destination(WalletFinalizeView)
 
-
-# Third Possible Load Seed View if the user enters the wrong mnemonic
+# Warning Views for loaded
 class SeedMnemonicInvalidView(View):
     EDIT = ButtonOption("Review & Edit")
     DISCARD = ButtonOption("Discard", button_label_color="red")
 
     def __init__(self):
         super().__init__()
-        self.mnemonic: list[str] = self.controller.storage._mnemonic
+        self.mnemonic: list[str] = self.controller.storage.mnemonic
 
     def run(self):
         button_data = [self.EDIT, self.DISCARD]
@@ -151,14 +147,13 @@ class SeedMnemonicInvalidView(View):
             self.controller.storage.discard_mnemonic()
             return Destination(MainMenuView)
 
-
 class SeedMnemonicDiscardView(View):
     EDIT = ButtonOption("Review & Edit")
     DISCARD = ButtonOption("Discard", button_label_color="red")
 
     def __init__(self):
         super().__init__()
-        self.mnemonic: list[str] = self.controller.storage._mnemonic
+        self.mnemonic: list[str] = self.controller.storage.mnemonic
 
     def run(self):
         button_data = [self.EDIT, self.DISCARD]
@@ -182,3 +177,57 @@ class SeedMnemonicDiscardView(View):
         elif button_data[selected_menu_num] == self.DISCARD:
             self.controller.storage.discard_mnemonic()
             return Destination(MainMenuView)
+
+class Bip39SeedViewView(View):
+    CONFIRM = ButtonOption("Confirm")
+    EXPORT_QR = ButtonOption("Export SeedQR")
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        
+
+        from seedcash.gui.screens.load_seed_screens import SeedCashSeedWordsScreen
+
+        self.run_screen(
+            SeedCashSeedWordsScreen,
+            seed_words=self.controller.storage.seed.mnemonic,
+        )
+
+        if len(self.controller.storage.seed.mnemonic) == 12:
+            button_data=[self.EXPORT_QR, self.CONFIRM]
+        else:
+            button_data=[self.CONFIRM]
+
+        ret = self.run_screen(
+            load_seed_screens.SeedFinalizeScreen,
+            fingerprint=self.controller.storage.wallet.fingerprint,
+            button_data=button_data,
+        )
+
+        if ret == RET_CODE__BACK_BUTTON:
+            from seedcash.views.wallet_views import ViewSeedView
+            return Destination(ViewSeedView, view_args={"index": 1}, skip_current_view=True)
+
+        if button_data[ret] == self.CONFIRM:
+            from seedcash.views.wallet_views import WalletOptionsView
+            return Destination(WalletOptionsView, clear_history=True)
+        
+        elif button_data[ret] == self.EXPORT_QR:
+            return Destination(PassphraseNotIncludedWarningView)
+
+class PassphraseNotIncludedWarningView(View):
+
+    def run(self):
+        result = self.run_screen(
+            screen.WarningScreen,
+            title="",
+            status_headline=_("Passphrase NOT included."),
+            text=_("SeedQR contains only the mnemonic phrase.")
+        )
+
+        if result == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        from seedcash.views.wallet_views import SeedTranscribeSeedQRWholeQRView
+        return Destination(SeedTranscribeSeedQRWholeQRView)

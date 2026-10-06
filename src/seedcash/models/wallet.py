@@ -5,30 +5,29 @@ from seedcash.models.psbt_signer import BitcoinCashSigner
 
 class Wallet:
     def __init__(self, private_master_key, private_master_code) -> None:
-        self.xpriv, self.xpub, self.fingerprint = Bip44.get_wallet_data(
+        self._xpriv, self._xpub, self._fingerprint = Bip44.get_wallet_data(
             private_master_key, private_master_code
         )
 
     @property
-    def _xpriv(self) -> str:
-        return self.xpriv
+    def xpriv(self) -> bytearray:
+        return self._xpriv
 
     @property
-    def _xpub(self) -> str:
-        # convert xpub bytearray to string
-        return self.xpub.decode('utf-8')
+    def xpub(self) -> str:
+        return self._xpub.decode('utf-8')
 
     @property
-    def _fingerprint(self) -> str:
-        return self.fingerprint
+    def fingerprint(self) -> str:
+        return self._fingerprint
 
     def discard_wallet(self):
-        if isinstance(self.xpriv, bytearray):
-            self.xpriv[:] = b"\x00" * len(self.xpriv)
-        self.xpriv = None
-        self.xpub = ""
-        self.fingerprint = ""
+        if isinstance(self._xpriv, bytearray):
+            self._xpriv[:] = b"\x00" * len(self._xpriv)
+        self._xpriv = None
+        self._xpub = ""
+        self._fingerprint = ""
     
     def sign_psbt(self, parser: PSBTParser) -> bytearray:
-        bchsigner = BitcoinCashSigner(self._xpriv, parser)
+        bchsigner = BitcoinCashSigner(self.xpriv, parser)
         return bchsigner.signed_psbt()

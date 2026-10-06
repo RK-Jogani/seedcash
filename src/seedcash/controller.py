@@ -167,14 +167,8 @@ class Controller(Singleton):
     @property
     def storage(self):
         while not self._storage:
-            # Wait for the BackgroundImportThread to finish initializing the storage.
-            # This is a rare timing issue that likely only occurs in the test suite.
             time.sleep(0.001)
         return self._storage
-
-    def get_seed(self) -> Seed:
-        if self.storage:
-            return self.storage._seed
 
     def discard_wallet(self):
         self.storage.discard_wallet()
@@ -421,9 +415,31 @@ class Controller(Singleton):
         """
         from seedcash.views.view import UnhandledExceptionView
 
-        # Exception text and traceback can contain external secrets.
-        logger.error("View failed: %s", type(e).__name__)
-        error = [type(e).__name__, "", "Operation failed. Return to the menu and retry."]
+        last_line = traceback.format_exc().splitlines()[-1]
+        exception_type = last_line.split(":")[0].split(".")[-1]
+
+        # Extract the error message, if there is one
+        if ":" in last_line:
+            exception_msg = last_line.split(":")[1]
+        else:
+            exception_msg = ""
+
+        # Scan for the last debugging line that includes a line number reference
+        line_info = None
+        for i in range(len(traceback.format_exc().splitlines()) - 1, 0, -1):
+            traceback_line = traceback.format_exc().splitlines()[i]
+            if ", line " in traceback_line:
+                line_info = (
+                    traceback_line.split("/")[-1].replace('"', "").replace("line ", "")
+                )
+                break
+
+        error = [
+            exception_type,
+            line_info,
+            exception_msg,
+        ]
+        
         return Destination(
             UnhandledExceptionView, view_args={"error": error}, clear_history=True
         )

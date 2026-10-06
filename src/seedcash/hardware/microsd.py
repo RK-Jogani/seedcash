@@ -72,7 +72,7 @@ class MicroSD(Singleton, BaseThread):
             while self.keep_running:
                 with open(self.FIFO_PATH) as fifo:
                     action = fifo.read()
-                    logger.info(f"fifo message: {action}")
+                    logger.info("MicroSD state message received")
 
                     Settings.handle_microsd_state_change(action=action)
                     Controller.get_instance().activate_toast(

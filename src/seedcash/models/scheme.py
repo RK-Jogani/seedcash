@@ -38,30 +38,41 @@ class SchemeParameters:
             raise InvalidSchemeException(
                 "Either bits or groups must be provided to initialize the scheme."
             )
-        self.group_threshold = 1
-        self.groups: List[Tuple[int, int]] = [None]
-        self.bits: bytes = b""
+        self._group_threshold = 1
+        self._groups: List[Tuple[int, int]] = [None]
+        self._bits: bytes = b""
 
         self.set_bits(bits)
 
     @property
-    def _bits(self) -> str:
-        if not self.bits:
+    def bits_str(self) -> str:
+        if not self._bits:
             raise InvalidSchemeException("Bits have not been initialized")
-        return bin(int.from_bytes(self.bits, byteorder="big"))[2:].zfill(
-            len(self.bits) * 8
+        return bin(int.from_bytes(self._bits, byteorder="big"))[2:].zfill(
+            len(self._bits) * 8
         )
 
     @property
-    def _group_threshold(self) -> int:
-        return self.group_threshold
+    def bits(self) -> bytes:
+        if not self._bits:
+            raise InvalidSchemeException("Bits have not been initialized")
+        return self._bits
+
 
     @property
-    def _groups(self) -> List[Tuple[int, int]]:
-        return self.groups
+    def group_threshold(self) -> int:
+        if not self._group_threshold:
+            raise InvalidSchemeException("Group threshold has not been initialized")
+        return self._group_threshold
 
     @property
-    def _groups_length(self) -> int:
+    def groups(self) -> List[Tuple[int, int]]:
+        if not self._groups:
+            raise InvalidSchemeException("Groups have not been initialized")
+        return self._groups
+
+    @property
+    def groups_length(self) -> int:
         return len(self.groups)
 
     def set_bits(self, bits: str):
@@ -71,7 +82,7 @@ class SchemeParameters:
         if len(bits) not in [128, 256]:
             raise ValueError("Scheme Parameters must initialize with 128 or 256.")
         # Convert str to bytes
-        self.bits = int(bits, 2).to_bytes((len(bits) + 7) // 8, byteorder="big")
+        self._bits = int(bits, 2).to_bytes((len(bits) + 7) // 8, byteorder="big")
 
     def set_groups_length(self, length: int):
         """
@@ -79,15 +90,12 @@ class SchemeParameters:
         """
         if length < 1:
             raise ValueError("Number of groups must be at least 1.")
-        self.groups = [None] * length
+        self._groups = [None] * length
 
     def set_group_threshold(self, threshold: int):
-        """
-        Set the group threshold for the scheme.
-        """
         if threshold < 1:
             raise ValueError("Group threshold must be at least 1.")
-        self.group_threshold = threshold
+        self._group_threshold = threshold
 
     def get_group_at(self, index: int) -> tuple:
         if index >= len(self.groups):
@@ -97,7 +105,7 @@ class SchemeParameters:
     def update_groups(self, index: int, group: tuple):
 
         if group is None:
-            self.groups[index] = None
+            self._groups[index] = None
             return
 
         if group[0] > group[1]:
@@ -107,11 +115,11 @@ class SchemeParameters:
 
         if index > len(self.groups):
             raise IndexError("Index is out of group change")
-        self.groups[index] = group
+        self._groups[index] = group
 
     def discard_groups(self):
-        self.groups = [None]
-        self.group_threshold = 1
+        self._groups = [None]
+        self._group_threshold = 1
 
     def scheme_is_complete(self) -> bool:
         """
@@ -130,58 +138,102 @@ class SchemeParameters:
         """
         Discards the current scheme parameters and resets them.
         """
-        self.bits = b""
-        self.group_threshold = 1
-        self.groups = [None]
+        self._bits = b""
+        self._group_threshold = 1
+        self._groups = [None]
         import gc
         gc.collect()
 
 
 class Scheme:
-    """
-    Manages Shamir Secret Sharing scheme with progressive share entry and analysis.
-    """
-
+    
     def __init__(
-        self, mnemonics: List[str] = None, scheme_parameters: SchemeParameters = None
+        self, scheme_parameters: SchemeParameters = None
     ):
 
-        if mnemonics is None and scheme_parameters is None:
-            raise InvalidSchemeException(
-                "Either mnemonics or scheme_parameters must be provided."
-            )
-        # variables for loading the scheme
-        self.scheme_parameters: SchemeParameters = scheme_parameters
-        self.groups: Dict[int, ShareGroup] = {}
-        self.passphrase: bytes = b""
-        self.common_params: List[ShareCommonParameters] = []
-        self.wallet: Wallet = None
-        self.master_secret: str = None
+        self._groups: Dict[int, ShareGroup] = {}
+        self._passphrase: bytes = b""
+        self._common_params: ShareCommonParameters = None
+        self._master_secret: bytearray = None
 
-        if mnemonics:
-            self.add_share(mnemonics)
-
-        if scheme_parameters:
-            self.master_secret = self.scheme_parameters._bits
+        self._wallet: Wallet = None
+        self._scheme_parameters: SchemeParameters = scheme_parameters
 
     @property
-    def _wallet(self):
-        if not self.wallet:
+    def master_secret(self) -> bytearray:
+        if not self._master_secret:
+            raise InvalidSchemeException("Master secret has not been initialized")
+        return self._master_secret
+    
+    @property
+    def wallet(self):
+        if not self._wallet:
             raise ValueError("The wallet not initialized for scheme")
+        return self._wallet
 
-        return self.wallet
+    def set_wallet(self, wallet: Wallet):
+        if not isinstance(wallet, Wallet):
+            raise ValueError("Provided wallet is not a valid Wallet instance")
+        if self._wallet is not None:
+            self._wallet.discard_wallet()
+        self._wallet = wallet
 
-    def set_master_secret(self, master_secret: bytes):
+    @property
+    def passphrase(self) -> bytes:
+        if not self._passphrase:
+            return b""
+        return self._passphrase
+
+    def set_passphrase(self, passphrase: str):
+        passphrase = passphrase.encode("utf-8")
+        if not all(32 <= c <= 126 for c in passphrase):
+            raise ValueError("The passphrase must contain only printable ASCII characters (code points 32-126).")
+        self._passphrase = passphrase
+
+    @property
+    def scheme_parameters(self):
+        if not self._scheme_parameters:
+            raise InvalidSchemeException("Scheme parameters have not been initialized")
+        return self._scheme_parameters
+
+    @property
+    def common_params(self) -> ShareCommonParameters:
+        if not self._common_params:
+            raise InvalidSchemeException("Common parameters have not been initialized")
+        return self._common_params
+    
+    def set_common_params(self, common_params: ShareCommonParameters):
+        if not isinstance(common_params, ShareCommonParameters):
+            raise ValueError("common_params must be a ShareCommonParameters instance.")
+        self._common_params = common_params
+    
+    @property
+    def groups(self) -> Dict[int, ShareGroup]:
+        if not self._groups:
+            raise InvalidSchemeException("Groups have not been initialized")
+        return self._groups
+
+    def add_share_to_group(self, share: Share):
         """
-        Set the master secret for the scheme.
+        Adds a share to the appropriate group based on its group index.
+        If the group does not exist, it creates a new group.
         """
+        if not isinstance(share, Share):
+            raise ValueError("share must be a Share instance.")
 
-        if not master_secret:
-            raise InvalidSchemeException("Master secret cannot be empty.")
+        if self._common_params is None:
+            self.set_common_params(share.common_parameters())
+            
+        if share.common_parameters() != self.common_params:
+            raise InvalidShareException("Share does not match scheme")
 
-        self.master_secret = bin(int.from_bytes(master_secret, byteorder="big"))[
-            2:
-        ].zfill(len(master_secret) * 8)
+        group = self._groups.setdefault(share.group_index, ShareGroup())
+        group.add(share)
+
+    def set_master_secret(self, master_secret: bytearray):
+        if not isinstance(master_secret, (bytearray)):
+            raise ValueError("master_secret must be bytes or bytearray.")
+        self._master_secret = master_secret
 
     def get_group_indices(self) -> List[int]:
         """
@@ -219,8 +271,8 @@ class Scheme:
         Returns the common parameters of the Shamir scheme.
         If no shares are entered, returns None.
         """
-        total_groups = self.common_params[0].group_count
-        group_threshold = self.common_params[0].group_threshold
+        total_groups = self.common_params.group_count
+        group_threshold = self.common_params.group_threshold
         processed_groups = self.groups.__len__()
 
         # completed_groups
@@ -243,7 +295,6 @@ class Scheme:
         shares_count = group.__len__()
         member_threshold = group.member_threshold()
 
-        # processed, threshold
         return shares_count, member_threshold
 
     def discard_scheme(self):
@@ -251,27 +302,35 @@ class Scheme:
         Discards the current scheme and resets the manager.
         """
         
-        if self.scheme_parameters is not None:
-            self.scheme_parameters.discard_parameters()
-        if self.wallet is not None:
-            self.wallet.discard_wallet()
+        if self._scheme_parameters is not None:
+            self._scheme_parameters.discard_parameters()
+            self._scheme_parameters = None
+            
+        if self._wallet is not None:
+            self._wallet.discard_wallet()
+            self._wallet = None
 
-        self.groups.clear()
-        self.common_params.clear()
-        self.master_secret = None
-        self.scheme_parameters = None
-        self.wallet = None
-        self.passphrase = None
+        self.clean_secret()
+
+    def clean_secret(self):
+        if self._master_secret is not None:
+            self._master_secret[:] = b"\x00" * len(self._master_secret)
+        self._master_secret = None
+        self._groups.clear()
+        self._common_params = None
+        self._passphrase: bytes = b""
+        self._passphrase = None
 
         import gc
         gc.collect()
+        
 
     def discard_group(self, group_id: int):
         """
         Discards a specific group by its ID.
         """
         if group_id in self.groups:
-            del self.groups[group_id]
+            del self._groups[group_id]
 
     def discard_share_of_group(self, share_index: int, group_id: int):
         """
@@ -280,38 +339,22 @@ class Scheme:
         if group_id in self.groups:
             group = self.groups[group_id]
             if group.__len__() == 1:
-                del self.groups[group_id]
+                del self._groups[group_id]
 
             for share in group.shares:
                 if share.index == share_index:
                     group.shares.remove(share)
                     return
 
-    def add_share(self, share_list: List[str]) -> Dict[str, str]:
+    def add_share(self, share_list: List[str]) -> None:
 
-        share_str = " ".join(share_list)  # Normalize spaces
-        share = Share.from_mnemonic(share_str)
+        share_str = " ".join(share_list)
+        self.add_share_to_group(Share.from_mnemonic(share_str))
 
-        if len(self.groups) == 0:
-            # if no groups yet, initialize a group with the share
-            self.common_params.append(share.common_parameters())
-            group = self.groups.setdefault(share.group_index, ShareGroup())
-            group.add(share)
-
-        else:
-            if share.common_parameters() not in self.common_params:
-                raise InvalidShareException("Share does not match scheme")
-            else:
-                # Add to existing group
-                group = self.groups.setdefault(share.group_index, ShareGroup())
-                group.add(share)
-
-        return {"status": "added", "message": "Mnemonic added successfully"}
-
-    def recover_secret(self) -> bytes:
+    def recover_secret(self) -> bytearray:
         try:
             encrypted_master_secret = recover_ems(self.groups)
-            self.set_master_secret(encrypted_master_secret.decrypt(self.passphrase))
+            self.set_master_secret(bytearray(encrypted_master_secret.decrypt(self.passphrase)))
         except Exception as e:
             logger.error("Failed to recover master secret")
             return None
@@ -321,54 +364,23 @@ class Scheme:
         extendable: bool = True,
         iteration_exponent: int = 1,
     ) -> Dict[int, ShareGroup]:
-        """
-        Split a master secret into mnemonic shares using Shamir's secret sharing scheme.
 
-        The supplied Master Secret is encrypted by the passphrase (empty passphrase is used
-        if none is provided) and split into a set of mnemonic shares.
-
-        This is the user-friendly method to back up a pre-existing secret with the Shamir
-        scheme, optionally protected by a passphrase.
-
-        :param group_threshold: The number of groups required to reconstruct the master secret.
-        :param groups: A list of (member_threshold, member_count) pairs for each group, where member_count
-            is the number of shares to generate for the group and member_threshold is the number of members required to
-            reconstruct the group secret.
-        :param master_secret: The master secret to split.
-        :param passphrase: The passphrase used to encrypt the master secret.
-        :param int iteration_exponent: The encryption iteration exponent.
-        :return: List of groups mnemonics.
-        """
-        if not self.scheme_parameters:
-            raise InvalidSchemeException("Scheme parameters are not complete.")
-
-        master_secret = self.scheme_parameters.bits
-        groups = self.scheme_parameters.groups
-        group_threshold = self.scheme_parameters.group_threshold
-
-        if master_secret is None:
-            raise InvalidSchemeException("Master secret is not set.")
-
-        if not groups:
-            raise InvalidSchemeException("No groups have been set.")
-
-        if not group_threshold:
-            raise InvalidSchemeException("Group threshold is not set.")
-
-        if not all(32 <= c <= 126 for c in self.passphrase):
-            raise ValueError(
-                "The passphrase must contain only printable ASCII characters (code points 32-126)."
-            )
-
+        if self.scheme_parameters.bits is None:
+            raise InvalidSchemeException("Scheme parameters must be set before generating mnemonics.")
+        
         identifier = _random_identifier()
         encrypted_master_secret = EncryptedMasterSecret.from_master_secret(
-            master_secret,
+            self.scheme_parameters.bits,
             self.passphrase,
             identifier,
             extendable,
             iteration_exponent,
         )
-        grouped_shares = split_ems(group_threshold, groups, encrypted_master_secret)
+        grouped_shares = split_ems(
+            self.scheme_parameters.group_threshold, 
+            self.scheme_parameters.groups,
+            encrypted_master_secret)
+        
         groups_dict = {}
 
         for group_index, group_list in enumerate(grouped_shares):
@@ -376,26 +388,18 @@ class Scheme:
             for share in group_list:
                 group.add(share)
 
-        self.groups = groups_dict
+        self._groups = groups_dict
 
-    def set_passphrase(self, passphrase: str):
-        """
-        Sets the passphrase for encrypting/decrypting the master secret.
-        """
-        self.passphrase = passphrase.encode("utf-8")
-
+    
     def generate_wallet(self) -> Wallet:
-        """
-        Generates a wallet from the recovered master secret.
-        """
+        if self._scheme_parameters:
+            self.generate_mnemonics()
+        
         self.recover_secret()
-
-        if not self.master_secret:
-            raise InvalidSchemeException("Master secret is not set.")
-
+        
         private_master_key, private_master_code = sp.slip39_protocol(self.master_secret)
 
-        self.wallet = Wallet(private_master_key, private_master_code)
+        self.set_wallet(Wallet(private_master_key, private_master_code))
 
         return self.wallet
 
@@ -404,8 +408,8 @@ class Scheme:
         Checks if the current scheme is a single-level scheme.
         """
         return (
-            self.common_params[0].group_count == 1
-            and self.common_params[0].group_threshold == 1
+            self.common_params.group_count == 1
+            and self.common_params.group_threshold == 1
         )
 
     def is_complete(self) -> bool:
@@ -416,7 +420,7 @@ class Scheme:
             group for group in self.groups.values() if group.is_complete()
         ]
 
-        if len(complete_groups) == self.common_params[0].group_threshold:
+        if len(complete_groups) == self.common_params.group_threshold:
             return True
 
         return False

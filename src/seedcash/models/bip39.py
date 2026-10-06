@@ -103,9 +103,10 @@ class Bip39:
 
     @staticmethod
     def bip39_protocol(seed: list[str], passphrase: str):
-        # Replacing this part from get private_and_code method
-        """Genera la clave privada maestra y el código de cadena a partir de una semilla en hexadecimal"""
-
+        
+        if passphrase is None:
+            passphrase = ""
+            
         hexa_seed = Bip39.generate_hexa_seed(seed, passphrase)
 
         hmac_hash = hmac.new(
