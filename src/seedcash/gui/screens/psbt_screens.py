@@ -786,6 +786,7 @@ class PSBTFinalizeScreen(SeedCashButtonListWithNav):
 @dataclass
 class PSBTNFTScreen(SeedCashButtonListWithNav):
     category_id: str = None
+    is_ft: bool = False  # Flag to indicate if the NFT is a fungible token
 
     def __post_init__(self):
         # Customize defaults
@@ -799,7 +800,7 @@ class PSBTNFTScreen(SeedCashButtonListWithNav):
         
         self.components.append(
             TextArea(
-                text="Collection",
+                text="Token" if self.is_ft else "Collection",
                 font_size=GUIConstants.BODY_FONT_SIZE - 4,
                 is_text_centered=False,
                 screen_y=y_offset,
@@ -902,10 +903,19 @@ class PSBTNFTDetailsScreen(SeedCashButtonListWithNav):
         layer = Image.new("RGBA", card.size, (0, 0, 0, 0))
         layer_draw = ImageDraw.Draw(layer)
 
-        inner = 2 * GUIConstants.COMPONENT_PADDING
-        text_width = card.width - 2 * inner
+        text_width = card.width - 2 * GUIConstants.COMPONENT_PADDING
 
-        def text(value, size, centered=False):
+        def text(value, size, centered=False, rounded=False):
+            if rounded:
+                return RoundedTextArea(
+                    image_draw=layer_draw,
+                    canvas=layer,
+                    width=text_width,
+                    text=value,
+                    font_size=size,
+                    font_color=GUIConstants.BODY_FONT_COLOR,
+                    is_text_centered=centered,
+                )
             return TextArea(
                 image_draw=layer_draw,
                 canvas=layer,
@@ -918,24 +928,24 @@ class PSBTNFTDetailsScreen(SeedCashButtonListWithNav):
                 background_color=GUIConstants.TRANSPARENT_COLOR,
             )
 
-        gap = GUIConstants.COMPONENT_PADDING
+        gap = (3 * GUIConstants.COMPONENT_PADDING)//2
         rows = [
-            (text(f"NFT #{self.output_num}", GUIConstants.TOP_NAV_TITLE_FONT_SIZE), gap * 2),
-            (text(_("Type"), GUIConstants.BODY_FONT_SIZE - 4), gap // 2),
-            (text(self.nft_capability, GUIConstants.BODY_FONT_SIZE - 2), gap * 2),
+            (text(f"NFT #{self.output_num}", GUIConstants.TOP_NAV_TITLE_FONT_SIZE), gap),
+            (text(_("Type"), GUIConstants.BODY_FONT_SIZE - 4), gap//2),
+            (text(self.nft_capability, GUIConstants.BODY_FONT_SIZE - 2, rounded=True), gap),
         ]
 
         # nft_commitment is an empty string when there is nothing to show;
         # keep that section out of the card entirely in that case.
         if self.nft_commitment != "":
             rows += [
-                (text(_("Commitment"), GUIConstants.BODY_FONT_SIZE - 4), gap // 2),
-                (text(self.nft_commitment, GUIConstants.BODY_FONT_SIZE - 2), 0),
+                (text(_("Commitment"), GUIConstants.BODY_FONT_SIZE - 4), gap//2),
+                (text(self.nft_commitment, GUIConstants.BODY_FONT_SIZE - 2, rounded=True), 0, ),
             ]
 
-        y = inner
+        y = 2 * GUIConstants.COMPONENT_PADDING
         for component, gap_after in rows:
-            component.screen_x = inner
+            component.screen_x = gap
             component.screen_y = y
             component.render()
             y += component.height + gap_after

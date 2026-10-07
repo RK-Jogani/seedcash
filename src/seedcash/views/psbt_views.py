@@ -241,6 +241,7 @@ class PSBTFungibleWarningView(View):
                     button_data=[ButtonOption("Next")],
                     selected_color=GUIConstants.MUSD_BLUE,
                     category_id=self.category.category_id,
+                    is_ft=True,
                 )
 
                 if result == RET_CODE__BACK_BUTTON:
