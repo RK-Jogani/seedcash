@@ -38,14 +38,48 @@ class TxOutput:
     value_satoshis: int
     index: int = -1
     script_type: ScriptType = ScriptType.UNKNOWN
-    full_script: bytes = field(repr=False, default=b"")  # exact on-chain script
+    full_script: bytes = field(repr=False, default=b"")
     token: Optional[Token] = None
     address: Optional[str] = None
 
     @property
     def script_pubkey(self) -> bytes:
         return self.token.script_pubkey if self.token else self.full_script
-    
+
+    @property
+    def op_return_text(self) -> str:
+        """Decode pushed UTF-8 strings; reject malformed scripts and binary payloads.
+
+        Separate pushes with newlines so their boundaries remain visible. Callers
+        should display the original script as hex when this raises ValueError.
+        """
+        if not self.full_script.startswith(b"\x6a"):
+            raise ValueError("Expected OP_RETURN")
+        offset = 1
+        parts = []
+        while offset < len(self.full_script):
+            opcode = self.full_script[offset]
+            offset += 1
+            if opcode <= 0x4b:
+                length = opcode
+            elif opcode in (0x4c, 0x4d, 0x4e):
+                width = {0x4c: 1, 0x4d: 2, 0x4e: 4}[opcode]
+                if offset + width > len(self.full_script):
+                    raise ValueError("Truncated pushdata length")
+                length = int.from_bytes(self.full_script[offset:offset + width], "little")
+                offset += width
+            else:
+                raise ValueError("Non-push opcode in OP_RETURN")
+            if offset + length > len(self.full_script):
+                raise ValueError("Truncated pushdata payload")
+            part = self.full_script[offset:offset + length].decode("utf-8", errors="strict")
+            if any(not char.isprintable() and char not in "\n\r\t" for char in part):
+                raise ValueError("Non-printable OP_RETURN payload")
+            parts.append(part)
+            offset += length
+        return "\n".join(parts)
+
+
 @dataclass
 class TxInput:
     prev_txid: bytes
@@ -443,9 +477,12 @@ def parse_psbt(buf) -> Dict[str, Any]:
             if count_pos != len(value):
                 raise ValueError("invalid PSBT output count")
         elif key[0] == 0xFB:  # PSBT_GLOBAL_VERSION
-            psbt_version, version_pos = read_varint(value, 0)
-            if version_pos != len(value):
+            # The version value is uint32 little-endian, not CompactSize.
+            if key != b"\xfb" or len(value) != 4:
                 raise ValueError("invalid PSBT version")
+            psbt_version = int.from_bytes(value, "little")
+            if psbt_version not in (0, 145):
+                raise ValueError("unsupported PSBT version")
         elif key[0] == 0xFC:  # PSBT_GLOBAL_PROPRIETARY
             proprietary.append((key, value))
 
@@ -463,6 +500,12 @@ def parse_psbt(buf) -> Dict[str, Any]:
         inputs.append(pairs)
         if _ == input_count - 1:
             input_ends = pos
+
+    # Paytaca v145 writes an additional separator after the input maps.
+    # Keep input_ends before this byte: the signer preserves the original
+    # suffix when rebuilding input maps, including this separator.
+    if psbt_version == 145 and pos < len(buf) and buf[pos] == 0:
+        pos += 1
 
     outputs = []
     for _ in range(output_count):

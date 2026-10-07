@@ -100,15 +100,15 @@ def decode(s, separator, word_len):
     for word in words:
         buf.append(decode_word(word, word_len))
 
-    if len(buf) < 5:
+    if len(buf) < 4:
         raise ValueError('Invalid Bytewords.') 
 
     # Validate checksum
     body = buf[0:-4]
     body_checksum = buf[-4:]
     checksum = crc32_bytes(body)
-    # if checksum != body_checksum:
-    #     raise ValueError('Invalid Bytewords.')
+    if checksum != body_checksum:
+        raise ValueError('Invalid Bytewords.')
 
     return body
 

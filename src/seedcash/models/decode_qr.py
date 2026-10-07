@@ -6,6 +6,7 @@ from pyzbar import pyzbar
 from pyzbar.pyzbar import ZBarSymbol
 
 from seedcash.helpers.ur2.ur_decoder import URDecoder
+from seedcash.helpers.ur2.constants import MAX_UR_FRAME_LENGTH
 from seedcash.models.bip39 import Bip39
 from seedcash.models.qr_type import QRType
 from seedcash.models.seed import Seed
@@ -42,48 +43,46 @@ class DecodeQR:
 
         return self.add_data(data)
 
+    def _invalidate(self):
+        self.complete = False
+        self.qr_type = QRType.INVALID
+        self.decoder = None
+        return DecodeQRStatus.INVALID
+
     def add_data(self, data):
+        if self.is_invalid:
+            return DecodeQRStatus.INVALID
         if data is None:
             return DecodeQRStatus.FALSE
-
+        if not isinstance(data, (str, bytes)) or len(data) > MAX_UR_FRAME_LENGTH:
+            return self._invalidate()
+        if self.complete:
+            return DecodeQRStatus.COMPLETE
         qr_type = DecodeQR.detect_segment_type(data)
-
+        if qr_type == QRType.INVALID:
+            return self._invalidate()
         if self.qr_type is None:
             self.qr_type = qr_type
-
-            if self.qr_type == QRType.PSBT__UR2:
-                self.decoder = URDecoder()
-            elif self.qr_type == QRType.SEED__COMPACTSEEDQR:
-                self.decoder = SeedQrDecoder()
-            else:
-                return DecodeQRStatus.INVALID
-
+            self.decoder = URDecoder() if qr_type == QRType.PSBT__UR2 else SeedQrDecoder()
         elif self.qr_type != qr_type:
-            raise Exception("QR Fragment Unexpected Type Change")
-
-        if not self.decoder:
-            # Did not find any recognizable format
-            return DecodeQRStatus.INVALID
-
-        # Seed Detected
-        if self.qr_type == QRType.SEED__COMPACTSEEDQR:
-            qr_str = data
-            rt = self.decoder.add(qr_str, self.qr_type)
-            self.complete = True
-            return rt
-        if self.qr_type == QRType.PSBT__UR2:
-            if isinstance(data, bytes):
-                qr_str = data.decode("utf-8")
-            else:
-                qr_str = data
-            added_part = self.decoder.receive_part(qr_str)
-            if self.decoder.is_complete():
+            return self._invalidate()
+        if qr_type == QRType.SEED__COMPACTSEEDQR:
+            status = self.decoder.add(data, qr_type)
+            if status == DecodeQRStatus.INVALID:
+                return self._invalidate()
+            self.complete = self.decoder.complete
+            return status
+        try:
+            qr_str = data.decode("utf-8") if isinstance(data, bytes) else data
+            added = self.decoder.receive_part(qr_str)
+            if not self.decoder.last_part_valid or self.decoder.is_failure():
+                return self._invalidate()
+            if self.decoder.is_success():
                 self.complete = True
                 return DecodeQRStatus.COMPLETE
-            if added_part:
-                return DecodeQRStatus.PART_COMPLETE
-            else:
-                return DecodeQRStatus.PART_EXISTING
+            return DecodeQRStatus.PART_COMPLETE if added else DecodeQRStatus.PART_EXISTING
+        except (ValueError, TypeError, UnicodeError):
+            return self._invalidate()
 
     def get_psbt(self):
         if self.complete:
@@ -161,6 +160,8 @@ class DecodeQR:
 
     @staticmethod
     def detect_segment_type(s):
+        if not isinstance(s, (str, bytes)) or len(s) > MAX_UR_FRAME_LENGTH:
+            return QRType.INVALID
 
         if isinstance(s, bytes):
             if len(s) == 16:
@@ -231,7 +232,7 @@ class SeedQrDecoder(BaseSingleFrameQrDecoder):
                 self.collected_segments = 1
                 return DecodeQRStatus.COMPLETE
             except Exception as e:
-                logger.exception(repr(e))
+                logger.warning("Invalid compact SeedQR")
                 return DecodeQRStatus.INVALID
         else:
             return DecodeQRStatus.INVALID

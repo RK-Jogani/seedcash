@@ -1,6 +1,7 @@
 """Focused tests for current SeedCash APIs; synthetic data only."""
 from pathlib import Path
 import pytest
+from seedcash.models.psbt_signer import _serialize_keypairs
 from seedcash.models.psbt_parser import classify_script
 from seedcash.models.psbt_parser import ScriptType
 from seedcash.models.psbt_parser import parse_transaction
@@ -440,7 +441,7 @@ class TestParserSigningSecurity:
 
     @staticmethod
     def test_v145_output_metadata_must_match_signed_transaction():
-        globals_145 = parser_signing_security_kv(b'\xfb', b'\x91') + parser_signing_security_kv(b'\x04', b'\x01') + parser_signing_security_kv(b'\x05', b'\x01')
+        globals_145 = parser_signing_security_kv(b'\xfb', (145).to_bytes(4, 'little')) + parser_signing_security_kv(b'\x04', b'\x01') + parser_signing_security_kv(b'\x05', b'\x01')
         for field in [parser_signing_security_kv(b'\x03', bytes(7)), parser_signing_security_kv(b'\x03', 901 .to_bytes(8, 'little')), parser_signing_security_kv(b'\x04', b'j'), parser_signing_security_kv(b'6', b'\xef' + bytes(32) + b'\x10\x01')]:
             with pytest.raises(ValueError):
                 parse_psbt(parser_signing_security_psbt(global_extra=globals_145, output_map=field))
@@ -563,3 +564,133 @@ class TestSc07Cashaddr:
             (stype, addr) = classify_script(script, is_token_tx=False)
             assert stype == ScriptType.P2PKH
             assert addr.split(':')[1].startswith('q')
+
+
+# PSBT global-version encoding is a parser contract, independent of QR transport.
+def psbt_version_with_field(value):
+    raw = bytes.fromhex(psbt_v145_cashtoken_scenarios_load_fixture()['materializedFixtures'][0]['psbtHex'])
+    pairs, end = parse_keypairs(raw, 5)
+    pairs = [(key, data) for key, data in pairs if key != b'\xfb']
+    pairs.append((b'\xfb', value))
+    return b'psbt\xff' + _serialize_keypairs(pairs) + b'\x00' + raw[end:]
+
+
+class TestPsbtVersionEncoding:
+    @staticmethod
+    @pytest.mark.parametrize('version', [b'', b'\x91', b'\x91\x00', b'\x91\x00\x00', b'\x91\x00\x00\x00\x00', b'\x00\x00\x00\x91', 2 .to_bytes(4, 'little'), 146 .to_bytes(4, 'little')])
+    def test_bad_version_rejected(version):
+        with pytest.raises(ValueError):
+            parse_psbt(psbt_version_with_field(version))
+
+    @staticmethod
+    def test_version145_is_exact_uint32_little_endian():
+        parsed = parse_psbt(psbt_version_with_field(b'\x91\x00\x00\x00'))
+        assert parsed['psbt_version'] == 145
+
+class TestPsbtLoadingWorkflow:
+    @staticmethod
+    @pytest.mark.parametrize('invalid', [False, True])
+    def test_parse_in_run_routes_and_stops_loading(monkeypatch, invalid):
+        from seedcash.views import psbt_views
+        from seedcash.views.view import View
+        from seedcash.gui.screens import screen
+
+        controller = SimpleNamespace(psbt_bytes=b'synthetic-psbt', psbt_parser=object())
+        calls = []
+        parser = SimpleNamespace(is_genesis=False, inputs=SimpleNamespace(ft=[], nft=[]))
+
+        def parse(raw):
+            assert raw == controller.psbt_bytes
+            assert controller.psbt_parser is None
+            calls.append('parse')
+            if invalid:
+                raise ValueError('synthetic-sensitive-error')
+            return parser
+
+        class LoadingScreen:
+            def __init__(self, **kwargs):
+                pass
+
+            def start(self):
+                calls.append('start')
+
+            def stop(self):
+                calls.append('stop')
+
+        monkeypatch.setattr(View, '__init__', lambda self: setattr(self, 'controller', controller))
+        monkeypatch.setattr(screen, 'LoadingScreenThread', LoadingScreen)
+        monkeypatch.setattr(psbt_views, 'PSBTParser', parse)
+        monkeypatch.setattr(psbt_views.time, 'sleep', lambda seconds: None)
+        view = psbt_views.LoadingPSBTView()
+        assert calls == []
+        destination = view.run()
+        assert calls == ['start', 'parse', 'stop']
+        assert destination.View_cls is (psbt_views.PSBTParsingErrorView if invalid else psbt_views.BCHPSBTOverviewView)
+        assert destination.skip_current_view
+        assert 'synthetic-sensitive-error' not in repr(destination)
+        assert controller.psbt_parser is (None if invalid else parser)
+
+class TestPaytaca145Framing:
+    @staticmethod
+    @pytest.mark.parametrize('item', psbt_v145_cashtoken_scenarios_load_fixture()['materializedFixtures'], ids=lambda item: item['id'])
+    def test_extra_separator_preserved_when_rebuilding_inputs(item):
+        raw = bytes.fromhex(item['psbtHex'])
+        ordinary = parse_psbt(raw)
+        boundary = ordinary['input_ends']
+        paytaca = raw[:boundary] + b'\x00' + raw[boundary:]
+        parsed = parse_psbt(paytaca)
+        assert parsed['inputs'] == ordinary['inputs']
+        assert parsed['outputs'] == ordinary['outputs']
+        assert parsed['input_ends'] == boundary
+        PSBTParser(paytaca)
+        # Exercise the signer's reconstruction boundary with a new partial sig.
+        maps = [list(pairs) for pairs in parsed['inputs']]
+        maps[0].append((b'\x02' + Bip44.private_to_public((1).to_bytes(32, 'big')), bytes(64) + b'\x41'))
+        rebuilt = paytaca[:parsed['input_starts']]
+        rebuilt += b''.join(_serialize_keypairs(pairs) + b'\x00' for pairs in maps)
+        rebuilt += paytaca[parsed['input_ends']:]
+        reparsed = parse_psbt(rebuilt)
+        assert reparsed['inputs'] == maps
+        assert reparsed['outputs'] == parsed['outputs']
+        assert rebuilt[reparsed['input_ends']] == 0
+
+    @staticmethod
+    @pytest.mark.parametrize('suffix', [b'\x00', b'\x01'])
+    def test_trailing_bytes_still_rejected(suffix):
+        raw = psbt_version_with_field((145).to_bytes(4, 'little'))
+        boundary = parse_psbt(raw)['input_ends']
+        with pytest.raises(ValueError):
+            parse_psbt(raw[:boundary] + b'\x00' + raw[boundary:] + suffix)
+
+    @staticmethod
+    def test_repeated_extra_separators_rejected():
+        raw = psbt_version_with_field((145).to_bytes(4, 'little'))
+        boundary = parse_psbt(raw)['input_ends']
+        with pytest.raises(ValueError):
+            parse_psbt(raw[:boundary] + b'\x00\x00' + raw[boundary:])
+
+    @staticmethod
+    @pytest.mark.parametrize('paytaca_separator', [False, True])
+    def test_signed_psbt_preserves_output_suffix(monkeypatch, paytaca_separator):
+        raw = psbt_version_with_field((145).to_bytes(4, 'little'))
+        boundary = parse_psbt(raw)['input_ends']
+        if paytaca_separator:
+            raw = raw[:boundary] + b'\x00' + raw[boundary:]
+        parser = PSBTParser(raw)
+        original_outputs = list(parser.parsed['outputs'])
+        original_suffix = raw[parser.parsed['input_ends']:]
+        signer = BitcoinCashSigner.__new__(BitcoinCashSigner)
+        signer.parser = parser
+        signer.private_key = (1).to_bytes(32, 'big')
+        signer.chain_code = bytes(32)
+        signer._key_cache = {}
+        public = Bip44.private_to_public(signer.private_key)
+        # Isolate wallet derivation; exercise real signing and serialization.
+        monkeypatch.setattr(signer, 'find_derivation_path', lambda pairs: [0])
+        monkeypatch.setattr(signer, '_derive_path', lambda path: ((1).to_bytes(32, 'big'), public))
+        signed = signer.signed_psbt()
+        parsed = parse_psbt(signed)
+        assert parsed['outputs'] == original_outputs
+        assert bytes(signed[parsed['input_ends']:]) == original_suffix
+        assert any(key == b'\x02' + public and len(value) == 65 for key, value in parsed['inputs'][0])
+        assert signer.private_key is None

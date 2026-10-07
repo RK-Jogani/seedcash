@@ -4,7 +4,7 @@
 # Copyright © 2020 Foundation Devices, Inc.
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
-from .constants import MAX_SEQ_LEN
+from .constants import MAX_SEQ_LEN, MAX_UINT32, MAX_UR_MESSAGE_LENGTH
 from .fountain_utils import choose_fragments, contains, is_strict_subset, set_difference
 from .utils import join_bytes, crc32_int, xor_with, take_first
 
@@ -130,6 +130,9 @@ class FountainDecoder:
 
         # Add this part to the queue
         p = FountainDecoder.Part.from_encoder_part(encoder_part)
+        if (not p.is_simple() and p.indexes not in self.mixed_parts
+                and len(self.mixed_parts) >= 2 * encoder_part.seq_len):
+            return False
         self.last_part_indexes = p.indexes
         self.enqueue(p)
 
@@ -258,9 +261,13 @@ class FountainDecoder:
             self.mixed_parts[p2.indexes] = p2
 
     def validate_part(self, p):
-        if p.seq_len > MAX_SEQ_LEN:
+        if (not 1 <= p.seq_num <= MAX_UINT32 or not 1 <= p.seq_len <= MAX_SEQ_LEN
+                or not 1 <= p.message_len <= MAX_UR_MESSAGE_LENGTH
+                or not 0 <= p.checksum <= MAX_UINT32 or not p.data
+                or not (p.seq_len - 1) * len(p.data) < p.message_len <= p.seq_len * len(p.data)):
             return False
-
+        if self.processed_parts_count >= MAX_SEQ_LEN * 8:
+            return False
         # If this is the first part we've seen
         if self.expected_part_indexes == None:
             # Record the things that all the other parts we see will have to match to be valid.

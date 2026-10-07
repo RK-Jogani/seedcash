@@ -3,6 +3,9 @@ from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import CircleModuleDrawer, GappedSquareModuleDrawer
 from PIL import Image, ImageDraw
 import subprocess
+import re
+import tempfile
+from pathlib import Path
 
 class QR:
     STYLE__DEFAULT = 1
@@ -91,17 +94,29 @@ class QR:
 
 
     def qrimage_io(self, data, width=240, height=240, border=3, background_color="808080"):
-        if 1 <= border <= 10:
-            border_str = str(border)
-        else:
-            border_str = "3"
-
-        cmd = f"""qrencode -m {border_str} -s 3 -l L --foreground=000000 --background={background_color} -t PNG -o "/tmp/qrcode.png" "{str(data)}" """
-        rv = subprocess.call(cmd, shell=True)
-
-        # if qrencode fails, fall back to only encoder
-        if rv != 0:
-            return self.qrimage(data,width,height,border)
-        img = Image.open("/tmp/qrcode.png").resize((width,height), Image.Resampling.NEAREST).convert("RGBA")
-
-        return img
+        if not isinstance(data, (str, bytes, bytearray)):
+            raise ValueError("Invalid QR payload type")
+        payload = data.encode("utf-8") if isinstance(data, str) else bytes(data)
+        if not payload or len(payload) > 4096:
+            raise ValueError("Invalid QR payload length")
+        if any(type(size) is not int or not 1 <= size <= 2048 for size in (width, height)):
+            raise ValueError("Invalid QR dimensions")
+        if type(border) is not int or not 0 <= border <= 10:
+            raise ValueError("Invalid QR border")
+        if not isinstance(background_color, str) or not re.fullmatch(r"[0-9a-fA-F]{6}", background_color):
+            raise ValueError("Invalid QR background color")
+        with tempfile.TemporaryDirectory(prefix="seedcash-qr-") as directory:
+            output = Path(directory) / "qr.png"
+            command = ["qrencode", "-m", str(border), "-s", "3", "-l", "L",
+                       "--foreground=000000", "--background=" + background_color,
+                       "-t", "PNG", "-o", str(output)]
+            try:
+                result = subprocess.run(command, input=payload, stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL, timeout=5, check=False)
+                if result.returncode == 0:
+                    with Image.open(output) as image:
+                        return image.resize((width, height), Image.Resampling.NEAREST).convert("RGBA")
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            return self.qrimage(data, width, height, border,
+                                background_color="#" + background_color)

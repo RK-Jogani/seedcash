@@ -5,12 +5,13 @@
 # Licensed under the "BSD-2-Clause Plus Patent License"
 #
 
+from builtins import str as builtins_str
 from .ur import UR
 from .fountain_encoder import Part as FountainEncoderPart
 from .fountain_decoder import FountainDecoder
 from .bytewords import *
 from .cbor_lite import CBORDecoder
-from .constants import MAX_SEQ_LEN
+from .constants import MAX_SEQ_LEN, MAX_UINT32, MAX_UR_FRAME_LENGTH, MAX_UR_MESSAGE_LENGTH
 from .utils import drop_first, is_ur_type
 
 class InvalidScheme(Exception):
@@ -33,6 +34,7 @@ class URDecoder:
         self.fountain_decoder = FountainDecoder()
         self.expected_type = None
         self.result = None
+        self.last_part_valid = False
 
     @staticmethod
     def decode(str):
@@ -51,18 +53,19 @@ class URDecoder:
     @staticmethod
     def decode_cbor_by_type(type, cbor):
         if type == "crypto-psbt":
-            try:
-                decoder = CBORDecoder(cbor)
-                (psbt, _) = decoder.decodeBytes()
-                return UR(type, psbt)
-            except Exception:
-                pass
+            decoder = CBORDecoder(cbor)
+            psbt, _ = decoder.decodeBytes()
+            if decoder.pos != len(cbor) or not psbt or len(psbt) > MAX_UR_MESSAGE_LENGTH:
+                raise InvalidFragment()
+            return UR(type, psbt)
 
         return UR(type, cbor)
 
     @staticmethod
     def parse(str):
         # Don't consider case
+        if not isinstance(str, builtins_str) or len(str) > MAX_UR_FRAME_LENGTH:
+            raise InvalidFragment()
         lowered = str.lower()
 
         # Validate URI scheme
@@ -94,7 +97,7 @@ class URDecoder:
                 raise InvalidSequenceComponent()
             seq_num = int(comps[0])
             seq_len = int(comps[1])
-            if seq_num < 1 or seq_len < 1 or seq_len > MAX_SEQ_LEN:
+            if seq_num < 1 or seq_num > MAX_UINT32 or seq_len < 1 or seq_len > MAX_SEQ_LEN:
                 raise InvalidSequenceComponent()
             return (seq_num, seq_len)
         except (TypeError, ValueError):
@@ -110,6 +113,7 @@ class URDecoder:
             return type == self.expected_type
 
     def receive_part(self, str):
+        self.last_part_valid = False
         try:
             # Don't process the part if we're already done
             if self.result != None:
@@ -117,7 +121,7 @@ class URDecoder:
 
             # Don't continue if this part doesn't validate
             (type, components) = URDecoder.parse(str)
-            if not self.validate_part(type):
+            if self.expected_type is not None and type != self.expected_type:
                 return False
 
             # If this is a single-part UR then we're done, but only if we are not
@@ -128,6 +132,8 @@ class URDecoder:
                     return False
                 body = components[0]
                 self.result = self.decode_by_type(type, body)
+                self.expected_type = type
+                self.last_part_valid = True
                 return True
 
             # Multi-part URs must have two path components: seq/fragment
@@ -143,7 +149,11 @@ class URDecoder:
             if seq_num != part.seq_num or seq_len != part.seq_len:
                 return False
 
-            # Process the part
+            if not self.fountain_decoder.validate_part(part):
+                return False
+            self.expected_type = type
+            self.last_part_valid = True
+            # A valid duplicate is distinct from a malformed or unrelated part.
             if not self.fountain_decoder.receive_part(part):
                 return False
 
@@ -156,6 +166,7 @@ class URDecoder:
 
             return True
         except Exception as err:
+            self.last_part_valid = False
             return False
 
     def expected_type(self):

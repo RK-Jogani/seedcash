@@ -49,6 +49,8 @@ class Part:
 
             (data, _) = decoder.decodeBytes()
 
+            if decoder.pos != len(cbor_buf):
+                raise InvalidHeader()
             return Part(seq_num, seq_len, message_len, checksum, data)
         except Exception as err:
             raise InvalidHeader()

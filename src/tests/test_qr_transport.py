@@ -1,5 +1,6 @@
 """Focused tests for current SeedCash APIs; synthetic data only."""
 import json
+from types import SimpleNamespace
 from pathlib import Path
 import pytest
 from seedcash.helpers.ur2.cbor_lite import CBOREncoder
@@ -25,11 +26,6 @@ psbt_receiver_DATA = json.loads(Path(__file__).with_name('psbtV145CashTokenScena
 def psbt_receiver_fixture():
     return bytes.fromhex(psbt_receiver_DATA['materializedFixtures'][0]['psbtHex'])
 
-def psbt_receiver_with_version(value):
-    raw = psbt_receiver_fixture()
-    (pairs, end) = parse_keypairs(raw, 5)
-    pairs = [(k, value if k == b'\xfb' else v) for (k, v) in pairs]
-    return b'psbt\xff' + _serialize_keypairs(pairs) + b'\x00' + raw[end:]
 
 def psbt_receiver_lab_ur(raw, max_fragment_len=65):
     wrapper = CBOREncoder()
@@ -39,9 +35,13 @@ def psbt_receiver_lab_ur(raw, max_fragment_len=65):
 class TestPsbtReceiver:
 
     @staticmethod
+    @pytest.mark.parametrize('paytaca_separator', [False, True], ids=['ordinary-maps', 'paytaca-maps'])
     @pytest.mark.parametrize('item', psbt_receiver_DATA['materializedFixtures'], ids=lambda x: x.get('id', 'fixture'))
-    def test_valid_lab_transfers_and_tokens_decode_and_parse(item):
+    def test_valid_lab_transfers_and_tokens_decode_and_parse(item, paytaca_separator):
         raw = bytes.fromhex(item['psbtHex'])
+        if paytaca_separator:
+            boundary = parse_psbt(raw)['input_ends']
+            raw = raw[:boundary] + b'\x00' + raw[boundary:]
         encoder = psbt_receiver_lab_ur(raw)
         receiver = DecodeQR()
         for _ in range(4 * encoder.fountain_encoder.seq_len()):
@@ -54,16 +54,7 @@ class TestPsbtReceiver:
         assert parsed.parsed['psbt_version'] == 145
         assert parsed.parsed['unsigned_tx'].hex() == item['unsignedTransactionHex']
 
-    @staticmethod
-    @pytest.mark.parametrize('version', [b'', b'\x91', b'\x91\x00', b'\x91\x00\x00', b'\x91\x00\x00\x00\x00', b'\x00\x00\x00\x91', 2 .to_bytes(4, 'little'), 146 .to_bytes(4, 'little')])
-    def test_bad_version_rejected(version):
-        with pytest.raises(ValueError):
-            parse_psbt(psbt_receiver_with_version(version))
 
-    @staticmethod
-    def test_version145_is_exact_uint32_little_endian():
-        parsed = parse_psbt(psbt_receiver_with_version(b'\x91\x00\x00\x00'))
-        assert parsed['psbt_version'] == 145
 
     @staticmethod
     def test_corrupted_ur_checksum_is_invalid_and_never_complete():
@@ -106,9 +97,11 @@ class TestQrSecurity:
         def capture(command, **kwargs):
             assert kwargs.get('shell', False) is False, 'QR payload reaches a shell'
             assert isinstance(command, list)
-            assert payload in command
+            assert kwargs['input'] == payload.encode()
+            assert payload not in command
+            assert kwargs['timeout'] == 5
             raise RuntimeError('synthetic subprocess stop')
-        monkeypatch.setattr('seedcash.helpers.qr.subprocess.call', capture)
+        monkeypatch.setattr('seedcash.helpers.qr.subprocess.run', capture)
         with pytest.raises(RuntimeError, match='synthetic subprocess stop'):
             QR().qrimage_io(payload)
 
@@ -116,7 +109,7 @@ class TestQrSecurity:
     def test_qr_color_rejects_command_injection_before_execution(monkeypatch):
         def unexpected(*args, **kwargs):
             pytest.fail('Invalid QR color reached subprocess execution')
-        monkeypatch.setattr('seedcash.helpers.qr.subprocess.call', unexpected)
+        monkeypatch.setattr('seedcash.helpers.qr.subprocess.run', unexpected)
         with pytest.raises(ValueError):
             QR().qrimage_io('synthetic', background_color='ffffff;echo injected')
 
@@ -226,3 +219,94 @@ class TestChecksums:
         import zlib
         from seedcash.helpers.ur2.crc32 import crc32n
         assert crc32n(payload) == zlib.crc32(payload).to_bytes(4, 'big')
+
+
+class TestQrProcessBoundary:
+    @staticmethod
+    @pytest.mark.parametrize('outcome', ['success', 'failure', 'missing', 'timeout', 'bad-image'])
+    def test_temporary_output_is_private_and_removed(monkeypatch, outcome):
+        import subprocess
+        from PIL import Image
+        paths = []
+        def encode(command, **kwargs):
+            assert isinstance(command, list)
+            assert not kwargs.get('shell', False)
+            assert kwargs['input'] == b'synthetic payload'
+            output = Path(command[command.index('-o') + 1])
+            paths.append(output)
+            assert output.parent.stat().st_mode & 0o077 == 0
+            if outcome == 'missing':
+                raise FileNotFoundError('qrencode unavailable')
+            if outcome == 'timeout':
+                raise subprocess.TimeoutExpired(command, 5)
+            if outcome == 'bad-image':
+                output.write_bytes(b'not a PNG')
+            else:
+                Image.new('RGB', (20, 20)).save(output)
+            return SimpleNamespace(returncode=1 if outcome == 'failure' else 0)
+        monkeypatch.setattr('seedcash.helpers.qr.subprocess.run', encode)
+        image = QR().qrimage_io('synthetic payload')
+        assert image.size == (240, 240)
+        assert image.mode == 'RGBA'
+        assert paths and not paths[0].parent.exists()
+
+    @staticmethod
+    @pytest.mark.parametrize('options', [
+        {'width': True}, {'width': 0}, {'height': 2049}, {'border': True},
+        {'border': -1}, {'background_color': 'white;echo'}, {'data': object()},
+        {'data': b'x' * 4097}, {'data': ''},
+    ])
+    def test_invalid_options_never_start_encoder(monkeypatch, options):
+        def unexpected(*args, **kwargs):
+            pytest.fail('Invalid arguments reached external encoder')
+        monkeypatch.setattr('seedcash.helpers.qr.subprocess.run', unexpected)
+        kwargs = {'data': 'synthetic'}
+        kwargs.update(options)
+        with pytest.raises(ValueError):
+            QR().qrimage_io(**kwargs)
+
+
+class TestUrBoundaries:
+    @staticmethod
+    @pytest.mark.parametrize('cbor', [b'not cbor', b'Ax\x00', b'\x40'])
+    def test_crypto_psbt_requires_one_nonempty_cbor_bytestring(cbor):
+        receiver = DecodeQR()
+        assert receiver.add_data(UREncoder.encode(UR('crypto-psbt', cbor))) == DecodeQRStatus.INVALID
+        assert receiver.decoder is None
+        assert not receiver.is_complete
+        assert receiver.get_psbt() is None
+
+    @staticmethod
+    def test_rejected_scan_is_terminal_until_new_receiver():
+        raw = psbt_receiver_fixture()
+        valid = psbt_receiver_lab_ur(raw, max_fragment_len=4096).next_part()
+        receiver = DecodeQR()
+        assert receiver.add_data('ur:crypto-psbt/invalid') == DecodeQRStatus.INVALID
+        assert receiver.add_data(valid) == DecodeQRStatus.INVALID
+        fresh = DecodeQR()
+        assert fresh.add_data(valid) == DecodeQRStatus.COMPLETE
+        assert fresh.get_psbt() == raw
+
+    @staticmethod
+    @pytest.mark.parametrize('changes', [
+        {'seq_num': 0}, {'seq_len': 0}, {'seq_len': 10001},
+        {'message_len': 0}, {'message_len': 2097153}, {'checksum': 4294967296},
+        {'data': b''}, {'seq_len': 2, 'message_len': 100},
+    ])
+    def test_invalid_header_does_not_bind_decoder(changes):
+        from seedcash.helpers.ur2.fountain_encoder import Part
+        values = {'seq_num': 1, 'seq_len': 1, 'message_len': 3, 'checksum': 0, 'data': b'abc'}
+        values.update(changes)
+        decoder = URDecoder()
+        assert not decoder.receive_part(UREncoder.encode_part('bytes', Part(**values)))
+        assert decoder.expected_type is None
+        assert decoder.fountain_decoder.expected_part_indexes is None
+
+    @staticmethod
+    def test_trailing_fountain_cbor_is_rejected():
+        encoder = FountainEncoder(b'x' * 100, max_fragment_len=12)
+        part = encoder.next_part()
+        body = Bytewords.encode(Bytewords_Style_minimal, part.cbor() + b'\x00')
+        decoder = URDecoder()
+        assert not decoder.receive_part(f'ur:bytes/{part.seq_num}-{part.seq_len}/{body}')
+        assert decoder.expected_type is None

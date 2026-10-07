@@ -21,19 +21,26 @@ from seedcash.views.wallet_views import WalletOptionsView
 class LoadingPSBTView(View):
     def __init__(self):
         super().__init__()
-
+        self.loading_screen = None
         from seedcash.gui.screens.screen import LoadingScreenThread
-        from seedcash.models.psbt_parser import PSBTParser
-
         self.loading_screen = LoadingScreenThread(text=_("Parsing PSBT..."))
         self.loading_screen.start()
-        try:
-            self.controller.psbt_parser = PSBTParser(self.controller.psbt_bytes)
-        finally:
-            time.sleep(2)
-            self.loading_screen.stop()
+        self.controller.psbt_parser = None
 
     def run(self):
+        
+        try:
+            self.controller.psbt_parser = PSBTParser(self.controller.psbt_bytes)
+        except Exception as e:
+            # To run animation for 2 seconds if error occurs
+            time.sleep(2)
+            self.loading_screen.stop()
+            return Destination(PSBTParsingErrorView, skip_current_view=True)
+        
+        # To run animation for 2 seconds if parsing is successful
+        time.sleep(2)
+        self.loading_screen.stop()
+
         if self.controller.psbt_parser.is_genesis:
             is_ft = len(self.controller.psbt_parser.genesis.categories["ft"]) > 0
             return Destination(GenesisWarningView, view_args={"is_ft": is_ft, "category_num": 0, "is_last": True}, skip_current_view=True)
@@ -533,7 +540,7 @@ class BCHPSBTOverviewView(View):
         # Run the overview screen
         selected_menu_num = self.run_screen(
             PSBTOverviewScreen,
-            inputs_amount=psbt_parser.output_amount,
+            inputs_amount=psbt_parser.input_amount,
             fee_amount=psbt_parser.fee_amount,
             input_count=psbt_parser.input_count,
             destination_addresses=[output.address for output in psbt_parser.bch_outputs],
@@ -744,7 +751,7 @@ class PSBTOpReturnView(View):
             PSBTOpReturnScreen,
             title=title,
             button_data=button_data,
-            op_return_data=outputs[self.output_num].full_script,
+            op_return_data=outputs[self.output_num].op_return_text,
         )
 
         if selected_menu_num == RET_CODE__BACK_BUTTON:
@@ -792,7 +799,6 @@ class PSBTP2PKView(View):
                 PSBTP2PKView, view_args={"output_num": self.output_num + 1}
             )
         return Destination(PSBTConfirmationView)
-
 
 class PSBTConfirmationView(View):
     """
@@ -903,3 +909,18 @@ class PSBTDiscardWarningView(View):
         if selected_menu_num == 0:
             self.controller.discard_psbt()
             return Destination(WalletOptionsView, clear_history=True)
+
+class PSBTParsingErrorView(View):
+    def run(self):
+        selected_menu_num = self.run_screen(
+            WarningScreen,
+            title=_("PSBT Error"),
+            status_icon_name=SeedCashIconsConstants.WARNING,
+            status_headline=_("Parsing Failed"),
+            text=_("The PSBT could not be parsed. Please check the PSBT data and try again."),
+            button_data=[ButtonOption("Back to Wallet")],
+        )
+
+        if selected_menu_num == 0:
+            return Destination(WalletOptionsView, clear_history=True)
+        

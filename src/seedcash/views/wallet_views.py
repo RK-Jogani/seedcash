@@ -11,7 +11,6 @@ from seedcash.gui.screens import (
 from seedcash.gui.screens.screen import ButtonOption
 from seedcash.models.seed import Seed
 from seedcash.models.settings_definition import SettingsConstants
-from seedcash.models.wallet import Wallet
 from seedcash.views.view import (
     View,
     Destination,
