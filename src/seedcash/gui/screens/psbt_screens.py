@@ -529,10 +529,18 @@ class PSBTMathScreen(SeedCashButtonListWithNav):
 
         super().__post_init__()
 
-       
-        self.input_amount = f"{self.input_amount:,}"
-        self.spend_amount = f"{self.spend_amount:,}"
-        self.fee_amount = f"{self.fee_amount:,}"
+        # this conversation is for displaying amount, with correct conversation, this is not the bug
+        if self.input_amount >= 1e6:
+            self.input_amount /= 1e8
+            self.spend_amount /= 1e8
+            self.fee_amount /= 1e8
+            self.input_amount = f"{self.input_amount:,.6f}"
+            self.spend_amount = f"{self.spend_amount:,.6f}"
+            self.fee_amount = f"{self.fee_amount:,.6f}"
+        else:
+            self.input_amount = f"{self.input_amount:,}"
+            self.spend_amount = f"{self.spend_amount:,}"
+            self.fee_amount = f"{self.fee_amount:,}"
 
         # Align the digits - pad all amounts to same width
         longest_amount = max(

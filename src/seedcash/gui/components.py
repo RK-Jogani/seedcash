@@ -1833,7 +1833,7 @@ class BchAmount(BaseComponent):
         bch_icon.render()
         cur_x = bch_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
 
-        if self.total_sats > 1e8: # If the amount is greater than 1 BCH, display in BCH with 4 decimal places
+        if self.total_sats > 1e6: # If the amount is greater than 0.01 BCH, display in BCH with 4 decimal places
             decimal_bch = Decimal(self.total_sats / 1e8).quantize(Decimal("0.1234"))
             bch_text = f"{decimal_bch:,}"
 
