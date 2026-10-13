@@ -85,9 +85,14 @@ class BaseXpubQrEncoder(BaseQrEncoder):
     Base Xpub QrEncoder for static and animated formats
     """
 
-    seed: Seed = None
-    derivation: str = None
-    sig_type: str = None
+    xpub: str = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        self._create_parts()
+
+    def _create_parts(self):
+        self.parts = [self.xpub]
 
 
 """**************************************************************************************

@@ -146,9 +146,13 @@ def validate_multisig_redeem_script(redeem_script: bytes) -> Tuple[bytes, List[b
 # ----------------------------------------------------------------------
 # BIP32 derivation helpers
 # ----------------------------------------------------------------------
+MAX_BIP32_PATH_COMPONENTS = 32
+
 def parse_bip32_derivation_value(value: bytes) -> Tuple[bytes, List[int]]:
     if len(value) < 4 or (len(value) - 4) % 4 != 0:
         raise BCHSignerExpectation("Invalid BIP32 derivation value length")
+    if (len(value) - 4) // 4 > MAX_BIP32_PATH_COMPONENTS:
+        raise BCHSignerExpectation("BIP32 derivation path exceeds 32 components")
     master_fingerprint = value[:4]
     path = [int.from_bytes(value[i:i+4], 'little') for i in range(4, len(value), 4)]
     return master_fingerprint, path
@@ -190,6 +194,8 @@ class BitcoinCashSigner:
         Derive the private key and public key for a given BIP32 path.
         Uses Bip44.derive_child_key for all derivations.
         """
+        if len(path) > MAX_BIP32_PATH_COMPONENTS:
+            raise BCHSignerExpectation("BIP32 derivation path exceeds 32 components")
         cache_key = tuple(path)
         if cache_key in self._key_cache:
             return self._key_cache[cache_key]
@@ -297,6 +303,10 @@ class BitcoinCashSigner:
         token_prefix = txin.spent_output.token.prefix if txin.spent_output.token else b''
         if script_code is None:
             script_code = txin.spent_output.script_pubkey
+            if ((len(script_code) == 23 and script_code.startswith(b"\xa9\x14")
+                 or len(script_code) == 35 and script_code.startswith(b"\xaa\x20"))
+                    and script_code.endswith(b"\x87")):
+                raise BCHSignerExpectation("P2SH input requires a redeem script")
 
         # BIP-143 preimage (no witness data)
         preimage = (

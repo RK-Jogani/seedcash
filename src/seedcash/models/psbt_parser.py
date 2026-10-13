@@ -96,76 +96,190 @@ class ParseTransactionResult:
     locktime: bytes
 
 @dataclass
-class Inputs:
-    ft: Dict[str, List[TxInput]] = field(default_factory=dict)
-    nft: Dict[str, List[TxInput]] = field(default_factory=dict)
+class Category:
+    category_id: str
+    is_genesis: bool = False
+    is_ft: bool = False
 
+    inputs: List[TxInput] = field(default_factory=list)
     
-    # FT functions
+    outputs: List[TxOutput] = field(default_factory=list)
+    output_no: int = 0
+
+    def add_input(self, tx_input: TxInput):
+        self.inputs.append(tx_input)
+
+    def add_output(self, tx_output: TxOutput):
+        self.outputs.append(tx_output)
+
     @property
-    def get_ft_category_ids(self) -> List[str]:
-            return list(self.ft.keys())
+    def next_output(self) -> bool:
+        if self.output_no < len(self.outputs)-1:
+            self.output_no += 1
+            return True
+        return False
+
+    @property
+    def previous_output(self) -> bool:
+        if self.output_no > 0:
+            self.output_no -= 1
+            return True
+        return False
+
+    @property
+    def address(self) -> Optional[str]:
+        if self.outputs:
+            return self.outputs[self.output_no].address
+        return None
+
+    @property
+    def is_last_output(self) -> bool:
+        return self.output_no == len(self.outputs) - 1
+
+    @property
+    def inputs_count(self) -> int:
+        return len(self.inputs)
     
-    def get_ft(self, category_id: str) -> List[TxInput]:
-        return self.ft.get(category_id, [])
-
-    def get_ft_count(self, category_id: str) -> int:
-        return len(self.ft.get(category_id, []))
-
-    def get_ft_total_amount(self, category_id: str) -> int:
+    @property
+    def outputs_count(self) -> int:
+        return len(self.outputs)
+    
+    @property
+    def ft_inputs_total_amount(self) -> int:
         total_amount = 0
-        for tx_in in self.ft.get(category_id, []):
+        for tx_in in self.inputs:
             total_amount += tx_in.spent_output.token.ft_amount
         return total_amount
 
-    
-    # NFT functions
     @property
-    def get_nft_category_ids(self) -> List[str]:
-            return list(self.nft.keys())
+    def ft_output_amount(self) -> int:
+        if self.outputs:
+            return self.outputs[self.output_no].token.ft_amount
+        return 0
+
+    @property
+    def ft_outputs_total_amount(self) -> int:
+        total_amount = 0
+        for tx_out in self.outputs:
+            total_amount += tx_out.token.ft_amount
+        return total_amount
+
+    @property
+    def is_ft_burned(self) -> bool:
+        return self.ft_inputs_total_amount > self.ft_outputs_total_amount
+
+    nft_detail_no: int = 0
+    @property
+    def next_nft_detail(self) -> bool:
+        if self.nft_detail_no < len(self.outputs)-1:
+            self.nft_detail_no += 1
+            return True
+        return False
+
+    @property
+    def previous_nft_detail(self) -> bool:
+        if self.nft_detail_no > 0:
+            self.nft_detail_no -= 1
+            return True
+        return False
+
+    @property
+    def nft_commitment(self) -> str:
+        tx_out = self.outputs[self.nft_detail_no]
+        if tx_out and tx_out.token and tx_out.token.nft_data:
+            return tx_out.token.nft_data.commitment
+        return ""
+
+    @property
+    def nft_capability(self) -> str:
+        tx_out = self.outputs[self.nft_detail_no]
+        if tx_out and tx_out.token and tx_out.token.nft_data:
+            return tx_out.token.nft_data.capability
+        return ""
     
-    def get_nft(self, category_id: str) -> List[TxInput]:
-            return self.nft.get(category_id, [])
-
-    def get_nft_count(self, category_id: str) -> int:
-        return len(self.nft.get(category_id, []))
-
-    def has_minting_nft(self, category_id: str) -> bool:
+    @property
+    def is_nft_minted(self) -> bool:
         has_minting = False
-        for tx_in in self.nft.get(category_id, []):
+        for tx_in in self.inputs:
             if tx_in.spent_output.token.nft_data.capability == "minting":
                 has_minting = True
                 break
         return has_minting
-  
-@dataclass
-class Outputs:
-    ft: Dict[str, List[TxOutput]] = field(default_factory=dict)
-    nft: Dict[str, List[TxOutput]] = field(default_factory=dict)
 
-    def get_ft(self, category_id: str) -> List[TxOutput]:
-        return self.ft.get(category_id, [])
+    @property
+    def is_nft_burned(self) -> bool:
+        def bag(items, get_token):
+            result = {}
+            for item in items:
+                nft = get_token(item).nft_data
+                if nft:
+                    key = (nft.capability, nft.commitment)
+                    result[key] = result.get(key, 0) + 1
+            return result
 
-    def get_ft_total_amount(self, category_id: str) -> int:
-        total_amount = 0
-        for tx_out in self.ft.get(category_id, []):
-            if tx_out.token and tx_out.token.ft_amount is not None:
-                total_amount += tx_out.token.ft_amount
-        return total_amount
-      
-    # NFT functions
-    def get_nft(self, category_id: str) -> List[TxOutput]:
-        return self.nft.get(category_id, [])
+        inputs = bag(self.inputs, lambda item: item.spent_output.token)
+        outputs = bag(self.outputs, lambda item: item.token)
+
+        return any(outputs.get(key, 0) < count for key, count in inputs.items())
     
-    def get_nft_count(self, category_id: str) -> int:
-        return len(self.nft.get(category_id, []))
-
 @dataclass
-class Genesis:
-    categories: Dict[str, List[str]] = field(default_factory=lambda: {"nft": [], "ft": []})
-    inputs: Inputs = field(default_factory=Inputs)
-    outputs: Outputs = field(default_factory=Outputs)
+class TokenReview:
+    ft_categories: List[Category] = field(default_factory=list)
+    ft_category_num: int = 0
 
+    nft_categories: List[Category] = field(default_factory=list)
+    nft_category_num: int = 0
+
+    current_category: Optional[Category] = None
+
+    @property
+    def initiate(self):
+        if self.ft_categories:
+            self.current_category = self.ft_categories[0]
+        elif self.nft_categories:
+            self.current_category = self.nft_categories[0]
+
+    @property
+    def next_category(self) -> Optional[Category]:
+        if self.ft_category_num < len(self.ft_categories)-1:
+            self.ft_category_num += 1
+            self.current_category = self.ft_categories[self.ft_category_num]
+            return self.current_category
+        
+        elif self.nft_category_num == 0 and self.current_category.is_ft:
+            if not self.nft_categories:
+                return None
+            self.current_category = self.nft_categories[0]
+            return self.current_category
+        
+        if self.nft_category_num < len(self.nft_categories)-1:
+            self.nft_category_num += 1
+            self.current_category = self.nft_categories[self.nft_category_num]
+            return self.current_category
+        return None
+
+    @property
+    def previous_category(self) -> Optional[Category]:
+        if self.nft_category_num > 0:
+            self.current_category = self.nft_categories[self.nft_category_num-1]
+            self.nft_category_num -= 1
+            return self.current_category
+        
+        if (self.current_category and not self.current_category.is_ft and self.ft_categories):
+            self.current_category = self.ft_categories[self.ft_category_num]
+            return self.current_category
+        
+        if self.ft_category_num > 0:
+            self.current_category = self.ft_categories[self.ft_category_num-1]
+            self.ft_category_num -= 1
+            return self.current_category
+        return None
+
+    def add_category(self, is_ft: bool, category: Category):
+        if is_ft:
+            self.ft_categories.append(category)
+        else:
+            self.nft_categories.append(category)
 
 def read_varint(buf: bytes, pos: int) -> Tuple[int, int]:
     """Read a Bitcoin-style varint (CompactSize uint) at ``pos``."""
@@ -400,6 +514,42 @@ def parse_transaction(tx_bytes: bytes) -> ParseTransactionResult:
         locktime=locktime
     )
 
+def resolve_spent_output(
+        prev_index: int, 
+        input_pairs: List[Tuple[bytes, bytes]],
+        prev_txid: Optional[bytes] = None,) -> Optional[TxOutput]:
+        """
+        Resolve the UTXO an input spends, from PSBT_IN_NON_WITNESS_UTXO or
+        PSBT_IN_WITNESS_UTXO, with CashToken decoding applied.
+        """
+
+        for key, value in input_pairs:
+            if key[0] == 0x00:  # PSBT_IN_NON_WITNESS_UTXO
+                expected_txid = hashlib.sha256(hashlib.sha256(value).digest()).digest()
+                if prev_txid is not None and expected_txid != prev_txid:
+                    raise ValueError("parent transaction hash mismatch")
+                prev_tx = parse_transaction(value)
+                if prev_index < len(prev_tx.outputs):
+                    return prev_tx.outputs[prev_index]   # TxOutput
+                return None
+            if key[0] == 0x01:  # PSBT_IN_WITNESS_UTXO
+                out_value = value[:8]
+                script_len, spos = read_varint(value, 8)
+                script = value[spos:spos + script_len]
+                token = parse_token_script(script)
+                if script.startswith(b"\xef") and token is None:
+                    raise ValueError("invalid token prefix")
+                script_type, address = classify_script(token.script_pubkey if token else script, is_token_tx=bool(token))
+                return TxOutput(
+                    value_satoshis=int.from_bytes(out_value, "little"),
+                    index=prev_index,
+                    script_type=script_type,
+                    full_script=script,
+                    token=token,
+                    address=address,
+                )
+        return None
+
 def parse_keypairs(buf: bytes, pos: int) -> Tuple[List[Tuple[bytes, bytes]], int]:
     """Parse one PSBT key-value map, returning ``[(key, value), ...]``."""
     pairs = []
@@ -537,30 +687,24 @@ class PSBTParser:
         self.psbt_bytes: bytearray = raw_psbt_bytes
         self.parsed = parse_psbt(raw_psbt_bytes)
         self.tx: ParseTransactionResult = parse_transaction(self.parsed["unsigned_tx"])
-        self.inputs: Inputs
-        self.outputs: Outputs
-        self.categories: Dict[str, List[str]] = {"nft": [], "ft": []}
-        self.genesis: Optional[Genesis] = None
         self.total_input_amount: int = 0
         self.total_output_amount: int = 0
+        self.token_review: TokenReview = None
 
         # Build the transaction
         self.build_transaction()
 
     # BCH View
-    # Overview
     @property
     def input_count(self) -> int:
         return len(self.tx.inputs)
-
 
     @property
     def output_count(self) -> int:
         return len(self.tx.outputs)
 
-    
     @property
-    def bch_outputs(self) -> List[TxOutput]:
+    def outputs(self) -> List[TxOutput]:
         return [tx_out for tx_out in self.tx.outputs if tx_out.address]
 
     @property
@@ -592,98 +736,18 @@ class PSBTParser:
     def fee_amount(self) -> int:
         return self.total_input_amount - self.total_output_amount
 
-    # Token View
-    # GENESIS
-    @property
-    def is_genesis(self) -> bool:
-        return self.genesis is not None
 
-    @property
-    def genesis_categories(self) -> Dict[str, List[str]]:
-        if self.genesis:
-            return self.genesis.categories
-
-    # NON GENESIS
-    # FT functions
-    def is_ft_burned(self, category_id: str) -> bool:
-        return self.inputs.get_ft_total_amount(category_id) > self.outputs.get_ft_total_amount(category_id)
-
-    # NFT functions
-    def is_nft_minting(self, category_id: str) -> bool:
-        return self.inputs.has_minting_nft(category_id)
-
-    def is_nft_burned(self, category_id: str) -> bool:
-        def bag(items, get_token):
-            result = {}
-            for item in items:
-                nft = get_token(item).nft_data
-                if nft:
-                    key = (nft.capability, nft.commitment)
-                    result[key] = result.get(key, 0) + 1
-            return result
-
-        inputs = bag(self.inputs.get_nft(category_id), lambda item: item.spent_output.token)
-        outputs = bag(self.outputs.get_nft(category_id), lambda item: item.token)
-        if self.genesis:
-            for key, count in bag(self.genesis.outputs.nft.get(category_id, []), lambda item: item.token).items():
-                outputs[key] = outputs.get(key, 0) + count
-
-        return any(outputs.get(key, 0) < count for key, count in inputs.items())
-
-    def resolve_spent_output(
-        self,
-        prev_index: int, 
-        input_pairs: List[Tuple[bytes, bytes]],
-        prev_txid: Optional[bytes] = None,) -> Optional[TxOutput]:
-        """
-        Resolve the UTXO an input spends, from PSBT_IN_NON_WITNESS_UTXO or
-        PSBT_IN_WITNESS_UTXO, with CashToken decoding applied.
-        """
-
-        for key, value in input_pairs:
-            if key[0] == 0x00:  # PSBT_IN_NON_WITNESS_UTXO
-                expected_txid = hashlib.sha256(hashlib.sha256(value).digest()).digest()
-                if prev_txid is not None and expected_txid != prev_txid:
-                    raise ValueError("parent transaction hash mismatch")
-                prev_tx = parse_transaction(value)
-                if prev_index < len(prev_tx.outputs):
-                    return prev_tx.outputs[prev_index]   # TxOutput
-                return None
-            if key[0] == 0x01:  # PSBT_IN_WITNESS_UTXO
-                out_value = value[:8]
-                script_len, spos = read_varint(value, 8)
-                script = value[spos:spos + script_len]
-                token = parse_token_script(script)
-                script_type, address = classify_script(token.script_pubkey if token else script, is_token_tx=bool(token))
-                return TxOutput(
-                    value_satoshis=int.from_bytes(out_value, "little"),
-                    index=prev_index,
-                    script_type=script_type,
-                    full_script=script,
-                    token=token,
-                    address=address,
-                )
-        return None
-
+    # Build Transaction
     def build_transaction(self):
-        is_genesis_tx: bool = False
-        genesis_categories: Dict[str, List[str]] = {"nft": [], "ft": []}
-
-        # Non-genesis buckets (category-id → list)
-        inputs: Dict[str, Dict[str, List[TxInput]]] = {"nft": {}, "ft": {}}
-        outputs: Dict[str, Dict[str, List[TxOutput]]] = {"nft": {}, "ft": {}}
-
-        # Genesis buckets — outer key is "nft"/"ft", inner key is category-id
-        in_genesis_dict: Dict[str, Dict[str, List[TxInput]]] = {"nft": {}, "ft": {}}
-        out_genesis_dict: Dict[str, Dict[str, List[TxOutput]]] = {"nft": {}, "ft": {}}
+        ft_categories: Dict[str, Category] = {}
+        nft_categories: Dict[str, Category] = {}
 
         # Candidate funding inputs for a genesis category (prev_index == 0)
         in_genesis_catId: Dict[str, List[str]] = {}
 
         # ---------------- INPUTS ----------------
         for i, tx_in in enumerate(self.tx.inputs):
-            
-            spent = self.resolve_spent_output(tx_in.prev_index, self.parsed["inputs"][i], prev_txid=tx_in.prev_txid)
+            spent = resolve_spent_output(tx_in.prev_index, self.parsed["inputs"][i], prev_txid=tx_in.prev_txid)
             tx_in.spent_output = spent
 
             if spent is None:
@@ -698,13 +762,17 @@ class PSBTParser:
             if spent.token:
                 category = spent.token.category_id
                 if spent.token.nft_data is not None:
-                    if category not in self.categories["nft"]:
-                        self.categories["nft"].append(category)
-                    inputs["nft"].setdefault(category, []).append(tx_in)
+                    if category not in nft_categories:
+                        nft_categories.setdefault(
+                            category, 
+                            Category(category_id=category))
+                    nft_categories[category].add_input(tx_in)
                 if spent.token.ft_amount is not None:
-                    if category not in self.categories["ft"]:
-                        self.categories["ft"].append(category)
-                    inputs["ft"].setdefault(category, []).append(tx_in)
+                    if category not in ft_categories:
+                        ft_categories.setdefault(
+                            category, 
+                            Category(category_id=category, is_ft=True))
+                    ft_categories[category].add_input(tx_in)
 
 
         # ---------------- OUTPUTS ----------------
@@ -717,8 +785,8 @@ class PSBTParser:
 
             category = tx_out.token.category_id
             
-            is_new_nft = (tx_out.token.nft_data is not None and category not in self.categories["nft"])
-            is_new_ft  = (tx_out.token.ft_amount is not None and category not in self.categories["ft"])
+            is_new_nft = (tx_out.token.nft_data is not None and category not in nft_categories)
+            is_new_ft  = (tx_out.token.ft_amount is not None and category not in ft_categories)
 
             if is_new_nft and category not in in_genesis_catId:
                 raise ValueError(f"category {category} appears in outputs with no genesis input and no matching token input")
@@ -727,46 +795,33 @@ class PSBTParser:
 
             if tx_out.token.nft_data is not None:
                 if is_new_nft:
-                    is_genesis_tx = True
-                    if category not in genesis_categories["nft"]:
-                        genesis_categories["nft"].append(category) 
-                    out_genesis_dict["nft"].setdefault(category, []).append(tx_out)
-                    if category in in_genesis_catId and category not in in_genesis_dict["nft"]:
-                        in_genesis_dict["nft"].setdefault(category, []).extend(in_genesis_catId[category])
+                    if category not in nft_categories:
+                        nft_categories.setdefault(
+                            category, 
+                            Category(category_id=category, is_genesis=True))
+                    nft_categories[category].add_output(tx_out)
+                    if category in in_genesis_catId and category not in nft_categories:
+                        for input in in_genesis_catId[category]:
+                            nft_categories[category].add_input(input) 
                 else:
-                    outputs["nft"].setdefault(category, []).append(tx_out)
+                    nft_categories[category].add_output(tx_out)
 
             # --- FT side ---
             if tx_out.token.ft_amount is not None:
                 if is_new_ft:
-                    is_genesis_tx = True
-                    if category not in genesis_categories["ft"]:
-                        genesis_categories["ft"].append(category)
-                    out_genesis_dict["ft"].setdefault(category, []).append(tx_out)
-                    if category in in_genesis_catId and category not in in_genesis_dict["ft"]:
-                        in_genesis_dict["ft"].setdefault(category, []).extend(in_genesis_catId[category])
+                    if category not in ft_categories:
+                        ft_categories.setdefault(
+                            category, 
+                            Category(category_id=category, is_ft=True, is_genesis=True))
+                    ft_categories[category].add_output(tx_out)
+                    if category in in_genesis_catId and category not in ft_categories:
+                        for input in in_genesis_catId[category]:
+                            ft_categories[category].add_input(input)
                 else:
-                    outputs["ft"].setdefault(category, []).append(tx_out)
+                    ft_categories[category].add_output(tx_out)
 
-        
-        self.inputs=Inputs(
-            nft=inputs["nft"],
-            ft=inputs["ft"]
-        )
-
-        self.outputs=Outputs(
-            nft=outputs["nft"],
-            ft=outputs["ft"],
-        )
-
-        self.genesis=Genesis(
-            categories=genesis_categories,
-            inputs=Inputs(
-                nft=in_genesis_dict["nft"] if "nft" in in_genesis_dict else {},
-                ft=in_genesis_dict["ft"] if "ft" in in_genesis_dict else {},
-            ),
-            outputs=Outputs(
-                nft=out_genesis_dict["nft"] if "nft" in out_genesis_dict else {},
-                ft=out_genesis_dict["ft"] if "ft" in out_genesis_dict else {}
+        if ft_categories or nft_categories:
+            self.token_review = TokenReview(
+                ft_categories=list(ft_categories.values()),
+                nft_categories=list(nft_categories.values())
             )
-        ) if is_genesis_tx else None

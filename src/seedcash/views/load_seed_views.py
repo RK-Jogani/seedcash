@@ -1,4 +1,3 @@
-import logging
 from seedcash.gui.screens import screen
 from seedcash.models.seed import InvalidSeedException
 from gettext import gettext as _
@@ -7,7 +6,6 @@ from seedcash.gui.screens import (
     RET_CODE__BACK_BUTTON,
     DireWarningScreen,
     WarningScreen,
-    load_seed_screens,
 )
 from seedcash.gui.screens.screen import ButtonOption
 from seedcash.views.view import (
@@ -35,8 +33,9 @@ class SeedMnemonicEntryView(View):
         # Save the view
 
     def run(self):
+        from seedcash.gui.screens.load_seed_screens import SeedMnemonicEntryScreen
         ret = self.run_screen(
-            load_seed_screens.SeedMnemonicEntryScreen,
+            SeedMnemonicEntryScreen,
             # TRANSLATOR_NOTE: Inserts the word number (e.g. "Seed Word #6")
             title=_("Seed Word #{}").format(
                 self.cur_word_index + 1
@@ -199,9 +198,11 @@ class Bip39SeedViewView(View):
         else:
             button_data=[self.CONFIRM]
 
+        from seedcash.gui.screens.wallet_screens import SeedFinalizeScreen
         ret = self.run_screen(
-            load_seed_screens.SeedFinalizeScreen,
+            SeedFinalizeScreen,
             fingerprint=self.controller.storage.wallet.fingerprint,
+            selected_button=1 if len(button_data) == 2 else 0,
             button_data=button_data,
         )
 
@@ -229,5 +230,5 @@ class PassphraseNotIncludedWarningView(View):
         if result == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
 
-        from seedcash.views.wallet_views import SeedTranscribeSeedQRWholeQRView
-        return Destination(SeedTranscribeSeedQRWholeQRView)
+        from seedcash.views.wallet_views import TranscribeSeedQRWholeQRView
+        return Destination(TranscribeSeedQRWholeQRView)

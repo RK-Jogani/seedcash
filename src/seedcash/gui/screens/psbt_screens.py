@@ -1,4 +1,3 @@
-import math
 import time
 
 from dataclasses import dataclass
@@ -27,10 +26,8 @@ from seedcash.models.threads import BaseThread
 from .screen import (
     ButtonOption,
     SeedCashButtonListWithNav,
-    ScrollableCardConfirmScreen,
+    BaseTopNavScreen,
 )
-
-
 
 
 @dataclass
@@ -49,6 +46,7 @@ class PSBTOverviewScreen(SeedCashButtonListWithNav):
         self.title = _("Review PSBT")
         self.is_bottom_list = True
         self.is_button_text_centered = True
+        self.selected_color = self.category.icon_color if self.category else GUIConstants.ACCENT_COLOR
 
         self.button_data = [ButtonOption("Next")]
 
@@ -513,6 +511,224 @@ class PSBTOverviewScreen(SeedCashButtonListWithNav):
                 time.sleep(0.02)
 
 @dataclass
+class PSBTNFTScreen(SeedCashButtonListWithNav):
+    category_id: str = None
+    is_ft: bool = False  # Flag to indicate if the NFT is a fungible token
+
+    def __post_init__(self):
+        # Customize defaults
+        self.title = _("Review PSBT")
+        self.is_bottom_list = True
+        self.is_button_text_centered = True
+        super().__post_init__()
+        
+        # collection TODO: For now we have unkown we will add collection in future
+        y_offset = self.top_nav.height + GUIConstants.COMPONENT_PADDING
+        
+        self.components.append(
+            TextArea(
+                text="Token" if self.is_ft else "Collection",
+                font_size=GUIConstants.BODY_FONT_SIZE - 4,
+                is_text_centered=False,
+                screen_y=y_offset,
+            )
+        )
+        y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
+        self.components.append(
+            RoundedTextArea(
+                text="Unknown",
+                font_size=GUIConstants.BODY_FONT_SIZE - 2,
+                is_text_centered=False,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=y_offset,
+            )
+        )
+
+        # category
+        y_offset += GUIConstants.BODY_FONT_SIZE + 2 * GUIConstants.COMPONENT_PADDING
+        self.components.append(
+            TextArea(
+                text="Category ID",
+                font_size=GUIConstants.BODY_FONT_SIZE - 4,
+                is_text_centered=False,
+                screen_y=y_offset,
+            )
+        )
+
+        y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
+        self.components.append(
+            RoundedTextArea(
+                text=self.category_id,
+                font_size=GUIConstants.BODY_FONT_SIZE - 2,
+                is_text_centered=False,
+                treat_chars_as_words=True,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=y_offset,
+            )
+        )
+
+@dataclass
+class PSBTNFTDetailsScreen(SeedCashButtonListWithNav):
+    """
+    Same constructor signature (output_num, nft_capability, nft_commitment).
+    A static card between the top nav and the Next button. Its background
+    image depends on the NFT type (gold for minting, graphite for none,
+    mutable and anything else), with the heading, Type and Commitment drawn
+    on top.
+    """
+
+    # NFT type to card background theme. Any other type uses graphite.
+    NFT_CARD_THEMES = {"minting": "gold"}
+    NFT_CARD_DEFAULT_THEME = "graphite"
+    NFT_CARD_FALLBACK_COLOR = (38, 38, 48)
+
+    output_num: int = None
+    nft_capability: str = None
+    nft_commitment: str = None
+
+    def __post_init__(self):
+        self.title = _("Review PSBT")
+        self.is_bottom_list = True
+        self.is_button_text_centered = True
+        self.button_data = [ButtonOption(_("Next"))]
+
+        super().__post_init__()      # builds top nav, the Next button, paste_images
+
+        # The card fills the space between the top nav and the Next button
+        self.card_x = GUIConstants.EDGE_PADDING
+        self.card_y = self.top_nav.height
+        self.card_width = self.canvas_width - 2 * GUIConstants.EDGE_PADDING
+        self.card_height = (
+            self.buttons[0].screen_y - self.card_y - GUIConstants.COMPONENT_PADDING
+        )
+
+        card = self._load_card_background()
+        self._draw_card_text(card)
+        self.paste_images.append((card.convert("RGB"), (self.card_x, self.card_y)))
+
+    def _load_card_background(self) -> Image.Image:
+        """Background PNG for this NFT type. The file name carries the card
+        size, so it must match the generated files."""
+        theme = self.NFT_CARD_THEMES.get(str(self.nft_capability).lower(), self.NFT_CARD_DEFAULT_THEME)
+        name = f"nft_card_{theme}.png"
+        try:
+            return load_image(name, "img").convert("RGBA")
+        except Exception:
+            # Missing file or wrong card size: plain rounded card instead
+            card = Image.new("RGBA", (self.card_width, self.card_height), (0, 0, 0, 255))
+            ImageDraw.Draw(card).rounded_rectangle(
+                (0, 0, self.card_width - 1, self.card_height - 1),
+                radius=16,
+                fill=self.NFT_CARD_FALLBACK_COLOR,
+            )
+            return card
+
+    def _draw_card_text(self, card: Image.Image):
+        """Draw the heading and the label / value pairs onto the card.
+        Text goes on a transparent layer first, so the background pixels
+        under it are never overwritten."""
+        layer = Image.new("RGBA", card.size, (0, 0, 0, 0))
+        layer_draw = ImageDraw.Draw(layer)
+
+        text_width = card.width - 2 * GUIConstants.COMPONENT_PADDING
+
+        def text(value, size, centered=False, rounded=False):
+            if rounded:
+                return RoundedTextArea(
+                    image_draw=layer_draw,
+                    canvas=layer,
+                    width=text_width,
+                    treat_chars_as_words=True,
+                    text=value,
+                    font_size=size,
+                    font_color=GUIConstants.BODY_FONT_COLOR,
+                    is_text_centered=centered,
+                )
+            return TextArea(
+                image_draw=layer_draw,
+                canvas=layer,
+                text=value,
+                width=text_width,
+                edge_padding=0,
+                font_size=size,
+                font_color=GUIConstants.BODY_FONT_COLOR,
+                is_text_centered=centered,
+                background_color=GUIConstants.TRANSPARENT_COLOR,
+            )
+
+        gap = (3 * GUIConstants.COMPONENT_PADDING)//2
+        rows = [
+            (text(f"NFT #{self.output_num}", GUIConstants.TOP_NAV_TITLE_FONT_SIZE), gap),
+            (text(_("Type"), GUIConstants.BODY_FONT_SIZE - 4), gap//2),
+            (text(self.nft_capability, GUIConstants.BODY_FONT_SIZE - 2, rounded=True), gap),
+        ]
+
+        # nft_commitment is an empty string when there is nothing to show;
+        # keep that section out of the card entirely in that case.
+        if self.nft_commitment != "":
+            rows += [
+                (text(_("Commitment"), GUIConstants.BODY_FONT_SIZE - 4), gap//2),
+                (text(self.nft_commitment, GUIConstants.BODY_FONT_SIZE - 2, rounded=True), 0, ),
+            ]
+
+        y = 2 * GUIConstants.COMPONENT_PADDING
+        for component, gap_after in rows:
+            component.screen_x = gap
+            component.screen_y = y
+            component.render()
+            y += component.height + gap_after
+
+        card.alpha_composite(layer)
+
+@dataclass
+class PSBTNFTAddressScreen(SeedCashButtonListWithNav):
+    destination_addr: str = None
+    index: int = None
+
+    def __post_init__(self):
+        self.title = _("Will Send")
+        self.is_bottom_list = True
+        self.is_button_text_centered = True
+        super().__post_init__()
+
+        center_img_height = self.buttons[0].screen_y - self.top_nav.height
+        center_img = Image.new("RGB", (self.canvas_width, center_img_height), GUIConstants.BACKGROUND_COLOR)
+        draw = ImageDraw.Draw(center_img)
+
+        # ---- Center the "NFT#" label ----
+        self.text_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, 24)
+        draw.text(
+            (self.canvas_width // 2, 2*GUIConstants.COMPONENT_PADDING),  # <-- center x
+            text=f"NFT#{self.index}",
+            font=self.text_font,
+            fill=GUIConstants.BODY_FONT_COLOR,
+            anchor="ms",   # middle baseline (center horizontally, baseline vertical)
+        )
+
+        # Address (left‑aligned)
+        formatted_address = FormattedAddress(
+            image_draw=draw,
+            canvas=center_img,
+            width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
+            screen_x=GUIConstants.EDGE_PADDING,
+            screen_y=GUIConstants.COMPONENT_PADDING + 30,
+            font_size=24,
+            font_accent_color=GUIConstants.MUSD_BLUE,
+            address=self.destination_addr,
+        )
+        formatted_address.render()
+
+        # Crop and position as before...
+        center_img = center_img.crop(
+            (0, 0, self.canvas_width, formatted_address.screen_y + formatted_address.height)
+        )
+        body_img_y = self.top_nav.height + int(
+            (center_img_height - center_img.height - GUIConstants.COMPONENT_PADDING) / 2
+        )
+        self.paste_images.append((center_img, (0, body_img_y))) 
+
+
+@dataclass
 class PSBTMathScreen(SeedCashButtonListWithNav):
     input_amount: int = 0
     input_count: int = 0
@@ -686,6 +902,7 @@ class PSBTAddressDetailsScreen(SeedCashButtonListWithNav):
         # Customize defaults
         self.is_bottom_list = True
         self.is_button_text_centered = True
+        self.selected_color = self.category.icon_color if self.category else GUIConstants.ACCENT_COLOR
         super().__post_init__()
 
         center_img_height = self.buttons[0].screen_y - self.top_nav.height
@@ -744,26 +961,29 @@ class PSBTAddressDetailsScreen(SeedCashButtonListWithNav):
         self.paste_images.append((self.body_img, (0, body_img_y)))
 
 @dataclass
-class PSBTOpReturnScreen(ScrollableCardConfirmScreen):
-    op_return_data: str = None
+class PSBTCardTextScreen(SeedCashButtonListWithNav):
+    text: str = ""
 
     def __post_init__(self):
-        self.title = _("Review PSBT")
+        self.is_bottom_list = True
         self.is_button_text_centered = True
-        self.confirm_button_label = _("Next")
-        
-        op_return_text = TextArea(
-            text=self.op_return_data,
-            font_size=GUIConstants.TOP_NAV_TITLE_FONT_SIZE,
-            font_color=GUIConstants.BODY_FONT_COLOR,
-            is_text_centered=False,
-            background_color=GUIConstants.TRANSPARENT_COLOR
-        )
-
-        self.card_components = [(op_return_text, 0)]
         super().__post_init__()
 
-        
+        content_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
+        card_height = self.canvas_height - content_y - self.buttons[0].height - 2 * GUIConstants.COMPONENT_PADDING
+        self.components.append(
+            RoundedTextArea(
+                text=self.text,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=content_y,
+                width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
+                height=card_height,
+                fill_color=GUIConstants.INACTIVE_COLOR,
+                is_text_centered=True,
+                treat_chars_as_words=True,
+            )
+        )
+
 @dataclass
 class PSBTFinalizeScreen(SeedCashButtonListWithNav):
     def __post_init__(self):
@@ -791,218 +1011,3 @@ class PSBTFinalizeScreen(SeedCashButtonListWithNav):
             )
         )
 
-@dataclass
-class PSBTNFTScreen(SeedCashButtonListWithNav):
-    category_id: str = None
-    is_ft: bool = False  # Flag to indicate if the NFT is a fungible token
-
-    def __post_init__(self):
-        # Customize defaults
-        self.title = _("Review PSBT")
-        self.is_bottom_list = True
-        self.is_button_text_centered = True
-        super().__post_init__()
-        
-        # collection TODO: For now we have unkown we will add collection in future
-        y_offset = self.top_nav.height + GUIConstants.COMPONENT_PADDING
-        
-        self.components.append(
-            TextArea(
-                text="Token" if self.is_ft else "Collection",
-                font_size=GUIConstants.BODY_FONT_SIZE - 4,
-                is_text_centered=False,
-                screen_y=y_offset,
-            )
-        )
-        y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
-        self.components.append(
-            RoundedTextArea(
-                text="Unknown",
-                font_size=GUIConstants.BODY_FONT_SIZE - 2,
-                is_text_centered=False,
-                screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=y_offset,
-            )
-        )
-
-        # category
-        y_offset += GUIConstants.BODY_FONT_SIZE + 2 * GUIConstants.COMPONENT_PADDING
-        self.components.append(
-            TextArea(
-                text="Category ID",
-                font_size=GUIConstants.BODY_FONT_SIZE - 4,
-                is_text_centered=False,
-                screen_y=y_offset,
-            )
-        )
-
-        y_offset += GUIConstants.BODY_FONT_SIZE + GUIConstants.COMPONENT_PADDING // 2
-        self.components.append(
-            RoundedTextArea(
-                text=self.category_id,
-                font_size=GUIConstants.BODY_FONT_SIZE - 2,
-                is_text_centered=False,
-                treat_chars_as_words=True,
-                screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=y_offset,
-            )
-        )
-
-@dataclass
-class PSBTNFTDetailsScreen(SeedCashButtonListWithNav):
-    """
-    Same constructor signature (output_num, nft_capability, nft_commitment).
-    A static card between the top nav and the Next button. Its background
-    image depends on the NFT type (gold for minting, graphite for none,
-    mutable and anything else), with the heading, Type and Commitment drawn
-    on top.
-    """
-
-    # NFT type to card background theme. Any other type uses graphite.
-    NFT_CARD_THEMES = {"minting": "gold"}
-    NFT_CARD_DEFAULT_THEME = "graphite"
-    NFT_CARD_FALLBACK_COLOR = (38, 38, 48)
-
-    output_num: int = None
-    nft_capability: str = None
-    nft_commitment: str = None
-
-    def __post_init__(self):
-        self.title = _("Review PSBT")
-        self.is_bottom_list = True
-        self.is_button_text_centered = True
-        self.button_data = [ButtonOption(_("Next"))]
-
-        super().__post_init__()      # builds top nav, the Next button, paste_images
-
-        # The card fills the space between the top nav and the Next button
-        self.card_x = GUIConstants.EDGE_PADDING
-        self.card_y = self.top_nav.height
-        self.card_width = self.canvas_width - 2 * GUIConstants.EDGE_PADDING
-        self.card_height = (
-            self.buttons[0].screen_y - self.card_y - GUIConstants.COMPONENT_PADDING
-        )
-
-        card = self._load_card_background()
-        self._draw_card_text(card)
-        self.paste_images.append((card.convert("RGB"), (self.card_x, self.card_y)))
-
-    def _load_card_background(self) -> Image.Image:
-        """Background PNG for this NFT type. The file name carries the card
-        size, so it must match the generated files."""
-        theme = self.NFT_CARD_THEMES.get(str(self.nft_capability).lower(), self.NFT_CARD_DEFAULT_THEME)
-        name = f"nft_card_{theme}.png"
-        try:
-            return load_image(name, "img").convert("RGBA")
-        except Exception:
-            # Missing file or wrong card size: plain rounded card instead
-            card = Image.new("RGBA", (self.card_width, self.card_height), (0, 0, 0, 255))
-            ImageDraw.Draw(card).rounded_rectangle(
-                (0, 0, self.card_width - 1, self.card_height - 1),
-                radius=16,
-                fill=self.NFT_CARD_FALLBACK_COLOR,
-            )
-            return card
-
-    def _draw_card_text(self, card: Image.Image):
-        """Draw the heading and the label / value pairs onto the card.
-        Text goes on a transparent layer first, so the background pixels
-        under it are never overwritten."""
-        layer = Image.new("RGBA", card.size, (0, 0, 0, 0))
-        layer_draw = ImageDraw.Draw(layer)
-
-        text_width = card.width - 2 * GUIConstants.COMPONENT_PADDING
-
-        def text(value, size, centered=False, rounded=False):
-            if rounded:
-                return RoundedTextArea(
-                    image_draw=layer_draw,
-                    canvas=layer,
-                    width=text_width,
-                    text=value,
-                    font_size=size,
-                    font_color=GUIConstants.BODY_FONT_COLOR,
-                    is_text_centered=centered,
-                )
-            return TextArea(
-                image_draw=layer_draw,
-                canvas=layer,
-                text=value,
-                width=text_width,
-                edge_padding=0,
-                font_size=size,
-                font_color=GUIConstants.BODY_FONT_COLOR,
-                is_text_centered=centered,
-                background_color=GUIConstants.TRANSPARENT_COLOR,
-            )
-
-        gap = (3 * GUIConstants.COMPONENT_PADDING)//2
-        rows = [
-            (text(f"NFT #{self.output_num}", GUIConstants.TOP_NAV_TITLE_FONT_SIZE), gap),
-            (text(_("Type"), GUIConstants.BODY_FONT_SIZE - 4), gap//2),
-            (text(self.nft_capability, GUIConstants.BODY_FONT_SIZE - 2, rounded=True), gap),
-        ]
-
-        # nft_commitment is an empty string when there is nothing to show;
-        # keep that section out of the card entirely in that case.
-        if self.nft_commitment != "":
-            rows += [
-                (text(_("Commitment"), GUIConstants.BODY_FONT_SIZE - 4), gap//2),
-                (text(self.nft_commitment, GUIConstants.BODY_FONT_SIZE - 2, rounded=True), 0, ),
-            ]
-
-        y = 2 * GUIConstants.COMPONENT_PADDING
-        for component, gap_after in rows:
-            component.screen_x = gap
-            component.screen_y = y
-            component.render()
-            y += component.height + gap_after
-
-        card.alpha_composite(layer)
-
-@dataclass
-class PSBTNFTAddressScreen(SeedCashButtonListWithNav):
-    destination_addr: str = None
-    index: int = None
-
-    def __post_init__(self):
-        self.title = _("Will Send")
-        self.is_bottom_list = True
-        self.is_button_text_centered = True
-        super().__post_init__()
-
-        center_img_height = self.buttons[0].screen_y - self.top_nav.height
-        center_img = Image.new("RGB", (self.canvas_width, center_img_height), GUIConstants.BACKGROUND_COLOR)
-        draw = ImageDraw.Draw(center_img)
-
-        # ---- Center the "NFT#" label ----
-        self.text_font = Fonts.get_font(GUIConstants.FIXED_WIDTH_EMPHASIS_FONT_NAME, 24)
-        draw.text(
-            (self.canvas_width // 2, 2*GUIConstants.COMPONENT_PADDING),  # <-- center x
-            text=f"NFT#{self.index}",
-            font=self.text_font,
-            fill=GUIConstants.BODY_FONT_COLOR,
-            anchor="ms",   # middle baseline (center horizontally, baseline vertical)
-        )
-
-        # Address (left‑aligned)
-        formatted_address = FormattedAddress(
-            image_draw=draw,
-            canvas=center_img,
-            width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
-            screen_x=GUIConstants.EDGE_PADDING,
-            screen_y=GUIConstants.COMPONENT_PADDING + 30,
-            font_size=24,
-            font_accent_color=GUIConstants.MUSD_BLUE,
-            address=self.destination_addr,
-        )
-        formatted_address.render()
-
-        # Crop and position as before...
-        center_img = center_img.crop(
-            (0, 0, self.canvas_width, formatted_address.screen_y + formatted_address.height)
-        )
-        body_img_y = self.top_nav.height + int(
-            (center_img_height - center_img.height - GUIConstants.COMPONENT_PADDING) / 2
-        )
-        self.paste_images.append((center_img, (0, body_img_y))) 

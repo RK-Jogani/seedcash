@@ -9,9 +9,7 @@ from seedcash.helpers.ur2.ur_encoder import UREncoder
 from seedcash.models.decode_qr import DecodeQR
 from seedcash.models.decode_qr import DecodeQRStatus
 from seedcash.models.psbt_parser import PSBTParser
-from seedcash.models.psbt_parser import parse_keypairs
 from seedcash.models.psbt_parser import parse_psbt
-from seedcash.models.psbt_signer import _serialize_keypairs
 from seedcash.helpers.qr import QR
 from seedcash.helpers.ur2.constants import MAX_SEQ_LEN
 from seedcash.helpers.ur2.fountain_encoder import FountainEncoder

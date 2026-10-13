@@ -1947,8 +1947,10 @@ class TokenAmount(BaseComponent):
         )
         token_icon.render()
         cur_x = token_icon.width + int(GUIConstants.COMPONENT_PADDING / 4)
-        
-        self.amount = self.amount / (10 ** self.category.decimal)
+
+        if self.category.decimal > 0:
+            self.amount = self.amount / (10 ** self.category.decimal)
+            
         amount_text = f"{self.amount}"
 
         if self.amount > 1e8:

@@ -9,7 +9,7 @@ from seedcash.models.psbt_parser import ParseTransactionResult
 from seedcash.models.psbt_parser import Token
 from seedcash.models.psbt_parser import TxInput
 from seedcash.models.psbt_parser import TxOutput
-from seedcash.models.psbt_parser import PSBTParser
+from seedcash.models.psbt_parser import PSBTParser, resolve_spent_output
 from seedcash.models.psbt_signer import BitcoinCashSigner
 from seedcash.models.psbt_signer import BCHSignerExpectation
 from seedcash.models.psbt_signer import SIGHASH_ALL
@@ -106,7 +106,7 @@ class TestAuditIntegration:
             assert SIGHASH_NONE | SIGHASH_FORKID not in ALLOWED_SIGHASH
             assert SIGHASH_ALL | SIGHASH_FORKID in ALLOWED_SIGHASH
 
-        def test_genesis_accepts_tokenized_vout_zero_input(self):
+        def test_genesis_accepts_tokenized_vout_zero_input(self, monkeypatch):
             category_id = '11' * 32
             spent_category_id = '22' * 32
             prev_txid = bytes.fromhex(category_id)[::-1]
@@ -117,12 +117,16 @@ class TestAuditIntegration:
             parser.parsed = {'inputs': [[]]}
             parser.total_input_amount = 0
             parser.total_output_amount = 0
-            parser.categories = {'nft': [], 'ft': []}
             parser.tx = ParseTransactionResult(version=b'\x01\x00\x00\x00', inputs=[tx_input], outputs=[TxOutput(value_satoshis=900, index=0, full_script=token.script_pubkey, token=Token(prefix=b'', script_pubkey=token.script_pubkey, category_id=category_id, ft_amount=1))], locktime=b'\x00\x00\x00\x00')
-            parser.resolve_spent_output = lambda prev_index, input_pairs, prev_txid=None: spent_output
+            monkeypatch.setattr('seedcash.models.psbt_parser.resolve_spent_output',
+                                lambda prev_index, input_pairs, prev_txid=None: spent_output)
             parser.build_transaction()
-            assert parser.genesis is not None
-            assert category_id in parser.genesis.categories['ft']
+            categories = {cat.category_id: cat for cat in parser.token_review.ft_categories}
+            assert categories[category_id].is_genesis
+            assert categories[category_id].inputs == []
+            assert categories[category_id].outputs == parser.tx.outputs
+            assert categories[spent_category_id].inputs == [tx_input]
+            assert parser.total_input_amount == 1000
 
     class TestRedeemScriptValidation:
 
@@ -311,6 +315,20 @@ class TestParserSigningSecurity:
             parse_bip32_derivation_value(bytes(136))
 
     @staticmethod
+    def test_oversized_path_rejected_before_cache_or_crypto():
+        signer = BitcoinCashSigner.__new__(BitcoinCashSigner)
+        with pytest.raises(BCHSignerExpectation, match='exceeds 32 components'):
+            signer._derive_path([0] * 33)
+
+    @staticmethod
+    def test_maximum_path_can_use_cached_derivation():
+        signer = BitcoinCashSigner.__new__(BitcoinCashSigner)
+        path = [0] * 32
+        expected = (bytes(32), bytes(33))
+        signer._key_cache = {tuple(path): expected}
+        assert signer._derive_path(path) == expected
+
+    @staticmethod
     @pytest.mark.parametrize('index', [-1, 4294967296, True, 1.0])
     def test_child_index_rejected_before_crypto(index):
         with pytest.raises(ValueError, match='derivation index'):
@@ -337,16 +355,21 @@ class TestParserSigningSecurity:
     @staticmethod
     @pytest.mark.parametrize('value', [bytes(8), bytes(8) + b'\x01', bytes(8) + b'\x00\x01', bytes(8) + b'\x01\xef'])
     def test_witness_utxo_invalid_prefix_or_length_rejected(value):
-        parser = PSBTParser.__new__(PSBTParser)
         with pytest.raises(ValueError):
-            parser.resolve_spent_output(0, [(b'\x01', value)])
+            resolve_spent_output(0, [(b'\x01', value)])
+
+    @staticmethod
+    @pytest.mark.parametrize('script', [b'\xef', b'\xef' + bytes(32) + b'\x80', b'\xef' + bytes(32) + b'\x10\x00'])
+    def test_witness_utxo_malformed_token_prefix_rejected(script):
+        value = bytes(8) + serialize_varint(len(script)) + script
+        with pytest.raises(ValueError, match='invalid token prefix'):
+            resolve_spent_output(0, [(b'\x01', value)])
 
     @staticmethod
     def test_valid_witness_utxo_retains_token():
         script = b'\xef' + bytes(32) + b'\x10\x01' + parser_signing_security_P2PKH
         value = 1000 .to_bytes(8, 'little') + serialize_varint(len(script)) + script
-        parser = PSBTParser.__new__(PSBTParser)
-        spent = parser.resolve_spent_output(0, [(b'\x01', value)])
+        spent = resolve_spent_output(0, [(b'\x01', value)])
         assert spent.value_satoshis == 1000
         assert spent.full_script == script
         assert spent.token.ft_amount == 1
@@ -398,6 +421,21 @@ class TestParserSigningSecurity:
         actual = signer.create_sighash(transaction, 0, script_code=redeem)
         preimage = transaction.version + double_sha256(bytes(36)) + double_sha256(b'\xff' * 4) + bytes(36) + b'\x01' + redeem + 1000 .to_bytes(8, 'little') + b'\xff' * 4 + double_sha256(900 .to_bytes(8, 'little') + bytes([len(parser_signing_security_P2PKH)]) + parser_signing_security_P2PKH) + bytes(4) + b'A\x00\x00\x00'
         assert actual == double_sha256(preimage)
+
+    @staticmethod
+    @pytest.mark.parametrize('p2sh32', [False, True])
+    @pytest.mark.parametrize('tokenized', [False, True])
+    def test_p2sh_sighash_requires_redeem_script(p2sh32, tokenized):
+        signer = BitcoinCashSigner.__new__(BitcoinCashSigner)
+        redeem = b'Q'
+        locking = (b'\xaa ' + double_sha256(redeem) if p2sh32 else b'\xa9\x14' + Bip44.hash160(redeem)) + b'\x87'
+        transaction = parser_signing_security_signing_tx(locking)
+        if tokenized:
+            script = b'\xef' + bytes(32) + b'\x10\x01' + locking
+            transaction.inputs[0].spent_output.full_script = script
+            transaction.inputs[0].spent_output.token = parse_token_script(script)
+        with pytest.raises(BCHSignerExpectation, match='requires a redeem script'):
+            signer.create_sighash(transaction, 0)
 
     @staticmethod
     def test_p2pkh_sighash_default_unchanged():
@@ -469,9 +507,8 @@ class TestParserSigningSecurity:
         parent = parser_signing_security_tx_bytes()
         txid = double_sha256(parent)
         witness = 901 .to_bytes(8, 'little') + bytes([len(parser_signing_security_P2PKH)]) + parser_signing_security_P2PKH
-        parser = PSBTParser.__new__(PSBTParser)
         with pytest.raises(ValueError, match='conflicting'):
-            parser.resolve_spent_output(0, [(b'\x00', parent), (b'\x01', witness)], txid)
+            resolve_spent_output(0, [(b'\x00', parent), (b'\x01', witness)], txid)
 
 class TestPsbtParserBoundaries:
 
@@ -597,7 +634,7 @@ class TestPsbtLoadingWorkflow:
 
         controller = SimpleNamespace(psbt_bytes=b'synthetic-psbt', psbt_parser=object())
         calls = []
-        parser = SimpleNamespace(is_genesis=False, inputs=SimpleNamespace(ft=[], nft=[]))
+        parser = SimpleNamespace(token_review=None)
 
         def parse(raw):
             assert raw == controller.psbt_bytes
@@ -622,7 +659,7 @@ class TestPsbtLoadingWorkflow:
         monkeypatch.setattr(psbt_views, 'PSBTParser', parse)
         monkeypatch.setattr(psbt_views.time, 'sleep', lambda seconds: None)
         view = psbt_views.LoadingPSBTView()
-        assert calls == []
+        assert calls == ['start']
         destination = view.run()
         assert calls == ['start', 'parse', 'stop']
         assert destination.View_cls is (psbt_views.PSBTParsingErrorView if invalid else psbt_views.BCHPSBTOverviewView)

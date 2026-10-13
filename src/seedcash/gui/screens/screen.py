@@ -158,7 +158,6 @@ class LoadingScreenThread(BaseThread):
             width=GUIConstants.COMPONENT_PADDING,
         )
 
-
 @dataclass
 class BaseScreen(BaseComponent):
     def __post_init__(self):
@@ -323,7 +322,6 @@ class BaseTopNavScreen(BaseScreen):
                 # Write the screen updates
                 self.renderer.show_image()
 
-
 @dataclass
 class ButtonOption:
     """
@@ -341,7 +339,6 @@ class ButtonOption:
     
     font_name: str = None  # Optional override
     font_size: int = None  # Optional override
-
 
 @dataclass
 class ButtonListScreen(BaseScreen):
@@ -816,7 +813,6 @@ class SeedCashButtonListWithNav(BaseTopNavScreen, ButtonListScreen):
                 # Write the screen updates
                 self.renderer.show_image()
 
-
 @dataclass
 class QRDisplayScreen(BaseScreen):
     qr_encoder: BaseQrEncoder = None
@@ -997,7 +993,6 @@ class QRDisplayScreen(BaseScreen):
                 while self.threads[-1].is_alive():
                     time.sleep(0.01)
                 break
-
 
 @dataclass
 class LargeButtonScreen(BaseScreen):
@@ -1294,7 +1289,6 @@ class WarningScreen(WarningEdgesMixin, LargeIconStatusScreen):
     button_data: list = field(default_factory=lambda: [ButtonOption("I Understand")])
     show_back_button: bool = False
 
-
 @dataclass
 class DireWarningScreen(WarningScreen):
     """
@@ -1303,7 +1297,6 @@ class DireWarningScreen(WarningScreen):
 
     status_headline: str = "Classified Info!"  # The colored text under the alert icon
     status_color: str = GUIConstants.DIRE_WARNING_COLOR
-
 
 @dataclass
 class ErrorScreen(WarningScreen):
@@ -1314,7 +1307,6 @@ class ErrorScreen(WarningScreen):
     title: str = "Error"
     status_icon_name: str = SeedCashIconsConstants.ERROR
     status_color: str = GUIConstants.ERROR_COLOR
-
 
 @dataclass
 class PowerOffScreen(BaseTopNavScreen):
@@ -1330,7 +1322,6 @@ class PowerOffScreen(BaseTopNavScreen):
                 height=self.canvas_height - self.top_nav.height,
             )
         )
-
 
 @dataclass
 class KeyboardScreen(BaseTopNavScreen):
@@ -1589,7 +1580,6 @@ class KeyboardScreen(BaseTopNavScreen):
         """
         return False
 
-
 # Main Menu Screen
 @dataclass
 class MainMenuScreen(LargeButtonScreen):
@@ -1597,290 +1587,3 @@ class MainMenuScreen(LargeButtonScreen):
     show_back_button: bool = False
     show_check_button: bool = True
     button_font_size: int = 16
-
-@dataclass
-class ScrollableCardConfirmScreen(SeedCashButtonListWithNav):
-    
-    card_components: List = None
-    component_padding: int = None
-    scroll_step: int = None
-
-    # Card visuals
-    card_background_color: str = None
-    card_border_color: str = None
-    card_corner_radius: int = 16
-
-    confirm_button_label: str = "Confirm"
-
-    def __post_init__(self):
-        # This screen only ever has the one confirm button, pinned to the bottom
-        self.title = self.title or _("Confirm")
-        self.is_bottom_list = True
-        self.is_button_text_centered = True
-        self.button_data = [ButtonOption(self.confirm_button_label)]
-
-        super().__post_init__()  # builds self.top_nav, self.buttons, etc.
-
-        if self.component_padding is None:
-            self.component_padding = GUIConstants.COMPONENT_PADDING
-        if self.scroll_step is None:
-            self.scroll_step = GUIConstants.BUTTON_HEIGHT // 2
-        if self.card_background_color is None:
-            self.card_background_color = (
-                55,
-                55,
-                65
-            )
-        if self.card_border_color is None:
-            self.card_border_color = (
-                120,
-                120,
-                130
-            )
-
-        # The card fills the space between the top nav and the confirm button
-        self.card_x = GUIConstants.EDGE_PADDING
-        self.card_y = self.top_nav.height
-        self.card_width = self.canvas_width - (2 * GUIConstants.EDGE_PADDING)
-        self.card_height = (
-            self.buttons[0].screen_y - self.card_y - GUIConstants.COMPONENT_PADDING
-        )
-
-        self.card_inner_padding = 2 * GUIConstants.COMPONENT_PADDING
-        self.visible_top = self.card_y + self.card_inner_padding
-        self.visible_bottom = self.card_y + self.card_height - self.card_inner_padding
-        self.visible_height = max(0, self.visible_bottom - self.visible_top)
-
-        # Stack every component into one offscreen buffer sized to the full
-        # content height, so we can freely crop and scroll it afterward.
-        self._build_card_buffer()
-
-        self.scroll_y = 0
-        self.max_scroll_y = max(0, self.content_height - self.visible_height)
-
-        # If everything already fits without scrolling, treat it as read
-        self.is_scrolled_to_bottom = self.max_scroll_y == 0
-        self._apply_button_enabled_state()
-
-    def _build_card_buffer(self):
-        """Lay out card_components top to bottom and render them into a single
-        offscreen image, filled with the card's own background color, which
-        we crop from on every scroll step."""
-        components = self.card_components or []
-
-        content_width = self.card_width - (2 * self.card_inner_padding)
-
-        # First pass: assign each component's local y position (0 = top of
-        # the card's content) and total up the content height. Items may be
-        # a bare component (default gap after) or a (component, gap) tuple.
-        cur_y = 0
-        normalized = []
-        for item in components:
-            if isinstance(item, tuple):
-                component, gap_after = item
-            else:
-                component, gap_after = item, self.component_padding
-            component.screen_x = 0
-            component.screen_y = cur_y
-            cur_y += component.height + gap_after
-            normalized.append(component)
-
-        # Trim the trailing gap after the very last component
-        if normalized:
-            last_gap = (
-                components[-1][1]
-                if isinstance(components[-1], tuple)
-                else self.component_padding
-            )
-            cur_y -= last_gap
-        self.content_height = max(0, cur_y)
-
-        # Offscreen buffer big enough to hold every component in full, even
-        # the parts that won't be visible until the user scrolls to them.
-        self.card_buffer = Image.new(
-            "RGBA",
-            (
-                content_width, 
-                max(self.content_height, 1)
-            ),
-            (0, 0, 0, 0),
-        )
-        buffer_draw = ImageDraw.Draw(self.card_buffer)
-
-        for component in normalized:
-            # Redirect each component to draw into our offscreen buffer
-            # instead of the screen's live canvas.
-            component.image_draw = buffer_draw
-            component.canvas = self.card_buffer
-            component.render()
-
-    def _apply_button_enabled_state(self):
-        """Dim the confirm button until the card has been scrolled to the bottom."""
-        confirm_button = self.buttons[0]
-        confirm_button.is_active = self.is_scrolled_to_bottom
-        if self.is_scrolled_to_bottom:
-            confirm_button.font_color = GUIConstants.BUTTON_FONT_COLOR
-            confirm_button.selected_color = self.selected_color
-        else:
-            confirm_button.font_color = GUIConstants.INACTIVE_COLOR
-            confirm_button.selected_color = GUIConstants.INACTIVE_COLOR
-
-    def _render(self):
-        super()._render()
-        self._render_card_background()
-        self._render_card_viewport()
-        self.buttons[0].render()
-        self.renderer.show_image()
-
-    def _render_card_background(self):
-
-        x = self.card_x
-        y = self.card_y
-
-        w = self.card_width
-        h = self.card_height
-
-        r = self.card_corner_radius
-
-
-        # 1. Floating shadow
-        self.image_draw.rounded_rectangle(
-            (
-                x + 5,
-                y + 7,
-                x + w + 5,
-                y + h + 7,
-            ),
-            radius=r,
-            fill=(18, 18, 22),
-        )
-
-
-        # 2. Outer dark edge
-        self.image_draw.rounded_rectangle(
-            (
-                x,
-                y,
-                x + w,
-                y + h,
-            ),
-            radius=r,
-            fill=(38, 38, 48),
-        )
-
-
-        # 3. Main card surface
-        self.image_draw.rounded_rectangle(
-            (
-                x + 2,
-                y + 2,
-                x + w - 2,
-                y + h - 2,
-            ),
-            radius=r,
-            fill=self.card_background_color,
-        )
-
-
-        # 6. Inner glass border
-        self.image_draw.rounded_rectangle(
-            (
-                x + 5,
-                y + 5,
-                x + w - 5,
-                y + h - 5,
-            ),
-            radius=r,
-            outline=(105,105,120),
-            width=1,
-        )
-
-    def _render_card_viewport(self):
-        """Crop the currently visible slice out of the offscreen card buffer
-        and paste it into the card's on screen position."""
-        if self.content_height > 0:
-            crop_bottom = min(self.card_buffer.height, self.scroll_y + self.visible_height)
-            visible_slice = self.card_buffer.crop((0, self.scroll_y, self.card_buffer.width, crop_bottom))
-            self.canvas.paste(
-                visible_slice,
-                (self.card_x + self.card_inner_padding, self.visible_top),
-                visible_slice
-            )
-
-        if self.max_scroll_y > 0:
-            if self.scroll_y > 0:
-                self._render_scroll_hint(is_top=True)
-            if self.scroll_y < self.max_scroll_y:
-                self._render_scroll_hint(is_top=False)
-
-    def _render_scroll_hint(self, is_top: bool):
-        """Small triangle in the card's corner, showing more content is scrollable that way."""
-        arrow_half_width = 6
-        cx = self.card_x + self.card_width - self.card_inner_padding - arrow_half_width
-        if is_top:
-            cy = self.card_y + 4
-            points = [(cx - arrow_half_width, cy + 6), (cx + arrow_half_width, cy + 6), (cx, cy)]
-        else:
-            cy = self.card_y + self.card_height - 10
-            points = [(cx - arrow_half_width, cy), (cx + arrow_half_width, cy), (cx, cy + 6)]
-        self.image_draw.polygon(points, fill=self.selected_color)
-
-    def _run(self):
-        """KEY_UP / KEY_DOWN scroll the card. A click only confirms once the
-        card has been scrolled all the way to the bottom."""
-        while True:
-            ret = self._run_callback()
-            if ret is not None:
-                return ret
-
-            user_input = self.hw_inputs.wait_for(
-                [
-                    HardwareButtonsConstants.KEY_UP,
-                    HardwareButtonsConstants.KEY_DOWN,
-                ]
-                + HardwareButtonsConstants.KEYS__ANYCLICK
-            )
-
-            with self.renderer.lock:
-                if self.top_nav.is_selected:
-                    if user_input in [
-                        HardwareButtonsConstants.KEY_DOWN,
-                        HardwareButtonsConstants.KEY_RIGHT,
-                    ]:
-                        self.top_nav.is_selected = False
-                        self.top_nav.render_buttons()
-                        self.buttons[self.selected_button].is_selected = True
-                        self.buttons[self.selected_button].render()
-                    elif user_input in HardwareButtonsConstants.KEYS__ANYCLICK:
-                        return self.top_nav.selected_button
-
-                elif user_input == HardwareButtonsConstants.KEY_UP:
-                    if self.scroll_y > 0:
-                        self.scroll_y = max(0, self.scroll_y - self.scroll_step)
-                        self._render_card_background()
-                        self._render_card_viewport()
-                    elif self.top_nav.show_back_button or self.top_nav.show_check_button:
-                        self.buttons[self.selected_button].is_selected = False
-                        self.buttons[self.selected_button].render()
-                        self.top_nav.is_selected = True
-                        self.top_nav.render_buttons()
-
-                elif user_input == HardwareButtonsConstants.KEY_DOWN:
-                    if self.scroll_y >= self.max_scroll_y:
-                        continue
-                    self.scroll_y = min(self.max_scroll_y, self.scroll_y + self.scroll_step)
-                    self._render_card_background()
-                    self._render_card_viewport()
-
-                    if self.scroll_y >= self.max_scroll_y and not self.is_scrolled_to_bottom:
-                        self.is_scrolled_to_bottom = True
-                        self._apply_button_enabled_state()
-                        self.buttons[0].render()
-
-                elif user_input in HardwareButtonsConstants.KEYS__ANYCLICK:
-                    if not self.is_scrolled_to_bottom:
-                        # Button is still disabled while there is unread content below
-                        continue
-                    return self.selected_button
-
-                self.renderer.show_image()

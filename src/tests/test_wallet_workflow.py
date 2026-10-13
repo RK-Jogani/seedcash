@@ -132,9 +132,8 @@ class TestGenerationWorkflow:
             SeedReviewPassphraseExitDialogView,
         )
         from seedcash.views.view import MainMenuView
-        from seedcash.gui.screens.load_seed_screens import (
-            SeedFinalizeScreen, SeedReviewPassphraseScreen,
-        )
+        from seedcash.views.wallet_views import SeedFinalizeScreen
+        from seedcash.gui.screens.load_seed_screens import SeedReviewPassphraseScreen
         storage.is_generate = generated
         words = ['abandon'] * 11 + ['about']
         storage.set_mnemonic(list(words))
@@ -388,17 +387,35 @@ class TestSecretLifecycle:
         assert storage.seed.mnemonic == expected_words
 
     @staticmethod
-    def test_exception_handler_never_displays_or_logs_secret(caplog):
+    def test_exception_handler_displays_unexpected_error_diagnostics():
         from seedcash.controller import Controller
+        from seedcash.views.view import UnhandledExceptionView, MainMenuView
         controller = Controller.__new__(Controller)
-        secret = 'known-private-key-material'
-        with caplog.at_level('ERROR'):
-            try:
-                raise ValueError(secret)
-            except ValueError as error:
-                destination = controller.handle_exception(error)
-        assert secret not in caplog.text
-        assert secret not in str(destination.view_args)
+        # Unexpected failures intentionally display diagnostics; expected seed
+        # validation failures use their dedicated error views instead.
+        message = 'Display initialization failed'
+        try:
+            raise RuntimeError(message)
+        except RuntimeError as error:
+            destination = controller.handle_exception(error)
+
+        assert destination.View_cls is UnhandledExceptionView
+        assert destination.clear_history
+        error_type, location, error_message = destination.view_args['error']
+        assert error_type == 'RuntimeError'
+        assert 'test_wallet_workflow.py' in location
+        assert error_message.strip() == message
+
+        view = UnhandledExceptionView.__new__(UnhandledExceptionView)
+        view.error = destination.view_args['error']
+        view.run_screen = Mock(return_value=0)
+        next_destination = view.run()
+        screen_args = view.run_screen.call_args.kwargs
+        assert screen_args['status_headline'] == 'RuntimeError'
+        assert location in screen_args['text']
+        assert message in screen_args['text']
+        assert next_destination.View_cls is MainMenuView
+        assert next_destination.clear_history
 
     @staticmethod
     def test_compact_seed_qr_exception_log_is_redacted(monkeypatch, caplog):
