@@ -8,16 +8,18 @@ from seedcash.hardware.buttons import HardwareButtonsConstants
 from seedcash.gui.components import (
     IconTextLine,
     TextArea,
+    RoundedTextArea,
     GUIConstants,
+    SeedCashIconsConstants,
     Button,
+    IconButton
 )
 from seedcash.models import visual_hash as vh
 
 from .screen import (
-    RET_CODE__BACK_BUTTON,
-    BaseTopNavScreen,
+    SeedCashButtonListWithNav,
     ButtonListScreen,
-    KeyboardScreen,
+    BaseScreen,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,7 +31,7 @@ Seed Cash Screens
 
 
 @dataclass
-class SeedCashGenerateSeedScreen(ButtonListScreen, BaseTopNavScreen):
+class SeedCashGenerateSeedScreen(SeedCashButtonListWithNav):
     def __post_init__(self):
         self.is_button_text_centered = False
         self.is_top_nav = True
@@ -159,30 +161,144 @@ class SeedCashGenerateSeedScreen(ButtonListScreen, BaseTopNavScreen):
 
 
 @dataclass
-class ToolsCoinFlipEntryScreen(KeyboardScreen):
+class ToolsCoinFlipEntryScreen(BaseScreen):
+    # max number of bits to enter mnemonic
+    max_bits: int = 0
 
     def __post_init__(self):
-        # Override values set by the parent class
-        # TRANSLATOR_NOTE: current coin-flip number vs total flips (e.g. flip 3 of 4)
-        self.show_back_button = False
-        # Specify the keys in the keyboard
-        self.rows = 2
-        self.cols = 3
-        self.key_height = (
-            GUIConstants.TOP_NAV_TITLE_FONT_SIZE + 2 + 2 * GUIConstants.EDGE_PADDING
-        )
-        self.keys_charset = "10"
-        self.keyboard_start_y = 2
-        # Now initialize the parent class
+        self.bits = ""
         super().__post_init__()
+        self._render_buttons()
 
+    def _render_buttons(self):
+
+        component_y = 2 * GUIConstants.EDGE_PADDING
         self.components.append(
             TextArea(
-                # TRANSLATOR_NOTE: How we call the "front" side result during a coin toss.
-                text=f"Introduce the last {self.return_after_n_chars} bits of entropy.",
-                screen_y=GUIConstants.COMPONENT_PADDING,
+                text=f"Introduce the last {self.max_bits} bits of entropy.",
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=component_y,
             )
         )
+
+        component_y += GUIConstants.TOP_NAV_HEIGHT + GUIConstants.COMPONENT_PADDING
+        button_height = GUIConstants.BUTTON_HEIGHT
+
+        self.components.append(
+            RoundedTextArea(
+                text=self.bits,
+                height=button_height,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=component_y,
+            )
+        )
+
+        component_y += button_height + 2 * GUIConstants.COMPONENT_PADDING
+
+        width = (self.canvas_width - 3 * GUIConstants.EDGE_PADDING) // 2
+        self.components.append(
+            Button(
+                text="0",
+                width=width,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=component_y,
+            )
+        )
+
+        self.components.append(
+            Button(
+                text="1",
+                width=width,
+                screen_x=GUIConstants.EDGE_PADDING * 2 + width,
+                screen_y=component_y,
+            )
+        )
+
+        component_y += button_height + GUIConstants.COMPONENT_PADDING
+
+        self.components.append(
+            IconButton(
+                icon_name=SeedCashIconsConstants.DELETE,
+                width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=component_y,
+            )
+        )
+
+
+        # This button confirm button must be below the canva
+        self.components.append(
+            Button(
+                text="Confirm",
+                width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
+                screen_x=GUIConstants.EDGE_PADDING,
+                screen_y=self.canvas_height - button_height - GUIConstants.COMPONENT_PADDING,
+            )
+        )
+        self.selected_button = 2
+        self.components[self.selected_button].is_selected = True
+
+    def _button_pressed(self, button: str, bits: str) -> str:
+        if button == "0" or button == "1":
+            if len(bits) < self.max_bits:
+                bits += button
+        elif button == "BACKSPACE":
+            bits = bits[:-1]
+        elif button == "CLEAR":
+            bits = ""
+        return bits
+
+    def _run(self):
+        while True:
+            user_input = self.hw_inputs.wait_for(
+                HardwareButtonsConstants.KEYS__LEFT_RIGHT_UP_DOWN
+                + HardwareButtonsConstants.KEYS__ANYCLICK
+            )
+
+            with self.renderer.lock:
+                if user_input == HardwareButtonsConstants.KEY_LEFT:
+                    next_button = {3: 2}.get(self.selected_button)
+                elif user_input == HardwareButtonsConstants.KEY_RIGHT:
+                    next_button = {2: 3}.get(self.selected_button)
+                elif user_input == HardwareButtonsConstants.KEY_UP:
+                    next_button = {4: 2, 4: 3, 5:4}.get(self.selected_button)
+                elif user_input == HardwareButtonsConstants.KEY_DOWN:
+                    next_button = {2: 4, 3: 4, 4: 5}.get(self.selected_button)
+                else:
+                    next_button = None
+
+                if next_button is not None:
+                    self.components[self.selected_button].is_selected = False
+                    self.components[self.selected_button].render()
+                    self.selected_button = next_button
+                    self.components[self.selected_button].is_selected = True
+                    self.components[self.selected_button].render()
+
+                elif user_input in HardwareButtonsConstants.KEYS__ANYCLICK:
+                    button = {
+                        2: "0",
+                        3: "1",
+                        4: "BACKSPACE",
+                        5: "CONFIRM",
+                    }[self.selected_button]
+                    if button == "CONFIRM":
+                        return self.bits
+
+                    self.bits = self._button_pressed(button, self.bits)
+                    self.components[1] = RoundedTextArea(
+                        text=self.bits,
+                        height=GUIConstants.BUTTON_HEIGHT,
+                        screen_x=GUIConstants.EDGE_PADDING,
+                        screen_y=(
+                            2 * GUIConstants.EDGE_PADDING 
+                            + GUIConstants.TOP_NAV_HEIGHT 
+                            + GUIConstants.COMPONENT_PADDING
+                        ),
+                    )
+                    self.components[1].render()
+
+                self.renderer.show_image()
+
 
 
 @dataclass

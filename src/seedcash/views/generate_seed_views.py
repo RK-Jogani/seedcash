@@ -1,7 +1,6 @@
 import logging
 
 from gettext import gettext as _
-from seedcash.models.bip39 import Bip39
 from seedcash.gui.screens import RET_CODE__BACK_BUTTON
 from seedcash.gui.screens.screen import ButtonOption
 from seedcash.models.settings import Settings
@@ -84,7 +83,7 @@ class ToolsCalcFinalWordCoinFlipsView(View):
         total_bits = 11 - (self.controller.storage.mnemonic_length // 3)
 
         ret_val = ToolsCoinFlipEntryScreen(
-            return_after_n_chars=total_bits,
+            max_bits=total_bits,
         ).display()
 
         if ret_val == RET_CODE__BACK_BUTTON:
