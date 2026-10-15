@@ -230,7 +230,7 @@ class WalletOptionsView(View):
             return Destination(ViewSeedView)
 
         elif button_data[selected_menu_num] == self.EXPORT_XPUB:
-            return Destination(AddressEntryView, view_args={"address": self.wallet.xpub, "title": "Xpub Address"})
+            return Destination(AddressEntryView, view_args={"address": self.wallet.xpub, "title": "Export Xpub"})
         elif button_data[selected_menu_num] == self.GENERATE_ADDRESS:
             return Destination(GenerateAddressView)
         elif button_data[selected_menu_num] == self.SIGN_TRANSACTION:
