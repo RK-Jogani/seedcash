@@ -344,9 +344,17 @@ class AddressScreen(BaseTopNavScreen):
         super().__post_init__()
         
         content_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
+
+        # Check if address is short in length and we can increase the font size for better visibility
+        if len(self.address) <= 60:
+            font_size = GUIConstants.BODY_FONT_SIZE + 4
+        else:
+            font_size = GUIConstants.BODY_FONT_SIZE
+
         self.components.append(
             RoundedTextArea(
                 text=self.address,
+                font_size=font_size,
                 screen_x=GUIConstants.EDGE_PADDING,
                 screen_y=content_y,
                 width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,

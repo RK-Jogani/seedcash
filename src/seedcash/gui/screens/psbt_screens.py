@@ -971,9 +971,14 @@ class PSBTCardTextScreen(SeedCashButtonListWithNav):
 
         content_y = self.top_nav.height + GUIConstants.COMPONENT_PADDING
         card_height = self.canvas_height - content_y - self.buttons[0].height - 2 * GUIConstants.COMPONENT_PADDING
+        if len(self.text) <= 50:
+            font_size = GUIConstants.BODY_FONT_SIZE + 4
+        else:
+            font_size = GUIConstants.BODY_FONT_SIZE
         self.components.append(
             RoundedTextArea(
                 text=self.text,
+                font_size=font_size,
                 screen_x=GUIConstants.EDGE_PADDING,
                 screen_y=content_y,
                 width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
