@@ -126,20 +126,16 @@ def test_genesis_warning(ui, is_ft, answer):
     assert ui.calls[0][1]['title'] == 'Genesis Transaction'
     assert ui.calls[0][1]['status_headline'] == ('New Fungible Token' if is_ft else 'New Non-Fungible Token')
     expected = views.PSBTDiscardWarningView if answer == BACK else (
-        views.PSBTFungibleTokenWarningsView if is_ft else views.PSBTNonFungibleTokenWarningsView)
+        views.PSBTFungibleTokenDetailsView if is_ft else views.PSBTTokenDetailsView)
     assert destination.View_cls is expected
-
-
-def test_ft_burn_warning_before_details(ui):
-    ui.select(category(burned=True))
-    assert views.PSBTFungibleTokenWarningsView().run().View_cls is views.PSBTFungibleTokenDetailsView
-    assert [kw['title'] for _, kw in ui.calls] == ['Burning Fungible Token(s)']
 
 
 def test_unknown_ft_warning_then_category_id(ui):
     ui.select(category())
     ui.metadata.token_symbol = '[?]'
-    views.PSBTFungibleTokenWarningsView().run()
+    destination = views.PSBTFTUnknownWarningView().run()
+    assert destination.View_cls is views.PSBTTokenDetailsView
+    destination.View_cls().run()
     assert [name for name, _ in ui.calls] == ['WarningScreen', 'PSBTNFTScreen']
     assert ui.calls[1][1]['category_id'] == '11' * 32
 
@@ -148,26 +144,19 @@ def test_unknown_ft_back_does_not_repeat_same_warning(ui):
     ui.select(category())
     ui.metadata.token_symbol = '[?]'
     ui.answers.append(BACK)
-    destination = views.PSBTFungibleTokenWarningsView().run()
+    destination = views.PSBTFTUnknownWarningView().run()
     assert destination.View_cls is views.PSBTDiscardWarningView
 
 
-def test_nft_minting_and_burn_warning_order(ui):
+def test_nft_minting_warning(ui):
     ui.select(category(False, minting=True))
-    destination = views.PSBTNonFungibleTokenWarningsView().run()
-    assert destination.View_cls is views.PSBTNFTDetailsView
+    destination = views.PSBTMintingNFTWarningView().run()
+    assert destination.View_cls is views.PSBTTokenDetailsView
+    assert destination.View_cls().run().View_cls is views.PSBTNFTDetailsView
     assert [kw['title'] for name, kw in ui.calls if name == 'WarningScreen'] == [
-        'Minting Non-Fungible Token(s)', 'Burning Non-Fungible Token(s)']
+        'Minting Non-Fungible Token(s)']
     assert ui.calls[-1][0] == 'PSBTNFTScreen'
     assert ui.calls[-1][1]['category_id'] == '11' * 32
-
-
-@pytest.mark.parametrize('is_ft', [True, False])
-def test_burn_warning_back_discards_first_category(ui, is_ft):
-    ui.select(category(is_ft, burned=True, amounts=()))
-    ui.answers.append(BACK)
-    cls = views.PSBTFungibleTokenWarningsView if is_ft else views.PSBTNonFungibleTokenWarningsView
-    assert cls().run().View_cls is views.PSBTDiscardWarningView
 
 
 @pytest.mark.parametrize('cls,cursor,is_ft', [
@@ -175,28 +164,13 @@ def test_burn_warning_back_discards_first_category(ui, is_ft):
     (views.PSBTNFTDetailsView, 'nft_detail_no', False),
     (views.PSBTNFTAddressDetailsView, 'output_no', False),
 ])
-def test_back_stays_on_previous_item(ui, cls, cursor, is_ft):
-    cat = category(is_ft)
-    ui.select(cat)
-    setattr(cat, cursor, 1)
+def test_output_back_uses_saved_history(ui, cls, cursor, is_ft):
+    ui.select(category(is_ft))
     ui.answers.append(BACK)
-    assert cls().run().View_cls is cls
-    assert getattr(cat, cursor) == 0
-    ui.answers.append(BACK)
-    assert cls().run().View_cls is BackStackView
-
-
-@pytest.mark.parametrize('is_ft', [True, False])
-def test_complete_burn_can_finish_review_without_recipient(ui, is_ft):
-    ui.select(category(is_ft, amounts=(), burned=True))
-    cls = views.PSBTFungibleTokenWarningsView if is_ft else views.PSBTNonFungibleTokenWarningsView
-    destination = cls().run()
-    for _ in range(5):
-        if destination.View_cls is views.BCHPSBTOverviewView:
-            break
-        destination = destination.View_cls(**(destination.view_args or {})).run()
-    assert destination.View_cls is views.BCHPSBTOverviewView
-    assert all(kw.get('address', 'valid') is not None for _, kw in ui.calls)
+    assert cls(output_num=1).run().View_cls is BackStackView
+    # Re-instantiating the saved destination restores the displayed output.
+    cls(output_num=0)
+    assert getattr(ui.parser.token_review.current_category, cursor) == 0
 
 
 def test_high_amount_warning_shows_recipient_amount(ui):
@@ -286,8 +260,8 @@ def test_loading_routes_and_stops_animation(ui, monkeypatch, kind):
     monkeypatch.setattr(views, 'PSBTParser', parse)
     destination = views.LoadingPSBTView().run()
     expected = {'bch': views.BCHPSBTOverviewView,
-                'ft': views.PSBTFungibleTokenWarningsView,
-                'nft': views.PSBTNonFungibleTokenWarningsView,
+                'ft': views.PSBTFungibleTokenDetailsView,
+                'nft': views.PSBTTokenDetailsView,
                 'genesis-ft': views.GenesisWarningView,
                 'genesis-nft': views.GenesisWarningView,
                 'invalid': views.PSBTParsingErrorView}[kind]
@@ -305,14 +279,14 @@ def test_recipient_back_with_controller_history(ui):
     recipient.view_args = {}
     history = [overview, recipient]
     destination = views.PSBTFungibleTokenAddressDetailsView().run()
-    destination.view_args = {}
     if history[-1] != destination:
         history.append(destination)
     ui.answers.append(BACK)
-    destination = destination.View_cls().run()
+    destination = destination.View_cls(**(destination.view_args or {})).run()
     if destination.View_cls is BackStackView:
         destination = Controller.pop_prev_from_back_stack(SimpleNamespace(back_stack=history))
     assert destination.View_cls is views.PSBTFungibleTokenAddressDetailsView
+    destination.View_cls(**(destination.view_args or {}))
     assert ui.parser.token_review.current_category.output_no == 0
 
 
@@ -322,3 +296,311 @@ def test_high_amount_warning_for_later_recipient(ui):
     assert destination.View_cls is views.PSBTFungibleTokenAddressDetailsView
     destination = destination.View_cls().run()
     assert destination.View_cls is views.PSBTAddressDetailsWarningView
+
+
+@pytest.mark.parametrize('inputs,outputs,burned', [
+    ([('none', 'a')], [], True),
+    ([('mutable', 'a')], [('none', 'b')], False),
+    ([('none', 'a'), ('none', 'a')], [('none', 'a')], True),
+    ([('minting', 'm'), ('none', 'a')], [('minting', 'm'), ('none', 'b')], True),
+    ([('minting', 'm'), ('none', 'a'), ('none', 'a')],
+     [('minting', 'm'), ('none', 'a'), ('none', 'b')], True),
+    ([('minting', 'm')], [('none', 'm')], True),
+    ([('minting', 'm')], [('minting', 'changed')], True),
+    ([('minting', 'm'), ('none', 'a')],
+     [('none', 'new'), ('none', 'a'), ('minting', 'm')], False),
+    ([], [('minting', 'genesis')], False),
+])
+def test_parser_rejects_nft_loss(inputs, outputs, burned):
+    from seedcash.models.psbt_parser import PSBTParser
+    def output(nft):
+        return TxOutput(546, token=Token(b'', b'', 'cat', nft_data=Token.NFTData(*nft)))
+    cat = Category('cat', inputs=[TxInput(bytes(32), 1, 0, spent_output=output(nft)) for nft in inputs],
+                   outputs=[output(nft) for nft in outputs])
+    parser = PSBTParser.__new__(PSBTParser)
+    parser.token_review = TokenReview(nft_categories=[cat])
+    if burned:
+        with pytest.raises(ValueError, match='burns non-fungible'):
+            parser.validate_no_token_burning()
+    else:
+        parser.validate_no_token_burning()
+
+
+def test_ft_burn_is_rejected_before_nft_validation():
+    from seedcash.models.psbt_parser import PSBTParser
+    parser = PSBTParser.__new__(PSBTParser)
+    parser.token_review = TokenReview(ft_categories=[category(burned=True)], nft_categories=[None])
+    with pytest.raises(ValueError, match='burns fungible'):
+        parser.validate_no_token_burning()
+
+
+@pytest.mark.parametrize('fixture_id', ['M06', 'M07'])
+def test_burn_psbt_routes_to_invalid_after_loading(ui, monkeypatch, fixture_id):
+    import json
+    from pathlib import Path
+    from seedcash.gui.screens import screen
+    fixture = json.loads(Path(__file__).with_name('psbtV145CashTokenScenarios.json').read_text())
+    item = next(item for item in fixture['materializedFixtures'] if item['id'] == fixture_id)
+    ui.controller.psbt_bytes = bytes.fromhex(item['psbtHex'])
+    lifecycle = []
+    class Loading:
+        def __init__(self, **kwargs):
+            pass
+        def start(self):
+            lifecycle.append('start')
+        def stop(self):
+            lifecycle.append('stop')
+    monkeypatch.setattr(screen, 'LoadingScreenThread', Loading)
+    monkeypatch.setattr(views.time, 'sleep', lambda _: None)
+    destination = views.LoadingPSBTView().run()
+    assert destination.View_cls is views.PSBTParsingErrorView
+    assert destination.skip_current_view
+    assert ui.controller.psbt_parser is None
+    assert lifecycle == ['start', 'stop']
+    assert ui.calls == []
+
+
+@pytest.mark.parametrize('is_ft,unknown,minting,amount,expected', [
+    (True, False, False, 10, views.PSBTFungibleTokenDetailsView),
+    (True, True, False, 10, views.PSBTFTUnknownWarningView),
+    (True, False, False, 10_000_000, views.PSBTFTHighRawAmountWarningsView),
+    (False, False, False, 10, views.PSBTTokenDetailsView),
+    (False, False, True, 10, views.PSBTMintingNFTWarningView),
+])
+def test_separate_category_entry_views_and_back(ui, is_ft, unknown, minting, amount, expected):
+    cat = category(is_ft, amounts=(amount,), minting=minting)
+    ui.select(cat)
+    if unknown:
+        ui.metadata.token_symbol = '[?]'
+    assert views.PSBTTokenView().category_start_view() is expected
+    ui.answers.append(BACK)
+    assert expected().run().View_cls is views.PSBTDiscardWarningView
+
+
+def test_unknown_high_amount_ft_uses_separate_views(ui):
+    ui.select(category(amounts=(10_000_000,)))
+    ui.metadata.token_symbol = '[?]'
+    destination = views.PSBTFTUnknownWarningView().run()
+    assert destination.View_cls is views.PSBTTokenDetailsView
+    destination = destination.View_cls().run()
+    assert ui.calls[-1][1]['is_ft'] is True
+    assert destination.View_cls is views.PSBTFTHighRawAmountWarningsView
+    assert destination.View_cls().run().View_cls is views.PSBTFungibleTokenDetailsView
+    ui.answers.append(BACK)
+    assert views.PSBTFTHighRawAmountWarningsView().run().View_cls is BackStackView
+    assert ui.parser.token_review.current_category is not None
+
+
+def test_category_transition_and_back_restores_previous_category(ui):
+    ft = category(amounts=(10,))
+    nft = category(False, amounts=(10,), minting=True)
+    review = TokenReview(ft_categories=[ft], nft_categories=[nft])
+    ui.parser.token_review = review
+    review.initiate
+    destination = views.PSBTFungibleTokenAddressDetailsView().run()
+    assert destination.View_cls is views.PSBTMintingNFTWarningView
+    assert review.current_category is nft
+    ui.answers.append(BACK)
+    assert destination.View_cls().run().View_cls is BackStackView
+    assert review.current_category is ft
+    views.PSBTTokenView().next_category()
+    destination = views.PSBTNFTAddressDetailsView().run()
+    assert destination.View_cls is views.BCHPSBTOverviewView
+    assert review.current_category is nft
+
+
+class ReviewDriver:
+    """Run real views and the controller's history rules with scripted buttons."""
+
+    def __init__(self, ui, start):
+        self.ui = ui
+        self.current = start
+        self.history = [start]
+
+    def step(self, answer=0):
+        from seedcash.controller import Controller
+        self.current.view_args = self.current.view_args or {}
+        view = self.current.View_cls(**self.current.view_args)
+        category_id = (view.category.category_id if isinstance(view, views.PSBTTokenView) else None)
+        self.ui.answers.append(answer)
+        before = len(self.ui.calls)
+        destination = view.run()
+        assert len(self.ui.calls) == before + 1, type(view).__name__
+        screen = (type(view), category_id, self.ui.calls[-1])
+        assert destination is not None, screen
+        if destination.skip_current_view:
+            self.history.pop()
+        clear_history = destination.clear_history
+        if destination.View_cls is BackStackView:
+            destination = Controller.pop_prev_from_back_stack(SimpleNamespace(back_stack=self.history))
+        if clear_history:
+            self.history.clear()
+        if not self.history or self.history[-1] != destination:
+            self.history.append(destination)
+        self.current = destination
+        return screen
+
+
+def make_mixed_review(ui, monkeypatch):
+    # Include repeated FT/NFT category IDs: both token types must be reviewed.
+    specs = [
+        (True, False, False, False, (1, 2, 3)),
+        (True, True, False, False, (1, 1_000_000_000, 2)),
+        (True, False, False, False, (10_000_000, 2)),
+        (True, True, True, False, (1, 2)),
+        (False, False, False, False, (1, 2, 3)),
+        (False, False, False, True, (1, 2)),
+        (False, False, True, False, (1, 2)),
+    ]
+    categories, metadata = [], {}
+    for i, (ft, unknown, genesis, minting, amounts) in enumerate(specs):
+        cat = category(ft, genesis=genesis, minting=minting, amounts=amounts)
+        cat.category_id = str(i if ft else i - 4)
+        metadata.setdefault(cat.category_id, SimpleNamespace(token_symbol='[?]' if unknown else 'TEST', icon_color='blue'))
+        for j, out in enumerate(cat.outputs):
+            out.address = f'{i}-recipient-{j}'
+            if out.token.nft_data:
+                out.token.nft_data.commitment = f'{i}-commitment-{j}'
+        categories.append(cat)
+    monkeypatch.setattr(views, 'get_category', lambda cid: metadata[cid])
+    review = TokenReview(ft_categories=categories[:4], nft_categories=categories[4:])
+    ui.parser.token_review = review
+    review.initiate
+    ui.parser.outputs = [TxOutput(1000 + i, address=f'bch-{i}') for i in range(3)]
+    ui.parser.has_op_return = ui.parser.has_p2pk = True
+    ui.parser.op_return_outputs = [TxOutput(0, full_script=b'\x6a\x01' + bytes([97+i])) for i in range(2)]
+    ui.parser.p2pk_outputs = [TxOutput(0, full_script=bytes([i+1])) for i in range(2)]
+    return categories
+
+
+def test_every_category_and_output_reviewed_with_back_at_every_transition(ui, monkeypatch):
+    categories = make_mixed_review(ui, monkeypatch)
+    driver = ReviewDriver(ui, Destination(views.PSBTTokenView().category_start_view()))
+    visited = []
+    for _ in range(150):
+        if driver.current.View_cls is views.PSBTConfirmationView:
+            break
+        original = driver.step()
+        visited.append(original)
+        # Undo every Next, including category boundaries and warning screens.
+        driver.step(BACK)
+        repeated = driver.step()
+        assert repeated == original
+    else:
+        pytest.fail('Review did not reach confirmation')
+    ft_addresses = [kw['address'] for cls, _, (_, kw) in visited
+                    if cls is views.PSBTFungibleTokenAddressDetailsView]
+    nft_addresses = [kw['destination_addr'] for cls, _, (_, kw) in visited
+                     if cls is views.PSBTNFTAddressDetailsView]
+    commitments = [kw['nft_commitment'] for cls, _, (_, kw) in visited
+                   if cls is views.PSBTNFTDetailsView]
+    assert ft_addresses == [out.address for cat in categories if cat.is_ft for out in cat.outputs]
+    assert nft_addresses == [out.address for cat in categories if not cat.is_ft for out in cat.outputs]
+    assert commitments == [out.token.nft_data.commitment for cat in categories if not cat.is_ft for out in cat.outputs]
+    assert [kw['address'] for cls, _, (_, kw) in visited if cls is views.PSBTAddressDetailsView] == ['bch-0', 'bch-1', 'bch-2']
+    assert [kw['text'] for cls, _, (_, kw) in visited if cls is views.PSBTOpReturnView] == ['a', 'b']
+    assert [kw['text'] for cls, _, (_, kw) in visited if cls is views.PSBTP2PKView] == ['01', '02']
+    warnings = [kw['title'] for _, _, (screen, kw) in visited if screen == 'WarningScreen']
+    assert warnings.count('Genesis Transaction') == 2
+    assert warnings.count('Unknown FT token ID') == 2
+    assert warnings.count('Minting Non-Fungible Token(s)') == 1
+    assert warnings.count('High Raw Amount') == 3
+
+
+def test_full_rewind_and_replay_preserves_every_screen(ui, monkeypatch):
+    make_mixed_review(ui, monkeypatch)
+    driver = ReviewDriver(ui, Destination(views.PSBTTokenView().category_start_view()))
+    forward = []
+    for _ in range(150):
+        if driver.current.View_cls is views.PSBTConfirmationView:
+            break
+        forward.append(driver.step())
+    else:
+        pytest.fail('Forward review did not finish')
+    driver.step(BACK)  # Leave confirmation without signing.
+    for expected in reversed(forward):
+        assert driver.step(BACK) == expected
+    assert driver.current.View_cls is views.PSBTDiscardWarningView
+    driver.step(BACK)  # Cancel discard and resume the first category.
+    for expected in forward:
+        assert driver.step() == expected
+    assert driver.current.View_cls is views.PSBTConfirmationView
+
+
+@pytest.mark.parametrize('unknown', [False, True])
+@pytest.mark.parametrize('amount,warning', [(9_999_999, False), (10_000_000, True)])
+def test_ft_total_warning_boundary(ui, unknown, amount, warning):
+    ui.select(category(amounts=(amount,)))
+    ui.metadata.token_symbol = '[?]' if unknown else 'TEST'
+    driver = ReviewDriver(ui, Destination(views.PSBTTokenView().category_start_view()))
+    visited = []
+    for _ in range(5):
+        if driver.current.View_cls is views.PSBTFungibleTokenDetailsView:
+            break
+        visited.append(driver.step()[0])
+    assert driver.current.View_cls is views.PSBTFungibleTokenDetailsView
+    assert (views.PSBTFTHighRawAmountWarningsView in visited) is warning
+    assert (views.PSBTFTUnknownWarningView in visited) is unknown
+    assert (views.PSBTTokenDetailsView in visited) is unknown
+
+
+@pytest.mark.parametrize('amount,expected', [
+    (999_999_999, views.PSBTFungibleTokenAddressDetailsView),
+    (1_000_000_000, views.PSBTAddressDetailsWarningView),
+])
+def test_each_ft_recipient_warning_boundary(ui, amount, expected):
+    ui.select(category(amounts=(1, amount, 2)))
+    driver = ReviewDriver(ui, Destination(views.PSBTFungibleTokenDetailsView))
+    driver.step()
+    driver.step()
+    assert driver.current.View_cls is expected
+    assert driver.current.view_args == {'output_num': 1}
+    driver.step(BACK)
+    _, _, (_, kw) = driver.step()
+    assert kw['address'] == 'recipient-0'
+    assert driver.current.View_cls is expected
+
+
+def test_real_psbt_fixtures_review_all_token_and_bch_outputs(ui):
+    import json
+    from pathlib import Path
+    from seedcash.models.psbt_parser import PSBTParser
+    fixture = json.loads(Path(__file__).with_name('psbtV145CashTokenScenarios.json').read_text())
+    for item in fixture['materializedFixtures']:
+        if item['id'] in ('M06', 'M07'):
+            continue  # Burn fixtures are covered by loading rejection tests.
+        parser = PSBTParser(bytes.fromhex(item['psbtHex']))
+        ui.controller.psbt_parser = parser
+        review = parser.token_review
+        if review:
+            review.initiate
+            start = Destination(views.PSBTTokenView().category_start_view())
+        else:
+            start = Destination(views.BCHPSBTOverviewView, view_args={'is_last': True})
+        driver = ReviewDriver(ui, start)
+        visited = []
+        for _ in range(200):
+            if driver.current.View_cls is views.PSBTConfirmationView:
+                break
+            visited.append(driver.step())
+        else:
+            pytest.fail(f"{item['id']}: review did not finish")
+        ft = review.ft_categories if review else []
+        nft = review.nft_categories if review else []
+        assert [(cid, kw['address'], kw['amount']) for cls, cid, (_, kw) in visited
+                if cls is views.PSBTFungibleTokenAddressDetailsView] == [
+                    (cat.category_id, out.address, out.token.ft_amount) for cat in ft for out in cat.outputs
+                ], item['id']
+        assert [(cid, kw['destination_addr']) for cls, cid, (_, kw) in visited
+                if cls is views.PSBTNFTAddressDetailsView] == [
+                    (cat.category_id, out.address) for cat in nft for out in cat.outputs
+                ], item['id']
+        assert [(cid, kw['nft_commitment'], kw['nft_capability']) for cls, cid, (_, kw) in visited
+                if cls is views.PSBTNFTDetailsView] == [
+                    (cat.category_id, out.token.nft_data.commitment, out.token.nft_data.capability)
+                    for cat in nft for out in cat.outputs
+                ], item['id']
+        assert [(kw['address'], kw['amount']) for cls, _, (_, kw) in visited
+                if cls is views.PSBTAddressDetailsView] == [
+                    (out.address, out.value_satoshis) for out in parser.outputs
+                ], item['id']

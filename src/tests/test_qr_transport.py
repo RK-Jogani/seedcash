@@ -48,6 +48,11 @@ class TestPsbtReceiver:
                 break
         assert status == DecodeQRStatus.COMPLETE
         assert receiver.get_psbt() == raw
+        if item['id'] in ('M06', 'M07'):
+            # Transport succeeds, but burn policy rejects the decoded PSBT.
+            with pytest.raises(ValueError, match='burns'):
+                PSBTParser(receiver.get_psbt())
+            return
         parsed = PSBTParser(receiver.get_psbt())
         assert parsed.parsed['psbt_version'] == 145
         assert parsed.parsed['unsigned_tx'].hex() == item['unsignedTransactionHex']

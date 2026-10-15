@@ -164,10 +164,6 @@ class Category:
             total_amount += tx_out.token.ft_amount
         return total_amount
 
-    @property
-    def is_ft_burned(self) -> bool:
-        return self.ft_inputs_total_amount > self.ft_outputs_total_amount
-
     nft_detail_no: int = 0
     @property
     def next_nft_detail(self) -> bool:
@@ -206,21 +202,7 @@ class Category:
                 break
         return has_minting
 
-    @property
-    def is_nft_burned(self) -> bool:
-        def bag(items, get_token):
-            result = {}
-            for item in items:
-                nft = get_token(item).nft_data
-                if nft:
-                    key = (nft.capability, nft.commitment)
-                    result[key] = result.get(key, 0) + 1
-            return result
 
-        inputs = bag(self.inputs, lambda item: item.spent_output.token)
-        outputs = bag(self.outputs, lambda item: item.token)
-
-        return any(outputs.get(key, 0) < count for key, count in inputs.items())
     
 @dataclass
 class TokenReview:
@@ -693,6 +675,49 @@ class PSBTParser:
 
         # Build the transaction
         self.build_transaction()
+        self.validate_no_token_burning()
+
+    def validate_no_token_burning(self):
+        """Reject token loss before a parsed PSBT can enter review."""
+        if self.token_review is None:
+            return
+        for category in self.token_review.ft_categories:
+            input_amount = sum(item.spent_output.token.ft_amount for item in category.inputs)
+            output_amount = sum(item.token.ft_amount for item in category.outputs)
+            if input_amount > output_amount:
+                raise ValueError("PSBT burns fungible tokens")
+
+        for category in self.token_review.nft_categories:
+            # NFT categories contain only inputs/outputs with NFT data.
+            # Check counts first without allocating intermediate lists.
+            if len(category.outputs) < len(category.inputs):
+                raise ValueError("PSBT burns non-fungible tokens")
+            if not category.inputs:
+                continue
+
+            has_minting = any(
+                item.spent_output.token.nft_data.capability == "minting"
+                for item in category.inputs
+            ) or any(
+                item.token.nft_data.capability == "minting"
+                for item in category.outputs
+            )
+            if not has_minting:
+                continue
+
+            # Minted replacements can hide a loss in the total NFT count.
+            # Match each input's capability and commitment, including duplicates.
+            output_nfts = {}
+            for item in category.outputs:
+                nft = item.token.nft_data
+                key = (nft.capability, nft.commitment)
+                output_nfts[key] = output_nfts.get(key, 0) + 1
+            for item in category.inputs:
+                nft = item.spent_output.token.nft_data
+                key = (nft.capability, nft.commitment)
+                if output_nfts.get(key, 0) == 0:
+                    raise ValueError("PSBT burns non-fungible tokens")
+                output_nfts[key] -= 1
 
     # BCH View
     @property

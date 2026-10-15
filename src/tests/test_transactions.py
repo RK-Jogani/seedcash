@@ -554,6 +554,10 @@ class TestPsbtV145CashtokenScenarios:
             for parent in materialized['sourceTransactions']:
                 digest = hashlib.sha256(hashlib.sha256(bytes.fromhex(parent['hex'])).digest()).digest()
                 assert digest[::-1].hex() == parent['txid']
+            if materialized['id'] in ('M06', 'M07'):
+                with pytest.raises(ValueError, match='burns'):
+                    PSBTParser(bytearray.fromhex(materialized['psbtHex']))
+                continue
             parser = PSBTParser(bytearray.fromhex(materialized['psbtHex']))
             assert parser.parsed['unsigned_tx'].hex() == materialized['unsignedTransactionHex']
             assert parser.input_count == len(materialized['inputs'])
@@ -679,7 +683,11 @@ class TestPaytaca145Framing:
         assert parsed['inputs'] == ordinary['inputs']
         assert parsed['outputs'] == ordinary['outputs']
         assert parsed['input_ends'] == boundary
-        PSBTParser(paytaca)
+        if item['id'] in ('M06', 'M07'):
+            with pytest.raises(ValueError, match='burns'):
+                PSBTParser(paytaca)
+        else:
+            PSBTParser(paytaca)
         # Exercise the signer's reconstruction boundary with a new partial sig.
         maps = [list(pairs) for pairs in parsed['inputs']]
         maps[0].append((b'\x02' + Bip44.private_to_public((1).to_bytes(32, 'big')), bytes(64) + b'\x41'))
