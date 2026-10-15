@@ -128,11 +128,11 @@ class PSBTFungibleTokenWarningsView(View):
             if self.check_point == 1:
                 result = self.run_screen(
                     WarningScreen,
-                    title=_("Unknown Token ID"),
+                    title=_("Unknown FT token ID"),
                     show_back_button=True,
                     status_headline=_(""),
                     status_icon_name=SeedCashIconsConstants.WARNING,
-                    text=_(f"Unknown token ID, No decimal conversion applied!"),
+                    text=_(f"Unknown token ID, No decimal conversion applied."),
                     button_data=[ButtonOption("Confirm")],
                     selected_color=category.icon_color
                 )

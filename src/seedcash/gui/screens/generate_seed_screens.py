@@ -181,7 +181,7 @@ class ToolsCoinFlipEntryScreen(BaseScreen):
             )
         )
 
-        component_y += GUIConstants.TOP_NAV_HEIGHT + GUIConstants.COMPONENT_PADDING
+        component_y += GUIConstants.TOP_NAV_HEIGHT + 2 * GUIConstants.COMPONENT_PADDING
         button_height = GUIConstants.BUTTON_HEIGHT
 
         self.components.append(
@@ -193,9 +193,9 @@ class ToolsCoinFlipEntryScreen(BaseScreen):
             )
         )
 
-        component_y += button_height + 2 * GUIConstants.COMPONENT_PADDING
-
-        width = (self.canvas_width - 3 * GUIConstants.EDGE_PADDING) // 2
+        component_y = self.canvas_height - 2 * button_height - 2 * GUIConstants.COMPONENT_PADDING
+        width = (self.canvas_width - 4 * GUIConstants.EDGE_PADDING) // 3
+        
         self.components.append(
             Button(
                 text="0",
@@ -214,25 +214,23 @@ class ToolsCoinFlipEntryScreen(BaseScreen):
             )
         )
 
-        component_y += button_height + GUIConstants.COMPONENT_PADDING
-
         self.components.append(
             IconButton(
                 icon_name=SeedCashIconsConstants.DELETE,
-                width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
-                screen_x=GUIConstants.EDGE_PADDING,
+                width=width,
+                screen_x=GUIConstants.EDGE_PADDING * 3 + 2 * width,
                 screen_y=component_y,
             )
         )
 
-
+        component_y += button_height + GUIConstants.COMPONENT_PADDING
         # This button confirm button must be below the canva
         self.components.append(
             Button(
                 text="Confirm",
                 width=self.canvas_width - 2 * GUIConstants.EDGE_PADDING,
                 screen_x=GUIConstants.EDGE_PADDING,
-                screen_y=self.canvas_height - button_height - GUIConstants.COMPONENT_PADDING,
+                screen_y=component_y,
             )
         )
         self.selected_button = 2
@@ -249,6 +247,7 @@ class ToolsCoinFlipEntryScreen(BaseScreen):
         return bits
 
     def _run(self):
+        last_button = 2
         while True:
             user_input = self.hw_inputs.wait_for(
                 HardwareButtonsConstants.KEYS__LEFT_RIGHT_UP_DOWN
@@ -257,13 +256,14 @@ class ToolsCoinFlipEntryScreen(BaseScreen):
 
             with self.renderer.lock:
                 if user_input == HardwareButtonsConstants.KEY_LEFT:
-                    next_button = {3: 2}.get(self.selected_button)
+                    next_button = {3: 2, 4:3}.get(self.selected_button)
                 elif user_input == HardwareButtonsConstants.KEY_RIGHT:
-                    next_button = {2: 3}.get(self.selected_button)
+                    next_button = {2: 3, 3: 4}.get(self.selected_button)
                 elif user_input == HardwareButtonsConstants.KEY_UP:
-                    next_button = {4: 2, 4: 3, 5:4}.get(self.selected_button)
+                    next_button = {5:last_button}.get(self.selected_button)
                 elif user_input == HardwareButtonsConstants.KEY_DOWN:
-                    next_button = {2: 4, 3: 4, 4: 5}.get(self.selected_button)
+                    last_button = self.selected_button
+                    next_button = {2: 5, 3:5, 4:5}.get(self.selected_button)
                 else:
                     next_button = None
 
@@ -282,6 +282,8 @@ class ToolsCoinFlipEntryScreen(BaseScreen):
                         5: "CONFIRM",
                     }[self.selected_button]
                     if button == "CONFIRM":
+                        if len(self.bits) != self.max_bits:
+                            continue
                         return self.bits
 
                     self.bits = self._button_pressed(button, self.bits)
@@ -290,9 +292,8 @@ class ToolsCoinFlipEntryScreen(BaseScreen):
                         height=GUIConstants.BUTTON_HEIGHT,
                         screen_x=GUIConstants.EDGE_PADDING,
                         screen_y=(
-                            2 * GUIConstants.EDGE_PADDING 
-                            + GUIConstants.TOP_NAV_HEIGHT 
-                            + GUIConstants.COMPONENT_PADDING
+                            4 * GUIConstants.EDGE_PADDING 
+                            + GUIConstants.TOP_NAV_HEIGHT
                         ),
                     )
                     self.components[1].render()
@@ -322,9 +323,7 @@ class ToolsCalcFinalWordScreen(ButtonListScreen):
         )
 
         checksum = TextArea(
-            text="Checksum: {} {}".format(
-                "- " * (11 - self.num_checksum_bits), self.checksum_bits
-            ),
+            text=f"Checksum: {self.checksum_bits}",
             screen_x=text_x,
             screen_y=text_y
             + GUIConstants.BUTTON_FONT_SIZE
