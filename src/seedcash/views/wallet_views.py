@@ -61,7 +61,7 @@ class WalletFinalizeView(View):
             return Destination(BackStackView)
         
         if button_data[selected_menu_num] == self.CONFIRM:
-            if self.controller.storage.wallet and not self.controller.storage.is_generate:
+            if self.controller.storage.wallet and not self.controller.storage._is_generate:
                 return Destination(WalletOptionsView, clear_history=True)
 
             self.controller.storage.discard_wallet()
@@ -190,7 +190,7 @@ class SeedReviewPassphraseExitDialogView(View):
         )
 
         if button_data[selected_menu_num] == self.CONFIRM:
-            if self.controller.storage.wallet and not self.controller.storage.is_generate:
+            if self.controller.storage.wallet and not self.controller.storage._is_generate:
                 return Destination(WalletOptionsView, clear_history=True)
 
             self.controller.storage.discard_wallet()

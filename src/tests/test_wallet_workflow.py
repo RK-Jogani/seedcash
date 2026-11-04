@@ -134,7 +134,7 @@ class TestGenerationWorkflow:
         from seedcash.views.view import MainMenuView
         from seedcash.views.wallet_views import SeedFinalizeScreen
         from seedcash.gui.screens.load_seed_screens import SeedReviewPassphraseScreen
-        storage.is_generate = generated
+        storage._is_generate = generated
         words = ['abandon'] * 11 + ['about']
         storage.set_mnemonic(list(words))
         storage.convert_mnemonic_to_seed()
@@ -214,7 +214,7 @@ class TestSecretLifecycle:
     @staticmethod
     def test_generated_wallet_assignment_and_passphrase_owner():
         storage = SeedStorage()
-        storage.is_generate = False
+        storage._is_generate = False
         storage.set_mnemonic(list(secret_lifecycle_WORDS))
         storage.convert_mnemonic_to_seed()
         storage.set_passphrase('secret-passphrase')
@@ -234,7 +234,7 @@ class TestSecretLifecycle:
     @staticmethod
     def test_discard_clears_shared_mnemonic_and_private_buffer():
         storage = SeedStorage()
-        storage.is_generate = False
+        storage._is_generate = False
         source = list(secret_lifecycle_WORDS)
         storage.set_mnemonic(source)
         storage.convert_mnemonic_to_seed()
@@ -260,7 +260,7 @@ class TestSecretLifecycle:
             Seed([secret] * 12)
         assert secret not in str(caught.value)
         storage = SeedStorage()
-        storage.is_generate = False
+        storage._is_generate = False
         bits = '10' * 64
         with caplog.at_level('INFO'):
             storage.set_scheme_params(bits)
@@ -343,7 +343,7 @@ class TestSecretLifecycle:
         from seedcash.controller import Controller
         controller = Controller.__new__(Controller)
         controller._storage = SeedStorage()
-        controller._storage.is_generate = False
+        controller._storage._is_generate = False
         controller.back_stack = [Destination(View, {'mnemonic': secret_lifecycle_WORDS})]
         controller.screensaver = SimpleNamespace(last_screen='secret-pixels')
         raw = bytearray(b'sensitive-transaction')
@@ -365,7 +365,7 @@ class TestSecretLifecycle:
         from seedcash.views.wallet_views import SeedAddPassphraseView, SeedAddPassphraseExitDialogView
         from seedcash.views.view import BackStackView
         storage = SeedStorage()
-        storage.is_generate = False
+        storage._is_generate = False
         words = Bip39.generate_random_seed(12) if generated else list(secret_lifecycle_WORDS)
         expected_words = list(words)
         storage.set_mnemonic(words)

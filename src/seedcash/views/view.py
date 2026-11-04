@@ -224,11 +224,11 @@ class MainMenuView(View):
         button_data.append("Power Off")
 
         if button_data[selected_menu_num] == self.LOAD_SEED:
-            self.controller.storage.is_generate = False
+            self.controller.storage._is_generate = False
             return Destination(LoadSeedView)
 
         elif button_data[selected_menu_num] == self.GENERATE_SEED:
-            self.controller.storage.is_generate = True
+            self.controller.storage._is_generate = True
             return Destination(GenerateSeedView)
 
         elif button_data[selected_menu_num] == self.SETTINGS:
