@@ -15,7 +15,7 @@ class Bip39:
         return list39
 
     @staticmethod
-    def binmnemonic_to_mnemonic(bin_mnemonic):
+    def binmnemonic_to_mnemonic(bin_mnemonic) -> list[str]:
         list39 = Bip39.dictionary_BIP39()
         n = len(bin_mnemonic)
         mnemonic = []
@@ -43,8 +43,7 @@ class Bip39:
         full_binary = bin_segment + checksum
 
         # Convertim a mnemonic
-        mnemonic = Bip39.binmnemonic_to_mnemonic(full_binary)
-        return " ".join(mnemonic)
+        return Bip39.binmnemonic_to_mnemonic(full_binary)
 
     @staticmethod
     def get_mnemonic(incomplete_mnemonic, last_bits):

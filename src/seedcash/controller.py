@@ -1,3 +1,8 @@
+import hashlib
+
+from PIL.Image import Image
+
+from seedcash.models.bip39 import Bip39
 from seedcash.models.psbt_parser import PSBTParser
 import logging
 import time
@@ -99,6 +104,11 @@ class Controller(Singleton):
     psbt_parser: PSBTParser = None
     settings: Settings = None
 
+
+    # image entropy preview frames collected from the camera
+    image_entropy_preview_frames: list[Image] = None
+    image_entropy_final_image: Image = None
+
     back_stack: BackStack = None
     screensaver: ScreensaverScreen = None
     toast_notification_thread: BaseToastOverlayManagerThread = None
@@ -173,6 +183,35 @@ class Controller(Singleton):
             self.screensaver.last_screen = None
         import gc
         gc.collect()
+
+    def build_mnemonic_images_entropy(self):
+        try:
+            serial_num = b''
+            with open("/proc/cpuinfo", "r") as f:
+                for line in f:
+                    if "Serial" in line:
+                        serial_num = line.split(":")[-1].strip().encode('utf-8')
+                        break
+            serial_hash = hashlib.sha256(serial_num)
+            hash_bytes = serial_hash.digest()
+        except Exception as e:
+            logger.info(repr(e), exc_info=True)
+            hash_bytes = b'0'
+
+        # Build in modest entropy via millis since power on
+        millis_hash = hashlib.sha256(hash_bytes + str(time.time()).encode('utf-8'))
+        hash_bytes = millis_hash.digest()
+
+        # Build in better entropy by chaining the preview frames
+        for frame in self.image_entropy_preview_frames:
+            img_hash = hashlib.sha256(hash_bytes + frame.tobytes())
+            hash_bytes = img_hash.digest()
+
+        # Finally build in our headline entropy via the new full-res image
+        final_hash = hashlib.sha256(hash_bytes + self.image_entropy_final_image.tobytes()).digest()
+        self.storage.set_mnemonic(Bip39.mnemonic_from_bytes(final_hash[:16]))
+        self.image_entropy_preview_frames = None
+        self.image_entropy_final_image = None
 
     def discard_psbt(self):
         if isinstance(self.psbt_bytes, bytearray):

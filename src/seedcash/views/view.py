@@ -270,7 +270,8 @@ class GenerateSeedView(View):
             return Destination(MainMenuView)
 
         if button_data[selected_menu_num] == self.RANDOM:
-            return Destination(NotYetImplementedView)
+            from seedcash.views.generate_seed_views import ToolsImageEntropyLivePreviewView
+            return Destination(ToolsImageEntropyLivePreviewView)
 
         elif button_data[selected_menu_num] == self.CALCULATE_LAST_WORD:
             from seedcash.views.load_seed_views import SeedMnemonicEntryView
