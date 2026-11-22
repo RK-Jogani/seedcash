@@ -35,7 +35,7 @@ class SeedMnemonicEntryView(View):
         from seedcash.gui.screens.load_seed_screens import SeedMnemonicEntryScreen
         ret = self.run_screen(
             SeedMnemonicEntryScreen,
-            title=_("Seed Word #{}").format(self.cur_word_index + 1),  
+            title=_("Mnemonic Word #{}").format(self.cur_word_index + 1),  
             initial_letters=list(self.cur_word) if self.cur_word else ["a"],
             wordlist=self.controller.storage.get_wordlist,
         )

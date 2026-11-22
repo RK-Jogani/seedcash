@@ -87,6 +87,13 @@ class TestPsbtReceiver:
         assert receiver.add_data(data) == DecodeQRStatus.INVALID
 
     @staticmethod
+    def test_bytes_qr_payload_is_decoded_as_utf8():
+        encoder = psbt_receiver_lab_ur(psbt_receiver_fixture())
+        receiver = DecodeQR()
+        status = receiver.add_data(encoder.next_part().encode("utf-8"))
+        assert status in (DecodeQRStatus.PART_COMPLETE, DecodeQRStatus.COMPLETE)
+
+    @staticmethod
     def test_every_truncated_psbt_prefix_fails_closed():
         raw = psbt_receiver_fixture()
         for length in range(len(raw)):

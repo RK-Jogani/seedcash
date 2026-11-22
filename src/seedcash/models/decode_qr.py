@@ -56,6 +56,12 @@ class DecodeQR:
             return self._invalidate()
         if self.complete:
             return DecodeQRStatus.COMPLETE
+        if isinstance(data, bytes):
+            try:
+                data = data.decode("utf-8")
+            except UnicodeDecodeError:
+                return self._invalidate()
+
         qr_type = DecodeQR.detect_segment_type(data)
         if qr_type == QRType.INVALID:
             return self._invalidate()
@@ -148,6 +154,12 @@ class DecodeQR:
     def detect_segment_type(s):
         if not isinstance(s, (str, bytes)) or len(s) > MAX_UR_FRAME_LENGTH:
             return QRType.INVALID
+
+        if isinstance(s, bytes):
+            try:
+                s = s.decode("utf-8")
+            except UnicodeDecodeError:
+                return QRType.INVALID
 
         # PSBT
         if re.search("^UR:CRYPTO-PSBT/", s, re.IGNORECASE):

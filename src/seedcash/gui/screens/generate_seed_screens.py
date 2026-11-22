@@ -682,4 +682,18 @@ class ToolsImageEntropyFinalImageScreen(BaseScreen):
         if input == HardwareButtonsConstants.KEY_LEFT:
             return RET_CODE__BACK_BUTTON
 
+@dataclass
+class SeedWordsBackupTestPromptScreen(SeedCashButtonListWithNav):
+    def __post_init__(self):
+        self.title = "Verify Backup?"
+        self.show_back_button = False
+        self.is_button_text_centered = True
+        self.is_bottom_list = True
+        super().__post_init__()
+
+        self.components.append(TextArea(
+            text="Optionally verify that your mnemonic backup is correct.",
+            screen_y=self.top_nav.height,
+            is_text_centered=True,
+        ))
 
