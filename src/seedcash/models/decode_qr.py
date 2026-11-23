@@ -227,7 +227,7 @@ class SeedQrDecoder(BaseSingleFrameQrDecoder):
                 else:
                     segment_bytes = segment
 
-                self.seed_phrase = Bip39.mnemonic_from_bytes(segment_bytes).split()
+                self.seed_phrase = Bip39.mnemonic_from_bytes(segment_bytes)
                 self.complete = True
                 self.collected_segments = 1
                 return DecodeQRStatus.COMPLETE

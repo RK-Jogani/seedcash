@@ -1,11 +1,11 @@
-from seedcash.models.psbt_parser import PSBTParser
+import hashlib
 import logging
 import time
 import traceback
-
+from PIL.Image import Image
 from seedcash.gui.toast import BaseToastOverlayManagerThread
-from seedcash.models.seed import Seed
-from seedcash.models.storage import SeedStorage
+from seedcash.models.psbt_parser import PSBTParser
+from seedcash.models.storage import Storage
 from seedcash.models.settings import Settings
 from seedcash.models.settings_definition import SettingsConstants
 from seedcash.models.singleton import Singleton
@@ -65,9 +65,8 @@ class BackgroundImportThread(BaseThread):
         time_import("seedcash.models.wallet")
         time_import("seedcash.models.seed")
         time_import("seedcash.models.storage")
-        from seedcash.models.storage import SeedStorage
 
-        Controller.get_instance()._storage = SeedStorage()
+        Controller.get_instance()._storage = Storage()
 
         # Get MainMenuView ready to respond quickly
 
@@ -99,10 +98,14 @@ class Controller(Singleton):
 
     # Declare class member vars with type hints to enable richer IDE support throughout
     # the code.
-    _storage: SeedStorage = None
+    _storage: Storage = None
     psbt_bytes: bytearray = b""
     psbt_parser: PSBTParser = None
     settings: Settings = None
+
+    # image entropy preview frames collected from the camera
+    image_entropy_preview_frames: list[Image] = None
+    image_entropy_final_image: Image = None
 
     back_stack: BackStack = None
     screensaver: ScreensaverScreen = None
@@ -178,6 +181,36 @@ class Controller(Singleton):
             self.screensaver.last_screen = None
         import gc
         gc.collect()
+
+    def build_mnemonic_images_entropy(self):
+        try:
+            serial_num = b''
+            with open("/proc/cpuinfo", "r") as f:
+                for line in f:
+                    if "Serial" in line:
+                        serial_num = line.split(":")[-1].strip().encode('utf-8')
+                        break
+            serial_hash = hashlib.sha256(serial_num)
+            hash_bytes = serial_hash.digest()
+        except Exception as e:
+            logger.info(repr(e), exc_info=True)
+            hash_bytes = b'0'
+
+        # Build in modest entropy via millis since power on
+        millis_hash = hashlib.sha256(hash_bytes + str(time.time()).encode('utf-8'))
+        hash_bytes = millis_hash.digest()
+
+        # Build in better entropy by chaining the preview frames
+        for frame in self.image_entropy_preview_frames:
+            img_hash = hashlib.sha256(hash_bytes + frame.tobytes())
+            hash_bytes = img_hash.digest()
+
+        # Finally build in our headline entropy via the new full-res image
+        final_hash = hashlib.sha256(hash_bytes + self.image_entropy_final_image.tobytes()).digest()
+        self.storage.image_entropy_to_mnemonic(final_hash)
+        self.image_entropy_preview_frames = None
+        self.image_entropy_final_image = None
+
 
     def discard_psbt(self):
         if isinstance(self.psbt_bytes, bytearray):
@@ -287,7 +320,6 @@ class Controller(Singleton):
                 if not next_destination:
                     # Should only happen during dev when you hit an unimplemented option
                     from seedcash.views.view import NotYetImplementedView
-
                     next_destination = Destination(NotYetImplementedView)
 
                 if next_destination.skip_current_view:

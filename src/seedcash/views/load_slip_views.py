@@ -1,5 +1,5 @@
 from gettext import gettext as _
-from seedcash.gui.components import SeedCashIconsConstants
+from seedcash.gui.components import GUIConstants, SeedCashIconsConstants
 from seedcash.gui.screens.load_seed_screens import SeedMnemonicEntryScreen
 from seedcash.gui.screens.screen import (
     RET_CODE__BACK_BUTTON,
@@ -22,7 +22,7 @@ from seedcash.gui.screens.slip_screens import (
 )
 
 
-class SeedSlipMnemonicEntryView(View):
+class SlipMnemonicEntryView(View):
     """
     View for entering a Slip39 seed phrase.
     """
@@ -35,7 +35,7 @@ class SeedSlipMnemonicEntryView(View):
     def run(self):
         ret = self.run_screen(
             SeedMnemonicEntryScreen,
-            title=f"Seed Word #{self.cur_word_index + 1}",
+            title=f"Word #{self.cur_word_index + 1}",
             initial_letters=list(self.cur_word) if self.cur_word else ["a"],
             wordlist=self.controller.storage.get_wordlist,
         )
@@ -58,7 +58,7 @@ class SeedSlipMnemonicEntryView(View):
 
         if self.cur_word_index < (self.controller.storage.mnemonic_length - 1):
             return Destination(
-                SeedSlipMnemonicEntryView,
+                SlipMnemonicEntryView,
                 view_args={
                     "cur_word_index": self.cur_word_index + 1,
                 },
@@ -137,7 +137,7 @@ class VisualLoadedSchemeView(View):
             )
         elif ret == "ADD":
             return Destination(
-                SeedSlipMnemonicEntryView, view_args={"cur_word_index": 0}
+                SlipMnemonicEntryView, view_args={"cur_word_index": 0}
             )
 
 class ReviewLoadedSchemeView(View):
@@ -259,7 +259,7 @@ class SeedShareInvalidView(View):
 
         if button_data[selected_menu_num] == self.EDIT:
             return Destination(
-                SeedSlipMnemonicEntryView,
+                SlipMnemonicEntryView,
                 view_args={"cur_word_index": 0},
                 skip_current_view=True,
             )
@@ -290,7 +290,7 @@ class SeedShareDiscardView(View):
 
         if button_data[selected_menu_num] == self.EDIT:
             return Destination(
-                SeedSlipMnemonicEntryView,
+                SlipMnemonicEntryView,
                 view_args={"cur_word_index": 0},
                 skip_current_view=True,
             )

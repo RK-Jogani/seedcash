@@ -10,7 +10,7 @@ from seedcash.models.seed import InvalidSeedException
 from seedcash.models.scheme import Scheme
 from seedcash.models.scheme import SchemeParameters
 from seedcash.models.settings import Settings
-from seedcash.models.storage import SeedStorage
+from seedcash.models.storage import Storage
 from seedcash.views.view import View
 from seedcash.views.generate_seed_views import ToolsCalcFinalWordCoinFlipsView
 from seedcash.views.generate_slip_views import ListOfSharesView
@@ -42,7 +42,7 @@ class TestGenerationWorkflow:
     @pytest.fixture
     def storage(monkeypatch):
         monkeypatch.setattr(Settings.get_instance(), 'get_value', lambda key: 'BIP39')
-        return SeedStorage()
+        return Storage()
 
     @staticmethod
     @pytest.mark.parametrize('count', [12, 15, 18, 21, 24])
@@ -83,7 +83,7 @@ class TestGenerationWorkflow:
         if protocol == 'BIP39':
             owner = Seed(['abandon'] * 11 + ['about'])
         else:
-            params = SchemeParameters(bits='10' * 64)
+            params = SchemeParameters(scheme_bytes=bytes.fromhex('aa' * 16))
             params.update_groups(0, (2, 3))
             owner = Scheme(params)
         owner.generate_wallet()
@@ -97,7 +97,7 @@ class TestGenerationWorkflow:
 
     @staticmethod
     def test_sparse_group_and_share_selection_reads_correct_mnemonic(monkeypatch):
-        params = SchemeParameters(bits='10' * 64)
+        params = SchemeParameters(scheme_bytes=bytes.fromhex('aa' * 16))
         params.set_groups_length(2)
         params.update_groups(0, (2, 3))
         params.update_groups(1, (2, 3))
@@ -213,7 +213,7 @@ class TestSecretLifecycle:
 
     @staticmethod
     def test_generated_wallet_assignment_and_passphrase_owner():
-        storage = SeedStorage()
+        storage = Storage()
         storage._is_generate = False
         storage.set_mnemonic(list(secret_lifecycle_WORDS))
         storage.convert_mnemonic_to_seed()
@@ -233,7 +233,7 @@ class TestSecretLifecycle:
 
     @staticmethod
     def test_discard_clears_shared_mnemonic_and_private_buffer():
-        storage = SeedStorage()
+        storage = Storage()
         storage._is_generate = False
         source = list(secret_lifecycle_WORDS)
         storage.set_mnemonic(source)
@@ -259,12 +259,12 @@ class TestSecretLifecycle:
         with pytest.raises(InvalidSeedException) as caught:
             Seed([secret] * 12)
         assert secret not in str(caught.value)
-        storage = SeedStorage()
+        storage = Storage()
         storage._is_generate = False
-        bits = '10' * 64
+        scheme_bytes = bytes.fromhex('aa' * 16)
         with caplog.at_level('INFO'):
-            storage.set_scheme_params(bits)
-        assert bits not in caplog.text
+            storage.set_scheme_params(scheme_bytes)
+        assert scheme_bytes.hex() not in caplog.text
 
     @staticmethod
     def test_destination_repr_and_executed_view_release():
@@ -308,7 +308,7 @@ class TestSecretLifecycle:
     @staticmethod
     def test_custom_entropy_survives_scheme_selection(monkeypatch):
         from seedcash.views.generate_slip_views import SeedSlipEntryView, SeedSlipSchemeView
-        storage = SeedStorage()
+        storage = Storage()
         storage.set_mnemonic_length(20)
         controller = SimpleNamespace(storage=storage)
         bits = '00101' + '1' * 123
@@ -342,7 +342,7 @@ class TestSecretLifecycle:
     def test_controller_discard_releases_history_psbt_and_snapshot():
         from seedcash.controller import Controller
         controller = Controller.__new__(Controller)
-        controller._storage = SeedStorage()
+        controller._storage = Storage()
         controller._storage._is_generate = False
         controller.back_stack = [Destination(View, {'mnemonic': secret_lifecycle_WORDS})]
         controller.screensaver = SimpleNamespace(last_screen='secret-pixels')
@@ -364,9 +364,15 @@ class TestSecretLifecycle:
     def test_empty_passphrase_and_cancel_discard_keep_seed(generated):
         from seedcash.views.wallet_views import SeedAddPassphraseView, SeedAddPassphraseExitDialogView
         from seedcash.views.view import BackStackView
-        storage = SeedStorage()
+        storage = Storage()
         storage._is_generate = False
-        words = Bip39.generate_random_seed(12) if generated else list(secret_lifecycle_WORDS)
+        # Generate a valid BIP39 mnemonic through the current byte-to-mnemonic API.
+        # A fixed entropy input keeps this workflow test deterministic.
+        words = (
+            Bip39.mnemonic_from_bytes(bytes.fromhex('00' * 16))
+            if generated
+            else list(secret_lifecycle_WORDS)
+        )
         expected_words = list(words)
         storage.set_mnemonic(words)
         storage.convert_mnemonic_to_seed()
@@ -436,7 +442,7 @@ class TestSc08Discard:
     @staticmethod
     def test_discard_clears_storage_refs(monkeypatch):
         monkeypatch.setattr(Settings.get_instance(), 'get_value', lambda key: 'BIP39')
-        storage = SeedStorage()
+        storage = Storage()
         storage.set_mnemonic(['abandon'] * 11 + ['about'])
         storage.convert_mnemonic_to_seed()
         storage.set_passphrase('synthetic')

@@ -1,7 +1,7 @@
 from seedcash.gui.screens import screen
 from seedcash.models.seed import InvalidSeedException
 from gettext import gettext as _
-from seedcash.gui.components import SeedCashIconsConstants
+from seedcash.gui.components import GUIConstants, SeedCashIconsConstants
 from seedcash.gui.screens import (
     RET_CODE__BACK_BUTTON,
     DireWarningScreen,
@@ -36,10 +36,7 @@ class SeedMnemonicEntryView(View):
         from seedcash.gui.screens.load_seed_screens import SeedMnemonicEntryScreen
         ret = self.run_screen(
             SeedMnemonicEntryScreen,
-            # TRANSLATOR_NOTE: Inserts the word number (e.g. "Seed Word #6")
-            title=_("Seed Word #{}").format(
-                self.cur_word_index + 1
-            ),  # Human-readable 1-indexing!
+            title=_("Word #{}").format(self.cur_word_index + 1),
             initial_letters=list(self.cur_word) if self.cur_word else ["a"],
             wordlist=self.controller.storage.get_wordlist,
         )

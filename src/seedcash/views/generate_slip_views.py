@@ -8,7 +8,6 @@ from seedcash.gui.screens.screen import (
     DireWarningScreen,
 )
 
-from seedcash.helpers.shamir_mnemonic import share
 from seedcash.views.view import (
     BackStackView,
     View,
@@ -23,6 +22,31 @@ logger = logging.getLogger(__name__)
 
 
 # For Generating Slip39 Seed Views
+class GenerateSlipSeedView(View):
+    def __init__(self):
+        super().__init__()
+        self.RANDOM_SEED = ButtonOption("Random Seed")
+        self.CUSTOM_ENTROPY_SEED = ButtonOption("Custom Entropy Seed") 
+
+    def run(self):
+        from seedcash.gui.screens.screen import SeedCashButtonListWithNav
+
+        button_data = [self.RANDOM_SEED, self.CUSTOM_ENTROPY_SEED]
+
+        selected_menu_num = self.run_screen(
+            SeedCashButtonListWithNav,
+            button_data=button_data,
+        )
+
+        if selected_menu_num == RET_CODE__BACK_BUTTON:
+            return Destination(BackStackView)
+
+        if button_data[selected_menu_num] == self.RANDOM_SEED:
+            from seedcash.views.view import ToolsImageEntropyLivePreviewView
+            return Destination(ToolsImageEntropyLivePreviewView)
+        elif button_data[selected_menu_num] == self.CUSTOM_ENTROPY_SEED:
+            return Destination(SeedSlipEntryView)
+
 class SeedSlipEntryView(View):
     """
     View for entering a Slip39 seed phrase.
@@ -43,9 +67,9 @@ class SeedSlipEntryView(View):
         if ret == RET_CODE__BACK_BUTTON:
             return Destination(BackStackView)
         if len(ret) == 128 or len(ret) == 256:
-            self.controller.storage.set_scheme_params(ret)
+            # convert str to bytearray
+            self.controller.storage.set_scheme_params(scheme_bytes=int(ret, 2).to_bytes((len(ret) + 7) // 8, byteorder="big"))
             return Destination(SeedSlipBitsView)
-
 
 class SeedSlipBitsView(View):
     """
@@ -68,7 +92,6 @@ class SeedSlipBitsView(View):
             return Destination(BackStackView)
         if ret == "CONFIRM":
             return Destination(SeedSlipSchemeView)
-
 
 class SeedSlipSchemeView(View):
     """

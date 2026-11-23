@@ -11,7 +11,7 @@ from seedcash.gui.components import load_txt
 logger = logging.getLogger(__name__)
 
 
-class SeedStorage:
+class Storage:
     def __init__(self) -> None:
         self._mnemonic: List[str] = None
         self._scheme: Scheme = None
@@ -42,6 +42,10 @@ class SeedStorage:
             raise InvalidSeedException("Mnemonic has not been initialized")
         return self._mnemonic
 
+    @property
+    def is_generate(self) -> bool:
+        return self._is_generate
+    
     def set_mnemonic(self, mnemonic: List[Optional[str]]):
         if not isinstance(mnemonic, list):
             raise InvalidSeedException("Mnemonic must be a list")
@@ -63,6 +67,29 @@ class SeedStorage:
         if index >= len(self.mnemonic):
             raise InvalidSeedException(f"index {index} is too high")
         self.mnemonic[index] = word
+
+    def image_entropy_to_mnemonic(self, final_hash: bytes) -> List[str]:
+        if Settings.get_instance().get_value(SettingsConstants.SETTING__SEED_PROTOCOL) == "BIP39":
+            if self.mnemonic_length not in [12, 15, 18, 21, 24]:
+                raise InvalidSeedException(
+                    "Invalid mnemonic length for BIP39. Must be one of [12, 15, 18, 21, 24]."
+                )
+            from seedcash.models.bip39 import Bip39
+            if self.mnemonic_length == 12:
+                self.set_mnemonic(Bip39.mnemonic_from_bytes(final_hash[:16]))
+            elif self.mnemonic_length == 15:
+                self.set_mnemonic(Bip39.mnemonic_from_bytes(final_hash[:20]))
+            elif self.mnemonic_length == 18:
+                self.set_mnemonic(Bip39.mnemonic_from_bytes(final_hash[:24]))
+            elif self.mnemonic_length == 21:
+                self.set_mnemonic(Bip39.mnemonic_from_bytes(final_hash[:28]))
+            elif self.mnemonic_length == 24:
+                self.set_mnemonic(Bip39.mnemonic_from_bytes(final_hash[:32]))
+        elif Settings.get_instance().get_value(SettingsConstants.SETTING__SEED_PROTOCOL) == "SLIP39":
+            if self.mnemonic_length == 20:
+                self.set_scheme_params(final_hash[:16])
+            elif self.mnemonic_length == 33:
+                self.set_scheme_params(final_hash[:32])
 
     @property
     def mnemonic_length(self) -> int:
@@ -155,20 +182,11 @@ class SeedStorage:
             self._scheme.discard_scheme()
         self._scheme = None
     
-    def set_scheme_params(self, bits: Optional[str] = None):
-        if bits is not None:
-            self.set_scheme(
-                Scheme(scheme_parameters=SchemeParameters(bits=bits))
-            )
-        else:
-            from seedcash.models.slip39 import Slip39 as sp
-            self.set_scheme(
-                Scheme(scheme_parameters=SchemeParameters(
-                    bits=sp.get_random_bits_for_slip(self.mnemonic_length)
-                    )
-                ))
-
-        logger.info(f"Scheme and Mnemonics generated with parameters")
+    def set_scheme_params(self, scheme_bytes: bytearray = None):
+        self.set_scheme(
+            Scheme(scheme_parameters=SchemeParameters(scheme_bytes=scheme_bytes))
+        )
+        
 
     def add_share_to_scheme(self):
         

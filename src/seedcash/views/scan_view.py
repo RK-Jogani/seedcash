@@ -4,7 +4,6 @@ from seedcash.models.settings_definition import SettingsConstants
 from seedcash.views.view import (
     BackStackView,
     ErrorView,
-    NotYetImplementedView,
     View,
     Destination,
 )
@@ -139,8 +138,7 @@ class ScanView(View):
                 seed_mnemonic = self.decoder.get_seed_phrase()
                 
                 if not seed_mnemonic:
-                    # seed is not valid, Exit if not valid with message
-                    return Destination(NotYetImplementedView)
+                    return Destination()
                 else:
                     # Found a valid mnemonic seed! All new seeds should be considered
                     #   pending (might set a passphrase, SeedXOR, etc) until finalized.
@@ -156,9 +154,6 @@ class ScanView(View):
                 from seedcash.views.psbt_views import LoadingPSBTView
                 self.controller.psbt_bytes = self.decoder.get_psbt()
                 return Destination(LoadingPSBTView, skip_current_view=True)
-
-            else:
-                return Destination(NotYetImplementedView)
 
         elif self.decoder.is_invalid:
             # For now, don't even try to re-do the attempted operation, just reset and

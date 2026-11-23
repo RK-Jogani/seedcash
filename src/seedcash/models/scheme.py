@@ -33,30 +33,32 @@ class SchemeParameters:
     Represents the parameters of a Shamir Secret Sharing scheme.
     """
 
-    def __init__(self, bits: str = None):
-        if bits is None:
+    def __init__(self, scheme_bytes: bytearray = None):
+        
+        if scheme_bytes is None:
             raise InvalidSchemeException(
                 "Either bits or groups must be provided to initialize the scheme."
             )
         self._group_threshold = 1
         self._groups: List[Tuple[int, int]] = [None]
-        self._bits: bytes = b""
+        self._scheme_bytes: bytearray = None
 
-        self.set_bits(bits)
+        self.set_scheme_bytes(scheme_bytes)
 
     @property
     def bits_str(self) -> str:
-        if not self._bits:
+        if not self._scheme_bytes:
             raise InvalidSchemeException("Bits have not been initialized")
-        return bin(int.from_bytes(self._bits, byteorder="big"))[2:].zfill(
-            len(self._bits) * 8
+        return bin(int.from_bytes(self._scheme_bytes, byteorder="big"))[2:].zfill(
+            len(self._scheme_bytes) * 8
         )
 
     @property
     def bits(self) -> bytes:
-        if not self._bits:
+        if not self._scheme_bytes:
             raise InvalidSchemeException("Bits have not been initialized")
-        return self._bits
+
+        return self._scheme_bytes
 
 
     @property
@@ -75,14 +77,12 @@ class SchemeParameters:
     def groups_length(self) -> int:
         return len(self.groups)
 
-    def set_bits(self, bits: str):
-        if not bits:
-            raise ValueError("Bits cannot be empty.")
+    def set_scheme_bytes(self, scheme_bytes: bytearray):
+        
+        if scheme_bytes is  None or len(scheme_bytes) not in [16,32]:
+            raise InvalidSchemeException("Scheme bytes parameter is required to set scheme parameters.")
 
-        if len(bits) not in [128, 256]:
-            raise ValueError("Scheme Parameters must initialize with 128 or 256.")
-        # Convert str to bytes
-        self._bits = int(bits, 2).to_bytes((len(bits) + 7) // 8, byteorder="big")
+        self._scheme_bytes = scheme_bytes
 
     def set_groups_length(self, length: int):
         """
@@ -138,7 +138,7 @@ class SchemeParameters:
         """
         Discards the current scheme parameters and resets them.
         """
-        self._bits = b""
+        self._scheme_bytes = None
         self._group_threshold = 1
         self._groups = [None]
         import gc
