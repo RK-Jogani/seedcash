@@ -268,7 +268,6 @@ class SeedWordsBackupTestMistakeView(View):
                 view_args=dict(
                     confirmed_list=self.confirmed_list,
                     cur_index=self.cur_index,
-                    bip85_data=self.bip85_data,
                 )
             )
 

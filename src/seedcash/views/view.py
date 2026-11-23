@@ -245,7 +245,7 @@ class MainMenuView(View):
             return Destination(SettingOptionsView)
 
         elif button_data[selected_menu_num] == self.SEED_STORAGE:
-            return Destination(NotYetImplementedView, view_args={"text": "Seed Storage is still on our to-do list!"})
+            return Destination(AvailableInPlusView)
 
         elif button_data[selected_menu_num] == "Power Off":
             return Destination(PowerOffView)
@@ -290,22 +290,15 @@ class PowerOffView(View):
             return Destination(MainMenuView, clear_history=True)
 
 @dataclass
-class AvailableInPlusView(View):
-    """
-    Temporary View to use during dev.
-    """
-
-    text: str = "This feature is only available in SeedCash Plus!"
-
+class AvailableInPlusView(View): 
     def run(self):
         self.run_screen(
             WarningScreen,
             title=_("SeedCash Plus"),
-            status_headline=_("Available in SeedCash Plus"),
-            text=self.text,
+            status_headline=_("Not Supported"),
+            text=_("This feature is only available in SeedCash Plus!"),
             button_data=[ButtonOption("Back to Main Menu")],
         )
-
         return Destination(MainMenuView)
 
 @dataclass
