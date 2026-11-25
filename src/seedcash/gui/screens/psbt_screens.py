@@ -132,11 +132,11 @@ class PSBTOverviewScreen(SeedCashButtonListWithNav):
             inputs_column.append("input 1")
             inputs_column.append("input 2")
             inputs_column.append("[ ... ]")
-            inputs_column.append("input {}").format(self.input_count - 1)
-            inputs_column.append("input {}").format(self.input_count)
+            inputs_column.append(f"input {self.input_count - 1}")
+            inputs_column.append(f"input {self.input_count}")
         else:
             for i in range(0, self.input_count):
-                inputs_column.append("input {}").format(i + 1)
+                inputs_column.append(f"input {i + 1}")
 
         max_inputs_text_width = 0
         for input in inputs_column:
@@ -169,7 +169,7 @@ class PSBTOverviewScreen(SeedCashButtonListWithNav):
             else:
                 destination_column.append("recipient 1")
                 destination_column.append("[ ... ]")
-                destination_column.append("recipient {}").format(len(self.destination_addresses))
+                destination_column.append(f"recipient {len(self.destination_addresses)}")
     
             
             if self.fee_amount > 0:
