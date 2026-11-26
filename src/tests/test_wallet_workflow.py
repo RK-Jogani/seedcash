@@ -4,6 +4,7 @@ from base58 import b58encode
 from seedcash.models.bip44 import Bip44
 from types import SimpleNamespace
 from unittest.mock import Mock
+import secrets
 import pytest
 from seedcash.models.seed import Seed
 from seedcash.models.seed import InvalidSeedException
@@ -303,7 +304,7 @@ class TestSecretLifecycle:
         from seedcash.views.view import BackStackView
         storage = SeedStorage()
         storage._is_generate = False
-        words = Bip39.generate_random_seed(12) if generated else list(secret_lifecycle_WORDS)
+        words = Bip39.mnemonic_from_bytes(secrets.token_bytes(16)) if generated else list(secret_lifecycle_WORDS)
         expected_words = list(words)
         storage.set_mnemonic(words)
         storage.convert_mnemonic_to_seed()

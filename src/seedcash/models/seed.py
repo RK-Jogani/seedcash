@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import logging
 import hashlib
 
@@ -12,10 +11,6 @@ logger = logging.getLogger(__name__)
 
 class InvalidSeedException(Exception):
     pass
-
-@dataclass
-class CalculateFinalWord:     
-    coin_flips: str
 
 class Seed:
     MAX_PASSPHRASE_LENGTH = 128
