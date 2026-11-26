@@ -1,11 +1,8 @@
 from dataclasses import dataclass
-from gettext import gettext as _
 
 from seedcash.hardware.buttons import HardwareButtonsConstants
-from seedcash.models import visual_hash as vh
 
 from seedcash.gui.components import (
-    IconTextLine,
     TextArea,
     RoundedTextArea,
     GUIConstants,
@@ -217,56 +214,3 @@ class ToolsCalcFinalWordScreen(ButtonListScreen):
         self.components.append(checksum)
         self.components.append(final_word)
         self.components.append(actual_final_word)
-
-@dataclass
-class ToolsCalcFinalWordDoneScreen(ButtonListScreen):
-    final_word: str = None
-    fingerprint: str = None
-
-    def __post_init__(self):
-        # Manually specify 12 vs 24 case for easier ordinal translation
-        self.is_bottom_list = True
-
-        super().__post_init__()
-
-        self.components.append(
-            TextArea(
-                text=f"""\"{self.final_word}\"""",
-                font_size=26,
-                is_text_centered=True,
-                screen_y=2 * GUIConstants.COMPONENT_PADDING,
-            )
-        )
-
-        # Generate fingerprint image using visual hash
-        fingerprint_image = vh.generate_lifehash(self.fingerprint)
-
-        # Calculate the icon size to match the original icon size
-        icon_size = GUIConstants.ICON_FONT_SIZE + 12
-
-        # Calculate position for the fingerprint display
-        fingerprint_y = (
-            self.components[-1].screen_y
-            + self.components[-1].height
-            + 3 * GUIConstants.COMPONENT_PADDING
-        )
-
-        self.components.append(
-            IconTextLine(
-                icon_name=None,  # No icon since we're using the actual image
-                # TRANSLATOR_NOTE: a label for the shortened Key-id of a BIP-32 master HD wallet
-                label_text=_("fingerprint"),
-                value_text=self.fingerprint,
-                is_text_centered=True,
-                screen_y=fingerprint_y,
-            )
-        )
-
-        # Calculate position for the fingerprint image (to the left of the text)
-        image_x = (self.canvas_width - icon_size) // 2 - 60  # Offset to left of text
-        image_y = fingerprint_y - (icon_size // 4)  # Align with text baseline
-
-        # Add the fingerprint image to paste_images
-        self.paste_images.append(
-            (fingerprint_image.resize((icon_size, icon_size)), (image_x, image_y))
-        )

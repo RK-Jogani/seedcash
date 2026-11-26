@@ -2,7 +2,6 @@ import logging
 import time
 
 from dataclasses import dataclass
-from gettext import gettext as _
 
 from seedcash.gui.components import load_image
 from seedcash.gui.screens.screen import BaseScreen

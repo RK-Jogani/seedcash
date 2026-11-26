@@ -2,7 +2,6 @@ import logging
 import math
 
 from dataclasses import dataclass
-from gettext import gettext as _
 from PIL import Image, ImageDraw
 
 from seedcash.hardware.buttons import HardwareButtonsConstants

@@ -3,7 +3,6 @@ from seedcash.helpers.ur2.cbor_lite import CBOREncoder
 from seedcash.helpers.ur2.ur_encoder import UREncoder
 from seedcash.helpers.ur2.ur import UR
 from seedcash.helpers.qr import QR
-from seedcash.models.seed import Seed
 
 
 @dataclass

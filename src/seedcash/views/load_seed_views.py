@@ -1,7 +1,7 @@
 from seedcash.gui.screens import screen
 from seedcash.models.seed import InvalidSeedException
 from gettext import gettext as _
-from seedcash.gui.components import GUIConstants, SeedCashIconsConstants
+from seedcash.gui.components import SeedCashIconsConstants
 from seedcash.gui.screens import (
     RET_CODE__BACK_BUTTON,
     DireWarningScreen,

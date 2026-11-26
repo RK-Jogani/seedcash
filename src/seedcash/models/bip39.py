@@ -1,6 +1,5 @@
 import hashlib
 import hmac
-import os
 import unicodedata
 
 from seedcash.gui.components import load_txt

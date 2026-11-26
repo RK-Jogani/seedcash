@@ -1,5 +1,5 @@
 from gettext import gettext as _
-from seedcash.gui.components import GUIConstants, SeedCashIconsConstants
+from seedcash.gui.components import SeedCashIconsConstants
 from seedcash.gui.screens.load_seed_screens import SeedMnemonicEntryScreen
 from seedcash.gui.screens.screen import (
     RET_CODE__BACK_BUTTON,

@@ -28,7 +28,6 @@ from . import cipher
 from .constants import (
     DIGEST_INDEX,
     DIGEST_LENGTH_BYTES,
-    GROUP_PREFIX_LENGTH_WORDS,
     ID_LENGTH_BITS,
     MAX_SHARE_COUNT,
     MIN_STRENGTH_BITS,

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from PIL import Image, ImageDraw
 from typing import Tuple
-from gettext import gettext as _
 
 from seedcash.gui.components import Fonts, GUIConstants, SeedCashIconsConstants
 from seedcash.hardware.buttons import HardwareButtonsConstants
